@@ -247,11 +247,13 @@ html, body {
 .mp-signal-icon {
     position: absolute;
     top: 6px;
-    right: 38px;
-    width: 26px;
+    right: 38px; /* 닫기(×) 버튼(right 6px + 폭 26px) 바로 왼쪽, 6px 간격으로 나란히 */
+    /* 닫기 버튼과 같은 높이(26px). 이미지가 32×30(정사각형 아님)이라 26×26 칸에 contain으로 넣으면
+       가로에 맞춰 높이가 약 24px로 줄어들었음 — 높이를 고정하고 가로는 원본 비율로 */
     height: 26px;
+    aspect-ratio: 32 / 30;
     background-image: url('images/pokemon/layout/icon_signal.png');
-    background-size: contain;
+    background-size: 100% 100%;
     background-repeat: no-repeat;
     background-position: center;
     image-rendering: pixelated;
