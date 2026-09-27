@@ -69,17 +69,18 @@
             </div>
         </div>
 
-        <!-- 학생 등록 창 (관리자용) — 학생 구글 이메일을 붙여넣거나(한 줄에 한 명, "이메일, 이름")
-             엑셀(첫 열 이메일, 둘째 열 이름)로 한 번에 등록. 등록된 이메일만 로그인할 수 있음 -->
+        <!-- 학생 등록 창 (관리자용) — 한 명씩: 이메일·이름 입력칸 두 개(이름은 선택) 후 등록.
+             여러 명: 엑셀(첫 열 이메일, 둘째 열 이름)로 일괄 등록. 등록된 이메일만 로그인할 수 있음 -->
         <div id="admin-student-create-modal" class="mp-modal hidden">
             <div class="mp-box">
                 <button id="admin-student-create-close-btn" class="quiz-close-btn">×</button>
                 <div class="mp-title">학생 등록</div>
                 <input type="file" id="student-register-file" accept=".xlsx,.xls,.csv" class="hidden">
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <textarea id="student-register-input" class="admin-textarea" rows="6" spellcheck="false" placeholder="한 줄에 한 명씩 입력&#10;예) kim@school.kr, 김철수&#10;이름은 생략 가능"></textarea>
-                    <button id="btn-register-students" class="dex-settings-action-btn" style="width: 100%;">등록하기</button>
-                    <button id="btn-register-students-excel" class="dex-settings-action-btn" style="width: 100%;">엑셀로 등록</button>
+                    <input type="email" id="student-register-email" class="dex-cheat-input" placeholder="학생 구글 이메일" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex: none; width: 100%;">
+                    <input type="text" id="student-register-name" class="dex-cheat-input" placeholder="이름 (선택)" autocomplete="off" style="flex: none; width: 100%;">
+                    <button id="btn-register-student" class="dex-settings-action-btn" style="width: 100%;">등록하기</button>
+                    <button id="btn-register-students-excel" class="dex-settings-action-btn" style="width: 100%;">엑셀로 일괄 등록</button>
                 </div>
                 <div id="admin-student-create-feedback" class="field-feedback"></div>
             </div>
