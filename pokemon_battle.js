@@ -1323,7 +1323,11 @@ function mpSanitizeAction(action) {
 
 // 상대가 보낸 파티를 배틀용 엔트리로 — 모르는 id는 걸러내고 최대 3마리
 function mpSanitizeParty(list) {
-    return (Array.isArray(list) ? list : [])
+    let arr = [];
+    if (Array.isArray(list)) arr = list;
+    else if (list && typeof list === 'object') arr = Object.values(list);
+    
+    return arr
         .filter(p => p && POKEMON_DATA[p.id])
         .slice(0, 3)
         .map(p => ({ id: p.id, isShiny: !!p.isShiny, hp: BATTLE_MON_MAX_HP, fainted: false, known: false }));
@@ -1747,6 +1751,7 @@ dexBattleDecideBtn.addEventListener('click', () => {
         if (mpPartyLocked || battleParty.length < 3) return;
         mpPartyLocked = true;
         renderBattleSlots();
+        updateDexPickerBarVisibility();
         mpSend('party', battleParty.map(p => ({ id: p.id, isShiny: !!p.isShiny })));
         mpWaitFor('party', (oppParty) => {
             if (!mp.active || !mpPartyLocked) return;
