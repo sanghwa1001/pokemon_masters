@@ -44,7 +44,8 @@ function getFirebaseRef(path) {
 // ---------------- 메시지 큐 처리 ----------------
 window.mpSend = function(type, data) {
     if (!window.mp.active || !messagesRef) return;
-    const msg = { type, data, from: MP_CLIENT_ID, timestamp: Date.now() };
+    const msg = { type, from: MP_CLIENT_ID, timestamp: Date.now() };
+    if (data !== undefined) msg.data = data;
     window.firebasePush(messagesRef, msg).catch(e => console.error("Firebase send error", e));
 }
 

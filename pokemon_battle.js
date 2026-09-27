@@ -1378,7 +1378,7 @@ function mpWaitForcedSwitch(onDone) {
 
 // 함께하기 배틀 시작 전 프리로드 — 내 3마리 뒷모습(폼 전용이 없으면 종 기준형), 내/상대 6마리
 // 앞모습(상대 등장·상태 확인 창), 상태 확인 창의 물음표 이미지. 실패·시간초과여도 진행은 막지 않음
-const MP_PRELOAD_TIMEOUT_MS = 8000;
+const MP_PRELOAD_TIMEOUT_MS = 3000;
 function mpLoadImage(src) {
     return new Promise((resolve) => {
         const img = new Image();
