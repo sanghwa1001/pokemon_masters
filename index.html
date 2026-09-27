@@ -50,8 +50,9 @@
             <button id="btn-admin-logout" class="menu-item">로그아웃</button>
         </div>
 
-        <!-- 학생 관리 창 (관리자용) — 등록된 학생(구글 이메일) 목록. 체크박스로 여러 명을 골라
-             한 번에 삭제하고, 원하면 도감 기록(students/{uid})도 함께 지움 -->
+        <!-- 학생 관리 창 (관리자용) — 학습 데이터 관리 창과 같은 구성(제목 + 목록, 각 줄 오른쪽에 삭제
+             버튼). 각 줄에 이름과 아이디(구글 이메일)를 두 줄로 표시. 여러 명을 지울 땐 줄 왼쪽
+             체크박스로 고르면 아래에 "선택 삭제" 버튼이 나타남 -->
         <div id="admin-student-manage-modal" class="mp-modal hidden">
             <div class="mp-box">
                 <button id="admin-student-manage-close-btn" class="quiz-close-btn">×</button>
@@ -63,8 +64,7 @@
                 <div id="student-list-container" class="admin-list">
                     <!-- 학생 목록이 동적으로 추가됨 -->
                 </div>
-                <label class="admin-check-label admin-check-sub"><input type="checkbox" id="student-delete-data"> 도감 기록도 함께 삭제</label>
-                <button id="btn-delete-selected-students" class="dex-settings-action-btn dex-danger" disabled>선택 삭제</button>
+                <button id="btn-delete-selected-students" class="dex-settings-action-btn dex-danger hidden">선택 삭제</button>
                 <div id="admin-student-manage-feedback" class="field-feedback"></div>
             </div>
         </div>

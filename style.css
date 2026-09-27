@@ -2238,20 +2238,45 @@ html, body {
     cursor: pointer;
 }
 
-.admin-check-sub {
-    justify-content: center;
-}
-
 .admin-count {
     font-size: 12px;
     letter-spacing: 0.3px;
     color: #666;
 }
 
-/* 학생 한 줄 — 체크박스 + 이름/이메일(두 줄) */
+/* 학생 한 줄 — [체크박스] 이름 / 아이디(이메일) 두 줄 [삭제]. 칸 모양·삭제 버튼은 학습 데이터 관리
+   목록(.admin-row + .dex-danger-sm)과 같음 */
+.admin-student-row {
+    cursor: pointer;
+}
+
 .admin-row .admin-row-check {
     flex-shrink: 0;
     margin: 0 8px 0 0;
+}
+
+.admin-student-row .admin-row-name {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-right: 8px;
+}
+
+.admin-row-main {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-row-muted {
+    color: #888;
+}
+
+/* 아직 한 번도 로그인하지 않은 학생 — 이메일 오타를 찾기 쉽도록 이름 옆에 작게 표시 */
+.admin-row-tag {
+    margin-left: 6px;
+    font-size: 10px;
+    color: #b8281f;
 }
 
 .admin-row-sub {
