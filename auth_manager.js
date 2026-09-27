@@ -228,24 +228,39 @@ async function routeSignedInUser(user, token) {
     }
 }
 
+// 관리자가 학생 모드로 게임 중인지 — 이때 학생 시작화면 맨 아래 버튼은 "로그아웃" 대신
+// "관리자 메뉴"(관리자 대시보드로 돌아가기)가 됨
+let adminStudentMode = false;
+const studentLogoutBtn = document.getElementById('btn-student-logout');
+
 function enterAdmin() {
     window.currentStudentId = null;
+    adminStudentMode = false;
+    studentLogoutBtn.textContent = '로그아웃';
     setFieldFeedback(loginFeedbackEl, '');
     switchScreen(adminDashboard);
 }
 
 async function enterStudent(user, key, entry, token) {
-    const uid = user.uid;
     // 첫 로그인 때 등록 항목에 uid를 남겨 둠 — 관리자가 학생을 삭제할 때 도감 기록(students/{uid})도
     // 찾아서 지울 수 있게 함
-    if (entry.uid !== uid) {
-        await set(ref(db, `allowedStudents/${key}/uid`), uid).catch(e => console.error('학생 uid 기록 실패', e));
+    if (entry.uid !== user.uid) {
+        await set(ref(db, `allowedStudents/${key}/uid`), user.uid).catch(e => console.error('학생 uid 기록 실패', e));
     }
+    adminStudentMode = false;
+    studentLogoutBtn.textContent = '로그아웃';
+    await startStudentSession(user, entry.name || user.displayName || '', token);
+}
+
+// 학생 시작화면으로 들어가 게임 데이터(students/{uid} — 도감·선택한 학습 데이터)를 불러옴.
+// 학생 로그인과 관리자의 학생 모드가 함께 씀(관리자는 관리자 본인 uid 몫의 데이터를 씀)
+async function startStudentSession(user, name, token) {
+    const uid = user.uid;
     const studentRef = ref(db, `students/${uid}`);
     const snap = await get(studentRef);
     if (token !== authRouteToken) return;
     const data = snap.val() || {};
-    const profile = { email: String(user.email).toLowerCase(), name: entry.name || user.displayName || '' };
+    const profile = { email: String(user.email).toLowerCase(), name };
     if (data.email !== profile.email || data.name !== profile.name) {
         await update(studentRef, profile).catch(e => console.error('학생 정보 저장 실패', e));
     }
@@ -273,6 +288,33 @@ async function enterStudent(user, key, entry, token) {
     }
 }
 
+// 학생 시작화면의 게임 데이터 표시(도감·학습 데이터 선택 상태)를 비움 — 로그아웃과 학생 모드 종료가 함께 씀.
+// 실제 기록(students/{uid})은 계정에 남아 다음에 다시 불러옴
+function clearStudentSessionLocal() {
+    if (window.resetPokedexLocal) window.resetPokedexLocal();
+    if (window.resetLearningDataLocal) window.resetLearningDataLocal();
+    document.getElementById('btn-select-learning-data').textContent = "학습 데이터 선택";
+    window.currentStudentId = null;
+}
+
+// 관리자 대시보드 → 학생 모드
+const adminStudentModeBtn = document.getElementById('btn-admin-student-mode');
+adminStudentModeBtn.addEventListener('click', async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    adminStudentModeBtn.disabled = true;
+    try {
+        adminStudentMode = true;
+        studentLogoutBtn.textContent = '관리자 메뉴';
+        await startStudentSession(user, user.displayName || '', authRouteToken);
+    } catch (e) {
+        console.error('학생 모드 진입 실패', e);
+        adminStudentMode = false;
+        studentLogoutBtn.textContent = '로그아웃';
+    }
+    adminStudentModeBtn.disabled = false;
+});
+
 // 학생·관리자 공용 로그아웃 — 로그아웃이 된 뒤에만 화면 상태를 비움(실패하면 지금 화면 그대로 둠).
 // 로그인 화면 전환은 onAuthStateChanged가 함
 async function logout() {
@@ -284,15 +326,18 @@ async function logout() {
     }
     stopAdminLearningDataListener();
     [adminStudentCreateModal, adminStudentManageModal, adminDataUploadModal, adminDataManageModal, studentDataSelectModal].forEach(hideModal);
-    if (window.resetPokedexLocal) window.resetPokedexLocal();
-    // 학습 데이터 선택 화면 표시도 초기화 — 실제 선택 기록(selectedDataId)은 계정에 남아있으므로
-    // 다음에 같은 계정으로 로그인하면 다시 자동으로 적용됨
-    if (window.resetLearningDataLocal) window.resetLearningDataLocal();
-    document.getElementById('btn-select-learning-data').textContent = "학습 데이터 선택";
-    window.currentStudentId = null;
+    adminStudentMode = false;
+    studentLogoutBtn.textContent = '로그아웃';
+    clearStudentSessionLocal();
 }
 
-document.getElementById('btn-student-logout').addEventListener('click', logout);
+// 학생 시작화면 맨 아래 버튼 — 학생은 로그아웃, 학생 모드의 관리자는 관리자 대시보드로 돌아감
+studentLogoutBtn.addEventListener('click', () => {
+    if (!adminStudentMode) { logout(); return; }
+    hideModal(studentDataSelectModal);
+    clearStudentSessionLocal();
+    enterAdmin();
+});
 document.getElementById('btn-admin-logout').addEventListener('click', logout);
 
 
