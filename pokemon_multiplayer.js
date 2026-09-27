@@ -33,6 +33,8 @@ let currentRoomRef = null;
 let messagesRef = null;
 let unsubscribeMessages = null;
 let unsubscribeRoom = null;
+let isRoomOwner = false;      // 내가 만든 방인지(대기 중에도 true) — 정리 시 방 삭제 여부 판단용
+let roomDisconnectOp = null;  // 등록해 둔 onDisconnect 핸들(정상 종료 시 cancel)
 
 const MP_CLIENT_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -112,9 +114,17 @@ function mpTeardown() {
         unsubscribeRoom = null;
     }
     
-    if (currentRoomRef && window.mp.isHost) {
-        window.firebaseRemove(currentRoomRef);
+    // 등록해 둔 onDisconnect 해제 — 안 하면 나중에 탭을 닫을 때 같은 코드의 다른 방을 지울 수 있음
+    if (roomDisconnectOp) {
+        roomDisconnectOp.cancel().catch(() => {});
+        roomDisconnectOp = null;
     }
+    // 방장은 방(메시지 포함)을 삭제해 DB에 찌꺼기가 쌓이지 않게 함
+    // (isHost는 위에서 이미 false로 초기화되므로 별도 플래그 isRoomOwner로 판단)
+    if (currentRoomRef && isRoomOwner) {
+        window.firebaseRemove(currentRoomRef).catch(() => {});
+    }
+    isRoomOwner = false;
     currentRoomRef = null;
     messagesRef = null;
 }
@@ -158,6 +168,7 @@ mpCreateBtn.addEventListener('click', async () => {
     mpLobbyModalEl.classList.remove('hidden');
     
     currentRoomRef = getFirebaseRef(`rooms/${code}`);
+    isRoomOwner = true;
     await window.firebaseSet(currentRoomRef, {
         host: MP_CLIENT_ID,
         status: 'waiting',
@@ -165,29 +176,30 @@ mpCreateBtn.addEventListener('click', async () => {
     });
     
     // onDisconnect 훅: 방장이 끊기면 방 삭제
-    window.firebaseOnDisconnect(currentRoomRef).remove();
+    roomDisconnectOp = window.firebaseOnDisconnect(currentRoomRef);
+    roomDisconnectOp.remove();
     
-    // Guest가 들어오는지 감지
-    unsubscribeRoom = window.firebaseOnValue(currentRoomRef, (snapshot) => {
-        if (!snapshot.exists()) {
-            mpHandleRemoteGone();
+    // 방 전체가 아니라 guest 값만 감시 — 방 전체를 감시하면 messages가 추가될 때마다
+    // 콜백이 다시 불리고 메시지 전체를 매번 다시 내려받음
+    unsubscribeRoom = window.firebaseOnValue(getFirebaseRef(`rooms/${code}/guest`), (snapshot) => {
+        const guestId = snapshot.val();
+        if (!guestId) {
+            // 게임 중에 guest가 사라짐 = 게스트 이탈로 방이 삭제됨
+            if (window.mp.active) mpHandleRemoteGone();
             return;
         }
-        const val = snapshot.val();
-        // 이미 연결된 상태면 중복 실행 방지(자식 노드인 messages가 추가될 때마다 onValue가 다시 트리거됨)
-        if (val && val.status === 'playing' && val.guest && !window.mp.active) {
-            // 연결됨!
-            window.mp.active = true;
-            window.mp.isHost = true;
-            window.mp.partnerId = val.guest;
-            window.mp.roomCode = code;
-            
-            setupMessageListener(code);
-            
-            mpLobbyModalEl.classList.add('hidden');
-            showStartSubmenu(null);
-            if(window.openBattlePartyPicker) window.openBattlePartyPicker();
-        }
+        if (window.mp.active) return;
+        // 연결됨!
+        window.mp.active = true;
+        window.mp.isHost = true;
+        window.mp.partnerId = guestId;
+        window.mp.roomCode = code;
+        
+        setupMessageListener(code);
+        
+        mpLobbyModalEl.classList.add('hidden');
+        showStartSubmenu(null);
+        if(window.openBattlePartyPicker) window.openBattlePartyPicker();
     });
 });
 
@@ -211,13 +223,29 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
         return;
     }
     
-    // 입장!
-    await window.firebaseUpdate(roomRef, {
-        status: 'playing',
-        guest: MP_CLIENT_ID
-    });
+    // 입장! — 트랜잭션으로 처리해서 두 명이 동시에 같은 코드로 들어와도 한 명만 성공
+    let joined = false;
+    try {
+        const result = await window.firebaseRunTransaction(roomRef, (room) => {
+            // 로컬 캐시가 비어 첫 호출이 null로 올 수 있음 → null을 돌려주면 서버 값으로 재시도됨
+            if (room === null) return null;
+            if (room.status !== 'waiting' || room.guest) return; // 이미 찬 방 → 중단
+            room.status = 'playing';
+            room.guest = MP_CLIENT_ID;
+            return room;
+        });
+        const after = result.snapshot.val();
+        joined = result.committed && after && after.guest === MP_CLIENT_ID;
+    } catch (e) {
+        console.error('Firebase join error', e);
+    }
+    if (!joined) {
+        mpJoinFeedbackEl.textContent = '이미 게임이 시작되었거나 닫힌 방입니다.';
+        return;
+    }
     
-    window.firebaseOnDisconnect(roomRef).remove();
+    roomDisconnectOp = window.firebaseOnDisconnect(roomRef);
+    roomDisconnectOp.remove();
     
     window.mp.active = true;
     window.mp.isHost = false;
@@ -226,7 +254,8 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
     
     currentRoomRef = roomRef;
     
-    unsubscribeRoom = window.firebaseOnValue(roomRef, (snap) => {
+    // 방 전체 대신 host 값만 감시(메시지마다 전체를 다시 받지 않도록) — 방이 삭제되면 null이 됨
+    unsubscribeRoom = window.firebaseOnValue(getFirebaseRef(`rooms/${code}/host`), (snap) => {
         if (!snap.exists()) mpHandleRemoteGone();
     });
     
@@ -241,8 +270,7 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
 
 mpLobbyCloseBtn.addEventListener('click', () => {
     mpLobbyModalEl.classList.add('hidden');
-    if (currentRoomRef) window.firebaseRemove(currentRoomRef);
-    mpTeardown();
+    mpTeardown(); // 방장(isRoomOwner)이므로 방 삭제 + onDisconnect 해제까지 처리됨
 });
 
 mpJoinBtn.addEventListener('click', () => {

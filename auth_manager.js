@@ -50,6 +50,7 @@ document.getElementById('btn-admin-login').addEventListener('click', () => {
 });
 
 document.getElementById('btn-admin-logout').addEventListener('click', () => {
+    stopAdminLearningDataListener();
     switchScreen(loginScreen);
 });
 
@@ -63,6 +64,7 @@ document.getElementById('btn-admin-manage-data').addEventListener('click', () =>
 });
 
 document.getElementById('btn-data-manage-back').addEventListener('click', () => {
+    stopAdminLearningDataListener();
     switchScreen(adminDashboard);
 });
 
@@ -115,11 +117,21 @@ window.uploadLearningDataToFirebase = async function(parsedQuestions) {
     }
 };
 
+let unsubscribeAdminLearningData = null;
+function stopAdminLearningDataListener() {
+    if (unsubscribeAdminLearningData) {
+        unsubscribeAdminLearningData();
+        unsubscribeAdminLearningData = null;
+    }
+}
+
 function loadLearningDataForAdmin() {
     const listContainer = document.getElementById('data-list-container');
     listContainer.innerHTML = '로딩 중...';
     
-    onValue(ref(db, 'learningData'), (snapshot) => {
+    // 화면에 들어올 때마다 리스너가 중복으로 쌓이지 않도록 기존 리스너 해제 후 등록
+    stopAdminLearningDataListener();
+    unsubscribeAdminLearningData = onValue(ref(db, 'learningData'), (snapshot) => {
         listContainer.innerHTML = '';
         if (!snapshot.exists()) {
             listContainer.innerHTML = '<div style="color:white; text-align:center;">등록된 학습 데이터가 없습니다.</div>';
