@@ -1417,6 +1417,10 @@ function mpSubmitTurnAction(playerAction) {
 // (교체가 싸우기보다 먼저, 나머지는 50:50). host/guest를 내 화면 기준 player/ai로 바꿔 씀
 function mpResolveTurn(myAction, oppAction, rolls) {
     mpAwaitingOpponentAction = false;
+    // 상대 메시지가 왔으므로 내 개인 타이머(+네트워크 여유)는 더 이상 필요 없음 — 다음 턴
+    // 타이머가 시작될 때(finishTurn) 자연히 덮어써지긴 하지만, 그 사이(애니메이션 재생 등)에
+    // 남아있던 타이머가 먼저 만료되어 이미 끝난 턴에 대해 잘못 동작하는 걸 막기 위해 즉시 지움
+    window.mpClearDeadlineTimer();
     // 상대가 이번 턴도 패스(제한시간 초과)면 연속 카운트 증가 — 2번 연속이면 더 기다리지 않고
     // 곧바로 끊김 처리(기존 mpOnDisconnect 흐름 재사용). 응답했으면(패스가 아니면) 카운트 리셋
     if (oppAction === 'pass') {
