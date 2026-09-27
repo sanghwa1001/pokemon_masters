@@ -1826,6 +1826,10 @@ html, body {
     color: #000;
     z-index: 9;
     background: none;
+    /* #capture-message와 동일하게 — 순수 텍스트 표시용이라 클릭을 받을 일이 없고, 이게 없으면
+       화면 전체를 덮는 이 레이어가 뒤에 있는 닫기(×) 버튼/신호 아이콘의 클릭을 그대로 가로채서
+       "로딩 중"/전투 메시지가 떠 있는 동안 아예 안 눌리는 버그가 생김 */
+    pointer-events: none;
 }
 
 /* 상태 확인 오버레이 — #quiz-modal/#quiz-box와 같은 반투명 배경 + 흰 박스 + 검정 테두리.
