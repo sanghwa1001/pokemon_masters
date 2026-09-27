@@ -202,9 +202,10 @@
              맞춘 비활성 장식(기능은 추후 구현) -->
         <div id="battle-preview-screen" class="hidden">
             <button id="battle-preview-close-btn" class="quiz-close-btn">×</button>
-            <!-- 함께하기(멀티플레이) 연결 상태 아이콘 — 닫기(×) 버튼과 좌우 대칭 위치·같은 크기.
-                 혼자하기에서는 항상 hidden, 함께하기 매칭 중일 때만 pokemon_multiplayer.js가 표시함 -->
-            <div id="mp-signal-icon" class="hidden"></div>
+            <!-- 함께하기(멀티플레이) 턴 행동/강제교체/불러오기 대기 제한시간 — 닫기(×) 버튼과
+                 대칭 위치·여백. 혼자하기에서는 항상 hidden, 대기 중일 때만 pokemon_multiplayer.js/
+                 pokemon_battle.js가 표시함(캐치 게임 #game-timer와 같은 MM:SS 스타일) -->
+            <div id="battle-turn-timer" class="hidden"></div>
             <div id="battle-back-sprite-box"><div id="battle-back-sprite"></div></div>
             <div id="battle-back-shiny-effect" class="hidden"></div>
             <!-- 내 포켓몬 쪽 랭크업(칼춤)/회복(HP회복) 이펙트 — 이로치 이펙트와 같은 방식. 내 hp바/이름표
@@ -305,6 +306,8 @@
              클릭하는 것 자체가 미리보기 + 슬롯 등록/해제를 겸함(별도 추가/빼기 버튼 없음) -->
         <div id="dex-modal" class="hidden">
             <div id="dex-box">
+                <!-- 함께하기 파티 선택 대기 제한시간 — dex-close-btn(×)과 대칭 위치·여백 -->
+                <div id="dex-wait-timer" class="hidden"></div>
                 <!-- 도감 본문 전체(헤더~치트 페이지)를 감싸는 래퍼 — 일반 도감 모드일 때의 #dex-box
                      콘텐츠 영역과 정확히 같은 고정 높이를 가져서, 배틀 선택 모드에서 슬롯 바가 이
                      영역을 줄이지 않고 #dex-box 자체가 그만큼 더 길어지게 함(style.css #dex-core 참고) -->
