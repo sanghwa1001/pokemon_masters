@@ -414,12 +414,19 @@ let mpSelfPassStreak = 0;    // 내가 연속으로 제한시간을 못 지켜 �
                               // mpMissStreak로 감지해 방을 지우는 걸 기다리면 그 사이 이쪽 화면에
                               // 상대의 공격 멘트가 먼저 뜨는 것처럼 보이므로, 이쪽에서도 직접 세서
                               // 2번째 패스가 되는 순간 그 턴을 시작하지 않고 곧바로 끊김 처리
-// 함께하기 대기 제한시간(ms) — 배틀 액션 선택은 개인 제한시간을 놓치면 그 턴을 패스로 흘려보내고
-// (1차), 상대가 연속 2번째도 패스면 그 순간 끊김 처리. 강제교체/파티선택/불러오기는 단일
-// 제한시간을 넘기면 곧바로 끊김 처리(둘 다 아직 배틀이 실제로 진행 중이 아니라 봐줄 이유가 없음)
+// 함께하기 대기 제한시간(ms) — 넷 다 "내 일이 시작되는 순간부터 도는 개인 시간" 모델로 통일함
+// (상대를 기다리는 쪽이 아니라, 그 순간 할 일이 있는 쪽 화면에도 똑같이 보이고 스스로 처리함):
+//  - 배틀 액션 선택: 내 메인 메뉴가 뜨는 순간부터. 놓치면 그 턴을 패스로 흘려보내고(1차),
+//    상대가 연속 2번째도 패스면 그 순간 끊김 처리
+//  - 강제 교체: 내 포켓몬이 기절해서 교체 메뉴가 뜨는 순간부터. 놓치면 곧바로 끊김 처리
+//    (교체는 "안 함"이 없는 선택이라 배틀 액션처럼 봐줄 수 없음). 상대(기다리는 쪽)도 별도로
+//    같은 값의 타이머를 가지고 있어 둘 중 먼저 시간이 다 되는 쪽이 처리함(안전망)
+//  - 파티 선택: 선택 화면에 들어오는 순간부터. 도감을 살펴보며 고르는 시간과 고른 뒤 상대를
+//    기다리는 시간을 하나의 연속된 시계로 봄 — 다 골랐다고 리셋되지 않고 계속 흘러감
+//  - 불러오기 신호 대기: 내 쪽 에셋을 불러오기 시작하는 순간부터(끝난 뒤가 아니라)
 const MP_ACTION_TIMEOUT_MS = 60000;
 const MP_FORCED_SWITCH_TIMEOUT_MS = 60000;
-const MP_PARTY_TIMEOUT_MS = 100000;
+const MP_PARTY_TIMEOUT_MS = 120000;
 const MP_LOADED_TIMEOUT_MS = 100000;
 let mpPartyLocked = false;   // 함께하기 선택창에서 "선택 완료"를 누르고 상대를 기다리는 중(파티 수정 불가)
 let mpRematchWaiting = false; // 함께하기 결과 화면에서 "다시하기"를 누르고 상대를 기다리는 중
@@ -1031,6 +1038,13 @@ function openForcedSwitch(onDone) {
     battleMessageBoxEl.textContent = '';
     battleMainMenuEl.classList.add('hidden');
     battleSwitchInlineMenuEl.classList.remove('hidden');
+    // 상대(기다리는 쪽)의 mpWaitForcedSwitch와 같은 값의 별도 타이머 — 고르는 쪽도 시간 제한을
+    // 직접 보고, 못 고르면 상대의 감지를 기다리지 않고 스스로 끊김 처리
+    if (battleMode === 'pvp') {
+        window.mpStartDeadline(battleTurnTimerEl, MP_FORCED_SWITCH_TIMEOUT_MS, () => {
+            window.mpForceDisconnect();
+        });
+    }
 }
 
 // 승패 결정 시 다른 배틀 이벤트들과 동일하게 액션박스 멘트로 먼저 알린 뒤(showBattleMessage)
@@ -1555,7 +1569,10 @@ function renderBattleSwitchInlineMenu() {
             if (battleSwitchForced) {
                 battleSwitchForced = false;
                 battleSwitchInlineMenuEl.classList.add('hidden');
-                if (battleMode === 'pvp') mpSend('forcedSwitch', { idx });
+                if (battleMode === 'pvp') {
+                    window.mpClearDeadlineTimer();
+                    mpSend('forcedSwitch', { idx });
+                }
                 // 배틀 시작 등장과 같은 "가랏! ~!" 멘트 후 등장 — 상대 쪽은 같은 시점에 "상대가 ~을(를)
                 // 내보냈다!" 멘트 후 등장하므로(switchAiToIndex) 함께하기에서 양쪽 타이밍이 맞음
                 showBattleMessage(`가랏! ${info.name}!`, () => {
@@ -1805,9 +1822,8 @@ dexBattleDecideBtn.addEventListener('click', () => {
         renderBattleSlots();
         updateDexPickerBarVisibility();
         mpSend('party', battleParty.map(p => ({ id: p.id, isShiny: !!p.isShiny })));
-        window.mpStartDeadline(dexWaitTimerEl, MP_PARTY_TIMEOUT_MS, () => {
-            window.mpForceDisconnect();
-        });
+        // 개인 타이머는 openBattlePartyPicker()에서 화면 진입 시점부터 이미 돌고 있음 —
+        // 여기서 새로 시작하지 않고 그대로 이어서 씀(선택 완료로 리셋 안 함)
         mpWaitFor('party', (oppParty) => {
             if (!mp.active || !mpPartyLocked) return;
             window.mpClearDeadlineTimer();
@@ -1892,11 +1908,11 @@ function beginBattle(opponentParty) {
     // 함께하기는 등장 연출 전에 이번 배틀 스프라이트를 전부 받아두고, 양쪽 다 받을 때까지 기다림
     if (battleMode === 'pvp') {
         showBattleWaiting('불러오는 중...');
+        window.mpStartDeadline(battleTurnTimerEl, MP_LOADED_TIMEOUT_MS, () => {
+            window.mpForceDisconnect();
+        });
         mpPreloadBattleAssets().then(battleCallback(() => {
             mpSend('loaded');
-            window.mpStartDeadline(battleTurnTimerEl, MP_LOADED_TIMEOUT_MS, () => {
-                window.mpForceDisconnect();
-            });
             mpWaitFor('loaded', battleCallback(() => {
                 window.mpClearDeadlineTimer();
                 playBattleIntro();
@@ -2192,6 +2208,13 @@ function openBattlePartyPicker() {
     openDexModal(); // 검색창 초기화 + 목록 화면부터 시작 + 모달 표시(기존 도감 진입 로직 그대로)
     renderBattleSlots(); // 슬롯 3칸을 빈 상태로 되돌리고 결정 버튼도 같이 초기화
     updateDexPickerBarVisibility();
+    // 화면에 들어오는 이 순간부터 개인 제한시간 시작 — 도감을 보며 고르는 시간과 고른 뒤
+    // 상대를 기다리는 시간을 하나로 이어서 셈(선택 완료를 눌러도 리셋되지 않음)
+    if (mp.active) {
+        window.mpStartDeadline(dexWaitTimerEl, MP_PARTY_TIMEOUT_MS, () => {
+            window.mpForceDisconnect();
+        });
+    }
 }
 
 // "포켓몬 배틀" → 혼자하기/함께하기 하위 메뉴(pokemon_multiplayer.js의 showStartSubmenu)
