@@ -173,7 +173,8 @@ mpCreateBtn.addEventListener('click', async () => {
             return;
         }
         const val = snapshot.val();
-        if (val && val.status === 'playing' && val.guest) {
+        // 이미 연결된 상태면 중복 실행 방지(자식 노드인 messages가 추가될 때마다 onValue가 다시 트리거됨)
+        if (val && val.status === 'playing' && val.guest && !window.mp.active) {
             // 연결됨!
             window.mp.active = true;
             window.mp.isHost = true;
