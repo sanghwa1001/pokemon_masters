@@ -70,8 +70,8 @@ html, body {
    script.js는 이 실제 렌더링 너비를 읽어 #game-container를 그 배율로 scale()함. */
 #game-frame {
     width: 100%;
-    max-width: calc((100dvh - 30px) * 370 / 600);
-    max-height: calc(100dvh - 30px);
+    max-width: calc(100vh * 370 / 600);
+    max-height: 100vh;
     aspect-ratio: 370 / 600;
     flex-shrink: 0;
     display: flex;
