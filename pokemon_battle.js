@@ -414,6 +414,12 @@ let mpSelfPassStreak = 0;    // 내가 연속으로 제한시간을 못 지켜 �
                               // mpMissStreak로 감지해 방을 지우는 걸 기다리면 그 사이 이쪽 화면에
                               // 상대의 공격 멘트가 먼저 뜨는 것처럼 보이므로, 이쪽에서도 직접 세서
                               // 2번째 패스가 되는 순간 그 턴을 시작하지 않고 곧바로 끊김 처리
+let mpAwaitingOpponentAction = false; // 내가 이번 턴 행동(자동 패스 포함)을 이미 보내고 상대의
+                                       // 메시지를 기다리는 중인지 — true인 채로 개인 제한시간이
+                                       // (그 뒤 마련된 네트워크 여유까지) 다시 다 되면 상대가
+                                       // 사라진 것으로 보고 끊김 처리(메시지가 와서 mpResolveTurn이
+                                       // 실행되면 false로 되돌아감 — 애니메이션 재생 중엔 이미
+                                       // false라서 오탐 없음)
 // 함께하기 대기 제한시간(ms) — 넷 다 "내 일이 시작되는 순간부터 도는 개인 시간" 모델로 통일함
 // (상대를 기다리는 쪽이 아니라, 그 순간 할 일이 있는 쪽 화면에도 똑같이 보이고 스스로 처리함):
 //  - 배틀 액션 선택: 내 메인 메뉴가 뜨는 순간부터. 놓치면 그 턴을 패스로 흘려보내고(1차),
@@ -1292,7 +1298,12 @@ function runTurnSequence(order, actions, rolls) {
 function startMyActionDeadline() {
     if (battleMode !== 'pvp' || !battlePreviewActive || battleEnded) return;
     window.mpStartDeadline(battleTurnTimerEl, MP_ACTION_TIMEOUT_MS, () => {
-        if (battleMode !== 'pvp' || battleEnded || battleTurnBusy) return;
+        if (battleMode !== 'pvp' || battleEnded) return;
+        // 내가 이미 행동을 보내고 상대 메시지를 기다리는 중(mpAwaitingOpponentAction)인데
+        // 여기까지 왔다는 건, 상대가 자기 제한시간을 넘겼는데도(그래서 상대 쪽에서 자동
+        // 패스/끊김 처리가 됐어야 함) 그 메시지조차 이쪽에 안 왔다는 뜻 — 상대가 사라진
+        // 것으로 보고 곧바로 끊김 처리
+        if (mpAwaitingOpponentAction) { window.mpForceDisconnect(); return; }
         mpSelfPassStreak++;
         if (mpSelfPassStreak >= 2) { window.mpForceDisconnect(); return; }
         startPlayerTurn('pass');
@@ -1310,14 +1321,16 @@ function finishTurn() {
 // 턴을 진행함. 순서 규칙: 교체는 항상 싸우기(공격/랭크업/회복)보다 먼저 실행되고, 양쪽 다
 // 교체를 선택했으면 어느 쪽이 먼저인지는 기술이 나갈 때와 동일하게 랜덤으로 정함
 function startPlayerTurn(playerAction) {
-    window.mpClearDeadlineTimer();
+    // 타이머를 여기서 지우지 않음 — 내가 행동을 내도 화면엔 상대 응답을 기다리는 동안 계속
+    // 같은 타이머가 흘러가게 둠(상대가 안 오면 startMyActionDeadline의 타임아웃이 대신
+    // 감지해서 끊김 처리). 다음 턴이 시작되면 startMyActionDeadline이 새 타이머로 자연히 덮어씀
     if (playerAction !== 'pass') mpSelfPassStreak = 0;
     battleTurnBusy = true;
     battleMoveMenuEl.classList.add('hidden');
     battleSwitchInlineMenuEl.classList.add('hidden');
 
     // 상대가 사람이면 AI 대신 상대의 선택을 네트워크로 기다림(mpSubmitTurnAction)
-    if (battleMode === 'pvp') { mpSubmitTurnAction(playerAction); return; }
+    if (battleMode === 'pvp') { mpAwaitingOpponentAction = true; mpSubmitTurnAction(playerAction); return; }
 
     const aiEntry = aiParty[activeAiIndex];
     const playerHp = battleParty[activePartyIndex].hp;
@@ -1403,6 +1416,7 @@ function mpSubmitTurnAction(playerAction) {
 // 양쪽 행동+판정값으로 순서를 정해 턴을 진행 — 순서 규칙은 AI 배틀(startPlayerTurn)과 동일
 // (교체가 싸우기보다 먼저, 나머지는 50:50). host/guest를 내 화면 기준 player/ai로 바꿔 씀
 function mpResolveTurn(myAction, oppAction, rolls) {
+    mpAwaitingOpponentAction = false;
     // 상대가 이번 턴도 패스(제한시간 초과)면 연속 카운트 증가 — 2번 연속이면 더 기다리지 않고
     // 곧바로 끊김 처리(기존 mpOnDisconnect 흐름 재사용). 응답했으면(패스가 아니면) 카운트 리셋
     if (oppAction === 'pass') {
@@ -1845,6 +1859,7 @@ function beginBattle(opponentParty) {
     mpTurn = 0;
     mpMissStreak = 0;
     mpSelfPassStreak = 0;
+    mpAwaitingOpponentAction = false;
     window.mpClearDeadlineTimer();
     battleParty.forEach(p => { p.hp = BATTLE_MON_MAX_HP; p.fainted = false; });
     aiParty = opponentParty;
