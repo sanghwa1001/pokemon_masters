@@ -5,20 +5,21 @@ import { ref, set, get, child, push, remove, onValue } from "https://www.gstatic
 const loginScreen = document.getElementById('login-screen');
 const startScreen = document.getElementById('start-screen');
 const adminDashboard = document.getElementById('admin-dashboard-screen');
-const adminDataManageScreen = document.getElementById('admin-data-manage-screen');
-const adminStudentManageScreen = document.getElementById('admin-student-manage-screen');
 
-// Modals
+// Modals — 관리자 대시보드의 세 버튼(학생 계정 생성/관리, 학습 데이터 관리)이 여는 창은
+// 전부 같은 방식(.mp-modal/.mp-box, 대시보드를 가리지 않고 위에 떠서 열리고 ×로 닫힘)으로 통일함
 const adminLoginModal = document.getElementById('admin-login-modal');
 const studentLoginModal = document.getElementById('student-login-modal');
 const adminStudentCreateModal = document.getElementById('admin-student-create-modal');
+const adminStudentManageModal = document.getElementById('admin-student-manage-modal');
+const adminDataManageModal = document.getElementById('admin-data-manage-modal');
 const studentDataSelectModal = document.getElementById('student-data-select-modal');
 
 // --- Navigation & Modal Helpers ---
 function showModal(modal) { modal.classList.remove('hidden'); }
 function hideModal(modal) { modal.classList.add('hidden'); }
 function switchScreen(screen) {
-    [loginScreen, startScreen, adminDashboard, adminDataManageScreen, adminStudentManageScreen].forEach(s => {
+    [loginScreen, startScreen, adminDashboard].forEach(s => {
         if (s) s.classList.add('hidden');
     });
     screen.classList.remove('hidden');
@@ -38,6 +39,11 @@ function setFieldFeedback(el, message, type) {
 document.getElementById('admin-login-close-btn').addEventListener('click', () => hideModal(adminLoginModal));
 document.getElementById('student-login-close-btn').addEventListener('click', () => hideModal(studentLoginModal));
 document.getElementById('admin-student-create-close-btn').addEventListener('click', () => hideModal(adminStudentCreateModal));
+document.getElementById('admin-student-manage-close-btn').addEventListener('click', () => hideModal(adminStudentManageModal));
+document.getElementById('admin-data-manage-close-btn').addEventListener('click', () => {
+    stopAdminLearningDataListener();
+    hideModal(adminDataManageModal);
+});
 document.getElementById('student-data-select-close-btn').addEventListener('click', () => hideModal(studentDataSelectModal));
 
 // Login Screen Buttons
@@ -73,18 +79,14 @@ document.getElementById('btn-admin-logout').addEventListener('click', () => {
 });
 
 document.getElementById('btn-admin-create-student').addEventListener('click', () => {
+    setFieldFeedback(document.getElementById('admin-student-create-feedback'), '');
     showModal(adminStudentCreateModal);
 });
 
 document.getElementById('btn-admin-manage-data').addEventListener('click', () => {
     setFieldFeedback(document.getElementById('data-upload-feedback'), '');
-    switchScreen(adminDataManageScreen);
+    showModal(adminDataManageModal);
     loadLearningDataForAdmin();
-});
-
-document.getElementById('btn-data-manage-back').addEventListener('click', () => {
-    stopAdminLearningDataListener();
-    switchScreen(adminDashboard);
 });
 
 // Student Create (Admin)
@@ -285,7 +287,7 @@ document.getElementById('btn-select-learning-data').addEventListener('click', ()
 // --- 학생 계정 관리 ---
 
 document.getElementById('btn-admin-manage-students').addEventListener('click', async () => {
-    switchScreen(adminStudentManageScreen);
+    showModal(adminStudentManageModal);
     const listContainer = document.getElementById('student-list-container');
     listContainer.innerHTML = '로딩 중...';
     
@@ -335,8 +337,4 @@ document.getElementById('btn-admin-manage-students').addEventListener('click', a
         console.error(e);
         listContainer.innerHTML = '<div class="admin-row-empty">오류 발생</div>';
     }
-});
-
-document.getElementById('btn-student-manage-back').addEventListener('click', () => {
-    switchScreen(adminDashboard);
 });

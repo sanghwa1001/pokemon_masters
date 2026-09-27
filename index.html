@@ -67,13 +67,16 @@
             <button id="btn-admin-logout" class="menu-item">로그아웃</button>
         </div>
 
-        <!-- 학생 계정 관리 화면 (관리자용) -->
-        <div id="admin-student-manage-screen" class="start-submenu hidden">
-            <div class="admin-panel-title">학생 계정 관리</div>
-            <div id="student-list-container" class="admin-list">
-                <!-- 학생 계정 목록이 동적으로 추가됨 -->
+        <!-- 학생 계정 관리 창 (관리자용) — 학생 계정 생성 모달과 완전히 같은 방식(.mp-modal/.mp-box)의
+             창으로 대시보드 위에 떠서 열림. ×로 닫으면 대시보드가 그대로 보임(뒤로가기 버튼 없음) -->
+        <div id="admin-student-manage-modal" class="mp-modal hidden">
+            <div class="mp-box">
+                <button id="admin-student-manage-close-btn" class="quiz-close-btn">×</button>
+                <div class="mp-title">학생 계정 관리</div>
+                <div id="student-list-container" class="admin-list">
+                    <!-- 학생 계정 목록이 동적으로 추가됨 -->
+                </div>
             </div>
-            <button id="btn-student-manage-back" class="menu-item" style="margin-top: 10px;">뒤로가기</button>
         </div>
 
         <!-- 학생 계정 생성 모달 (관리자용) -->
@@ -90,21 +93,23 @@
             </div>
         </div>
 
-        <!-- 학습 데이터 관리 화면 (관리자용) -->
-        <div id="admin-data-manage-screen" class="start-submenu hidden">
-            <div class="admin-panel-title">학습 데이터 관리</div>
-            <div id="upload-row">
-                <input type="file" id="excel-input" accept=".xlsx,.xls" class="hidden">
-                <div class="mp-join-row">
-                    <input type="text" id="data-title-input" class="dex-cheat-input" placeholder="데이터 이름">
-                    <button id="upload-btn" class="dex-settings-action-btn dex-cheat-apply-btn">업로드</button>
+        <!-- 학습 데이터 관리 창 (관리자용) — 위 두 창과 동일한 방식(.mp-modal/.mp-box)의 창 -->
+        <div id="admin-data-manage-modal" class="mp-modal hidden">
+            <div class="mp-box">
+                <button id="admin-data-manage-close-btn" class="quiz-close-btn">×</button>
+                <div class="mp-title">학습 데이터 관리</div>
+                <div id="upload-row">
+                    <input type="file" id="excel-input" accept=".xlsx,.xls" class="hidden">
+                    <div class="mp-join-row">
+                        <input type="text" id="data-title-input" class="dex-cheat-input" placeholder="데이터 이름">
+                        <button id="upload-btn" class="dex-settings-action-btn dex-cheat-apply-btn">업로드</button>
+                    </div>
+                    <div id="data-upload-feedback" class="field-feedback"></div>
                 </div>
-                <div id="data-upload-feedback" class="field-feedback"></div>
+                <div id="data-list-container" class="admin-list">
+                    <!-- 데이터 목록이 동적으로 추가됨 -->
+                </div>
             </div>
-            <div id="data-list-container" class="admin-list">
-                <!-- 데이터 목록이 동적으로 추가됨 -->
-            </div>
-            <button id="btn-data-manage-back" class="menu-item" style="margin-top: 10px;">뒤로가기</button>
         </div>
 
         <!-- 학습 데이터 선택 모달 (학생용) -->
