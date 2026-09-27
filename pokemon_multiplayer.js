@@ -262,6 +262,4 @@ function setupMessageListener(code) {
     });
 }
 
-window.addEventListener('pagehide', () => {
-    if (window.mp.active) window.mpLeave();
-});
+

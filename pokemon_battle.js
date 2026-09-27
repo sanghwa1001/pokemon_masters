@@ -1413,6 +1413,15 @@ mpOnDisconnect = () => {
         if (mpRematchWaiting) battleResultRetryBtn.textContent = '상대와의 통신이 끊어졌습니다';
         mpRematchWaiting = false;
         if (battleEnded) return; // 이미 승패가 났으면(결과 화면) 버튼만 바꾸고 끝
+
+        // 만약 배틀 시작 전("불러오는 중...")이라면 화면 멈춤을 방지하기 위해 강제로 빠져나감
+        if (battleMessageBoxEl.textContent === '불러오는 중...') {
+            alert('상대와의 통신이 끊어졌습니다.');
+            resetBattlePreview();
+            openBattlePartyPicker();
+            return;
+        }
+
         // 진행 중인 연출·대기 콜백을 전부 끊고(세션 교체) 끊김 멘트 후 결과 화면으로
         battleSessionId++;
         closeBattleStatus();
