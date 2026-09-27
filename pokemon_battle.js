@@ -1378,7 +1378,7 @@ function mpWaitForcedSwitch(onDone) {
 
 // 함께하기 배틀 시작 전 프리로드 — 내 3마리 뒷모습(폼 전용이 없으면 종 기준형), 내/상대 6마리
 // 앞모습(상대 등장·상태 확인 창), 상태 확인 창의 물음표 이미지. 실패·시간초과여도 진행은 막지 않음
-const MP_PRELOAD_TIMEOUT_MS = 3000;
+const MP_PRELOAD_TIMEOUT_MS = 8000;
 function mpLoadImage(src) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -1413,14 +1413,6 @@ mpOnDisconnect = () => {
         if (mpRematchWaiting) battleResultRetryBtn.textContent = '상대와의 통신이 끊어졌습니다';
         mpRematchWaiting = false;
         if (battleEnded) return; // 이미 승패가 났으면(결과 화면) 버튼만 바꾸고 끝
-
-        // 만약 배틀 시작 전("불러오는 중...")이라면 화면 멈춤을 방지하기 위해 강제로 빠져나감
-        if (battleMessageBoxEl.textContent === '불러오는 중...') {
-            alert('상대와의 통신이 끊어졌습니다.');
-            resetBattlePreview();
-            openBattlePartyPicker();
-            return;
-        }
 
         // 진행 중인 연출·대기 콜백을 전부 끊고(세션 교체) 끊김 멘트 후 결과 화면으로
         battleSessionId++;
