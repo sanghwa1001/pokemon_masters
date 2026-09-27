@@ -2230,12 +2230,13 @@ html, body {
 }
 
 /* 로그인 확인 중/계정 확인 중 — "Google로 로그인" 버튼(관리자 화면의 "학생 등록"과 같은 자리)을
-   대신해 같은 자리·같은 글자 크기(.menu-item: 16px/20px)로 표시, 색은 안내 문구 회색 그대로 */
+   대신해 같은 자리·같은 글자 크기(.menu-item: 16px/20px)로 표시. 색은 눌려서 비활성이 된 버튼
+   (.menu-item:disabled, #999)과 같게 해서, 버튼을 누른 뒤 같은 회색 그대로 글자만 바뀌어 보이게 함 */
 .login-status {
     font-size: 16px;
     line-height: 20px;
     letter-spacing: 0.5px;
-    color: #666;
+    color: #999;
     white-space: nowrap;
 }
 
