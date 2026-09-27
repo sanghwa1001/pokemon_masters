@@ -63,6 +63,7 @@
         <div id="admin-dashboard-screen" class="start-submenu hidden">
             <button id="btn-admin-create-student" class="menu-item">학생 계정 생성</button>
             <button id="btn-admin-manage-students" class="menu-item">학생 계정 관리</button>
+            <button id="btn-admin-upload-data" class="menu-item">학습 데이터 업로드</button>
             <button id="btn-admin-manage-data" class="menu-item">학습 데이터 관리</button>
             <button id="btn-admin-logout" class="menu-item">로그아웃</button>
         </div>
@@ -93,19 +94,26 @@
             </div>
         </div>
 
-        <!-- 학습 데이터 관리 창 (관리자용) — 위 두 창과 동일한 방식(.mp-modal/.mp-box)의 창 -->
+        <!-- 학습 데이터 업로드 창 (관리자용) — 학생 계정 생성 모달과 동일한 구성(입력칸을 세로로
+             쌓고 버튼은 전체폭) -->
+        <div id="admin-data-upload-modal" class="mp-modal hidden">
+            <div class="mp-box">
+                <button id="admin-data-upload-close-btn" class="quiz-close-btn">×</button>
+                <div class="mp-title">학습 데이터 업로드</div>
+                <input type="file" id="excel-input" accept=".xlsx,.xls" class="hidden">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="text" id="data-title-input" class="dex-cheat-input" placeholder="데이터 이름" style="flex: none; width: 100%;">
+                    <button id="upload-btn" class="dex-settings-action-btn" style="width: 100%;">업로드</button>
+                </div>
+                <div id="data-upload-feedback" class="field-feedback"></div>
+            </div>
+        </div>
+
+        <!-- 학습 데이터 관리 창 (관리자용) — 학생 계정 관리 모달과 동일한 구성(목록만) -->
         <div id="admin-data-manage-modal" class="mp-modal hidden">
             <div class="mp-box">
                 <button id="admin-data-manage-close-btn" class="quiz-close-btn">×</button>
                 <div class="mp-title">학습 데이터 관리</div>
-                <div id="upload-row">
-                    <input type="file" id="excel-input" accept=".xlsx,.xls" class="hidden">
-                    <div class="mp-join-row">
-                        <input type="text" id="data-title-input" class="dex-cheat-input" placeholder="데이터 이름">
-                        <button id="upload-btn" class="dex-settings-action-btn dex-cheat-apply-btn">업로드</button>
-                    </div>
-                    <div id="data-upload-feedback" class="field-feedback"></div>
-                </div>
                 <div id="data-list-container" class="admin-list">
                     <!-- 데이터 목록이 동적으로 추가됨 -->
                 </div>

@@ -12,6 +12,7 @@ const adminLoginModal = document.getElementById('admin-login-modal');
 const studentLoginModal = document.getElementById('student-login-modal');
 const adminStudentCreateModal = document.getElementById('admin-student-create-modal');
 const adminStudentManageModal = document.getElementById('admin-student-manage-modal');
+const adminDataUploadModal = document.getElementById('admin-data-upload-modal');
 const adminDataManageModal = document.getElementById('admin-data-manage-modal');
 const studentDataSelectModal = document.getElementById('student-data-select-modal');
 
@@ -40,6 +41,7 @@ document.getElementById('admin-login-close-btn').addEventListener('click', () =>
 document.getElementById('student-login-close-btn').addEventListener('click', () => hideModal(studentLoginModal));
 document.getElementById('admin-student-create-close-btn').addEventListener('click', () => hideModal(adminStudentCreateModal));
 document.getElementById('admin-student-manage-close-btn').addEventListener('click', () => hideModal(adminStudentManageModal));
+document.getElementById('admin-data-upload-close-btn').addEventListener('click', () => hideModal(adminDataUploadModal));
 document.getElementById('admin-data-manage-close-btn').addEventListener('click', () => {
     stopAdminLearningDataListener();
     hideModal(adminDataManageModal);
@@ -83,8 +85,12 @@ document.getElementById('btn-admin-create-student').addEventListener('click', ()
     showModal(adminStudentCreateModal);
 });
 
-document.getElementById('btn-admin-manage-data').addEventListener('click', () => {
+document.getElementById('btn-admin-upload-data').addEventListener('click', () => {
     setFieldFeedback(document.getElementById('data-upload-feedback'), '');
+    showModal(adminDataUploadModal);
+});
+
+document.getElementById('btn-admin-manage-data').addEventListener('click', () => {
     showModal(adminDataManageModal);
     loadLearningDataForAdmin();
 });

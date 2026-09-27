@@ -121,13 +121,6 @@ html, body {
     z-index: 20;
 }
 
-#upload-row {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-}
-
 /* 결과 화면: 점수/정답/오답 표시 */
 #result-stats {
     display: flex;
