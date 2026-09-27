@@ -1,0 +1,2086 @@
+/* 게임 화면 기본 설정 */
+:root {
+    --monster-size: 288px; /* 몬스터 & shiny 이펙트가 공유하는 크기 */
+    --pixel-font: 'NeoDunggeunmo', 'Malgun Gothic', sans-serif;
+    --container-height: 600px;
+
+    /* 이름/종족값 표시창 치수 (아래 #monster-info 규칙과 동일하게 유지) */
+    --info-top:    36px; /* 텍스트(줄높이 20px) + hp바 사이 3px 여백을 두고, 상단 여백 15px = 하단(#control-panel) 여백과 동일하게 유지 */
+    --info-width:  calc(var(--monster-size) * 0.8 * 0.9); /* hp_bar.png 표시 가로 크기 (포켓몬 이미지 가로 크기의 80%에서 다시 90% 축소) */
+    --info-height: calc(var(--info-width) * 247 / 1596); /* hp_bar.png 원본 비율(1596x247) 유지 */
+    --info-gap:    20px; /* 표시창 하단 ~ 포켓볼 정점 사이 여백 */
+    --side-gap:    17px; /* hp_bar 좌우 테두리 ~ 타이머/CP 텍스트 사이 간격 (양쪽 동일) */
+
+    /* 액션창(action_box.png) 치수 — #action-btns, #capture-message 양쪽에서 공유 */
+    --action-box-width:  340px;
+    --action-box-height: calc(var(--action-box-width) * 791 / 4045); /* action_box.png 원본 비율(4045x791) 유지 */
+
+    /* 포켓볼 치수/점프 높이 (script.js의 BOUNCE_PEAK_OFFSET, #pokeball 크기와 반드시 일치) */
+    --ball-size:          53.33px;
+    --bounce-peak-offset: 125px;
+
+    /*
+     * 몬스터 위치는 "포켓볼이 튕겨 오르는 정점"을 기준으로 역산한다.
+     * 포켓볼은 던져지면 몬스터 중심(monster-top + size/2)까지 날아간 뒤,
+     * 추가로 bounce-peak-offset 만큼 더 튕겨 오른다.
+     * 그 정점(윗변)이 표시창 하단에서 info-gap 만큼 떨어지도록 monster-top을 계산.
+     */
+    --monster-top: calc(
+        var(--info-top) + var(--info-height) + var(--info-gap)
+        + var(--bounce-peak-offset) + (var(--ball-size) / 2)
+        - (var(--monster-size) / 2)
+    );
+
+    /*
+     * 착지 겹침 비율: 공이 몬스터 박스의 아랫변보다 위로 파고들지 않도록(대형 포켓몬 스프라이트와
+     * 겹치지 않도록) 0으로 유지.
+     */
+    --land-overlap: 0px;
+    --drop-bottom: calc(
+        var(--container-height) - var(--ball-size)
+        - var(--monster-top) - var(--monster-size)
+        + var(--land-overlap)
+    );
+}
+
+* {
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f0f0f0;
+    font-family: var(--pixel-font);
+}
+
+/* #game-frame: CSS aspect-ratio(370:600)로 비율을 못박아두고 화면에 맞춰 키움 —
+   화면 회전 등 크기 변화에도 브라우저가 레이아웃 계산과 동시에 정확한 비율을 유지해줌.
+   script.js는 이 실제 렌더링 너비를 읽어 #game-container를 그 배율로 scale()함. */
+#game-frame {
+    width: 100%;
+    max-width: calc((100dvh - 30px) * 370 / 600);
+    max-height: calc(100dvh - 30px);
+    aspect-ratio: 370 / 600;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+#game-container {
+    position: relative;
+    width: 370px; /* 액션창(가장 넓은 요소, 340px) 기준 좌우 여백이 15px(=상하 여백과 동일)가 되도록 조정 */
+    height: var(--container-height);
+    box-sizing: border-box; /* border(4px)가 370x600 밖으로 추가되지 않고 안쪽에 포함되도록 (테두리 잘림 방지) */
+    flex-shrink: 0; /* #game-frame(flex)의 기본 row 방향 shrink 대상이 되어 가로만 눌리는 것 방지 —
+                        크기 조절은 오직 JS transform:scale()로만 처리 */
+    background-color: #ffffff;
+    border: 4px solid #333;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    transform-origin: center center; /* 반응형 스케일링(JS) 시 중앙 기준으로 확대/축소 */
+}
+
+/* 시작 화면 / 결과 화면 / 일시정지 화면 (공통 오버레이 레이아웃) */
+#start-screen,
+#result-screen,
+#pause-modal {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    background-color: rgba(255, 255, 255, 0.9);
+    z-index: 20;
+}
+
+#upload-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+/* 결과 화면: 점수/정답/오답 표시 */
+#result-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--pixel-font);
+    font-size: 16px;
+    line-height: 20px;
+    letter-spacing: 0.5px;
+    color: #000;
+}
+
+#result-score { color: #e67e00; }
+#result-correct { color: #2ed573; }
+#result-wrong { color: #ff4757; }
+
+/* 결과 화면: 다시하기 / 포획한 포켓몬 */
+#result-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+/* 퀴즈 모달 */
+#quiz-modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 40;
+}
+
+#quiz-box {
+    position: relative;
+    width: 300px;
+    box-sizing: border-box;
+    padding: 28px 18px 18px;
+    background-color: #ffffff;
+    border: 4px solid #1a1a1a;
+    border-radius: 6px;
+    font-family: var(--pixel-font);
+    text-align: center;
+}
+
+.quiz-close-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 26px;
+    height: 26px;
+    line-height: 20px;
+    border: 2px solid #1a1a1a;
+    background-color: #ff4757;
+    color: #fff;
+    font-family: var(--pixel-font);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.quiz-close-btn:hover {
+    background-color: #ff6b81;
+}
+
+#quiz-question {
+    font-size: 16px;
+    line-height: 20px;
+    letter-spacing: 0.5px;
+    color: #000;
+    margin-bottom: 18px;
+    word-break: break-word;
+    min-height: 24px;
+}
+
+#quiz-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.quiz-option-btn {
+    font-family: var(--pixel-font);
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    line-height: 20px;
+    height: 60px;
+    padding: 0 10px;
+    box-sizing: border-box;
+    border: 2px solid #1a1a1a;
+    background-color: #f0f0f0;
+    color: #000;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    text-align: center;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
+.quiz-option-btn:hover:not(:disabled) {
+    background-color: #e0e0e0;
+}
+
+.quiz-option-btn.correct {
+    background-color: #2ed573;
+    color: #fff;
+}
+
+.quiz-option-btn.wrong {
+    background-color: #ff4757;
+    color: #fff;
+}
+
+.quiz-option-btn:disabled {
+    cursor: not-allowed;
+}
+
+#quiz-feedback {
+    font-size: 14px;
+    line-height: 20px;
+    letter-spacing: 0.5px;
+    height: 18px;
+    color: #000;
+}
+
+/* 포획한 포켓몬 목록 모달 */
+#captured-modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 40;
+}
+
+#captured-box {
+    position: relative;
+    width: 300px;
+    /* 도감 창(#dex-box)과 동일하게 고정 height로 맞춰서, 포획한 포켓몬 수가 적어도 창 크기가
+       줄어들지 않고 항상 같은 크기를 유지하도록 함(#captured-list가 flex:1로 남는 공간을 채움) */
+    height: 480px;
+    box-sizing: border-box;
+    padding: 28px 14px 18px;
+    background-color: #ffffff;
+    border: 4px solid #1a1a1a;
+    border-radius: 6px;
+    font-family: var(--pixel-font);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+}
+
+#captured-title {
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    color: #000;
+    margin-bottom: 14px;
+}
+
+#captured-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 4px;
+}
+
+.captured-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    box-sizing: border-box;
+    border: 2px solid #1a1a1a;
+    background-color: #f0f0f0;
+    text-align: left;
+}
+
+.captured-icon {
+    width: 32px;
+    height: 32px; /* 새 아이콘(32x32, 1:1 비율)에 맞춤 */
+    flex-shrink: 0;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+.captured-name {
+    flex: 1;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: #000;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.captured-cp {
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: #e67e00;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+#captured-empty {
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    color: #666;
+    padding: 20px 0;
+}
+
+/* 배틀 슬롯(최대 3자리) — #dex-modal 안(dexPickerMode)에서 쓰임. .dex-form-cell과 같은
+   회색/검정 테두리 톤이지만, 폼 이름 없이 스프라이트+이름+타입만 담은 한 칸으로 구성함
+   (아이콘이 아니라 실제 앞모습 애니메이션을 재생 — renderBattleSlotSprite 참고) */
+#dex-battle-slot-row {
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+    padding: 0 4px;
+}
+
+/* 이름 아래 타입 뱃지 줄(.battle-status-types)이 추가된 만큼, 상태 확인 화면(#battle-status-box)과
+   같은 이유로 정사각(1:1) 대신 세로로 살짝 키운 5:6 비율을 씀 — 그래야 늘어난 줄만큼 스프라이트
+   박스 높이가 줄어들지 않음 */
+#dex-battle-slot-row .battle-slot {
+    aspect-ratio: 5 / 6;
+}
+
+.battle-slot {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2px;
+    padding: 4px;
+    background-color: #f0f0f0;
+    border: 2px solid #1a1a1a;
+}
+
+/* 빈 슬롯 표시를 점선 대신 실선 테두리로 바꿈(색은 기존 그대로 유지) — "아직 안 뽑음"은
+   이제 채워진 슬롯과 같은 실선 테두리 굵기/스타일로 보이고, 색으로만 구분됨 */
+.battle-slot.empty {
+    border-style: solid;
+    border-color: #b8bcc2;
+    background-color: #f7f7f7;
+    cursor: default;
+}
+
+.battle-slot:not(.empty) {
+    cursor: pointer; /* 채워진 슬롯을 다시 누르면 선택 해제됨 */
+}
+
+.battle-slot-sprite-box {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+.battle-slot-sprite {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    /* background-image/size/position/transform은 renderBattleSlotSprite()가 JS로 설정함 */
+}
+
+/* 배틀 파티 선택 슬롯 좌측 상단의 폼 아이콘 — 메가진화면 icon_mega, 거다이맥스면 icon_dynamax
+   (renderBattleSlots()가 카테고리에 따라 지정). 배틀 상태 확인 화면 슬롯(renderBattleStatusSlots(), 정체가
+   드러난 포켓몬만)과 포켓몬 도감 폼 칸(.dex-form-cell, 잡은 폼만 — renderDexFormGrid())에도 같은 스타일로 붙임. 14px 칸에 원본 이미지를 비율 그대로 맞춰 표시.
+   포켓몬 스프라이트처럼 픽셀을 유지해 축소(흐릿해지지 않게) */
+.battle-slot-form-icon {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    z-index: 1;
+    width: 14px;
+    height: 14px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    pointer-events: none;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+.battle-slot-form-icon.mega {
+    background-image: url('images/pokemon/pokedex/icon_mega.png');
+}
+
+/* icon_dynamax.png(34x34)는 바깥 2px이 흰 테두리라 안쪽 그림이 30x30뿐이어서, 그대로 맞추면 여백 없는
+   메가 아이콘보다 작아 보임 — 34/30배로 키워 가운데 정렬해서 흰 테두리를 칸 밖으로 밀어내(잘려서 안 보임)
+   안쪽 그림이 칸을 꽉 채우게 함 */
+.battle-slot-form-icon.gmax {
+    background-image: url('images/pokemon/pokedex/icon_dynamax.png');
+    background-size: 113.33%;
+}
+
+.battle-slot-name {
+    width: 100%;
+    flex-shrink: 0;
+    font-size: 10px;
+    line-height: 11px;
+    letter-spacing: 0.2px;
+    color: #000;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* "랜덤 선택" 옆에 "결정" 버튼이 나란히 놓이는 가로 줄 래퍼.
+   한때 슬롯 바 너비 양 끝에 맞춰 justify-content:space-between으로 벌려봤는데 너무
+   넓어 보인다는 피드백으로, 다시 가운데 정렬 + 적당한 고정 gap으로 되돌림 —
+   "랜덤 선택"이 왼쪽, "결정"이 오른쪽인 순서만 유지 */
+/* 버튼 텍스트는 "랜덤"/"결정"에서 "랜덤 선택"/"선택 완료"로 변경, 간격은 30px 유지 */
+#dex-battle-action-row {
+    margin-top: 12px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+}
+
+/* 배틀 뒷모습 프리뷰 — 포획 게임 화면과 같은 배경(#game-container) 위에 뜨는 오버레이.
+   뒷모습은 #pokeball과 동일한 정착 좌표(하단 중앙)에 놓여 "몬스터볼 위치"에 나타나도록 함 */
+#battle-preview-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+}
+
+/* #monster/#monster-sprite와 동일한 바깥 박스 + 안쪽 스프라이트 레이어 구조.
+   안쪽 레이어의 실제 width/height/background-size/position은 앞모습과 마찬가지로
+   재생 시점에 JS(displayBackSprite)가 몬스터마다 지정함 */
+/* 뒷모습 스프라이트 박스 — 가로는 화면 중앙에서 왼쪽으로 40px 고정(원본 게임처럼 계산 없는
+   고정 오프셋). 세로(top)는 고정 CSS 값이 아니라 displayBackSprite()가 그림의 실측 높이
+   (BACK_SPRITE_OFFSETS의 h)를 기준으로, 그림 아래쪽 끝이 hp바+이름표 바로 위(BACK_INFO_GAP만큼
+   띄워서)에 오도록 매번 인라인으로 계산함 — height가 고정돼 있어서 이 아래 bottom 값은 브라우저가
+   자동으로 무시(over-constrained)하지만, JS가 아직 안 실행된 첫 페인트 순간의 대체값으로 남겨둠 */
+#battle-back-sprite-box {
+    position: absolute;
+    bottom: calc(15px + var(--action-box-height) + 15px + (var(--info-width) * 0.8 * 14 / 138) + 3px + 20px);
+    left: calc(50% - 40px);
+    transform: translateX(-50%);
+    width: var(--monster-size);
+    height: var(--monster-size);
+    overflow: hidden;
+    transition: opacity 0.4s ease-in; /* 교체 시 상대(#monster)와 동일한 페이드 효과 */
+}
+
+/* 내 포켓몬(뒷모습) 쪽 hp바 — 야생 쪽과 동일한 디자인/크기. 액션박스 위 15px 여백은 그대로 두고,
+   스프라이트와의 간격 확보를 위해 여기서 5px 더 내림(10px = 15px - 5px) — 스프라이트
+   박스(#battle-back-sprite-box)는 그대로라 그 사이에 정확히 5px 틈이 생김. 실제 hp는
+   pokemon_battle.js의 hp바 공통 로직(createHpBarController)이 매 공격마다 갱신함 */
+#battle-back-info {
+    position: absolute;
+    bottom: calc(15px + var(--action-box-height) + 10px);
+    left: calc(50% - 40px);
+    transform: translateX(-50%);
+    z-index: 6;
+    width: calc(var(--info-width) * 0.8);
+    height: calc(var(--info-width) * 0.8 * 14 / 138);
+    background-image: url('images/pokemon/layout/overlay_hp_back.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    transition: opacity 0.4s ease-in; /* 교체 시 상대(#monster-info)와 동일한 페이드 효과 */
+}
+
+/* #monster-hp-fill과 동일한 트랙 좌표. width/background-position은 pokemon_battle.js의 hp바 공통
+   로직(createHpBarController)이 hp 비율에 따라 매번 갱신 — 초기값만 풀피(100%)로 둠 */
+#battle-back-hp-fill {
+    position: absolute;
+    left: 23.1884%;   /* 32/138 */
+    top: 14.2857%;    /* 2/14 */
+    height: 57.1429%; /* 8/14 */
+    width: 69.5652%;  /* 96/138 — 초기값(풀피), 이후 JS가 갱신 */
+    background-image: url('images/pokemon/layout/overlay_hp.png');
+    background-repeat: no-repeat;
+    background-size: 100% 300%;
+    background-position: 0% 0%; /* 초기값(초록), 이후 JS가 갱신 */
+    image-rendering: pixelated;
+}
+
+/* 내 포켓몬 이름/타입 태그 — hp바 바로 위(3px 여백), #battle-back-info와 동일하게 5px 더 내려서
+   뒷모습 스프라이트 발밑과 5px 간격을 둠. 가로는 hp바(#battle-back-info)와 중심이 아니라 왼쪽
+   끝을 맞춤 — hp바 left(calc(50% - 40px))에서 hp바 폭의 절반만큼 왼쪽으로 이동한 지점이 hp바의
+   왼쪽 끝이고, transform 없이 그 지점에서 그대로 오른쪽으로 내용이 쌓이므로 왼쪽 끝이 일치함 */
+#battle-back-info-text {
+    position: absolute;
+    bottom: calc(15px + var(--action-box-height) + 10px + (var(--info-width) * 0.8 * 14 / 138) + 3px);
+    left: calc(50% - 40px - (var(--info-width) * 0.8 / 2));
+    z-index: 6;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    font-family: var(--pixel-font);
+    line-height: 20px;
+    transition: opacity 0.4s ease-in; /* 교체 시 상대(#monster-info-text)와 동일한 페이드 효과 */
+}
+
+#battle-back-name {
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #000;
+}
+
+/* #monster-sprite와 동일한 방식 — 박스 정중앙을 기준점으로 잡고, displayBackSprite()가 그림마다
+   BACK_SPRITE_OFFSETS(x/y)를 translate로 더해서 그림(투명 제외)의 진짜 중심이 항상 박스 정중앙에
+   오도록 보정함(가로/세로 둘 다). "그림 하단이 액션박스 위 특정 지점에 닿기"는 이제 이 박스
+   자체(#battle-back-sprite-box)의 위치를 displayBackSprite()가 매번 계산해서 맞춤 */
+#battle-back-sprite {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* 오프셋 정보 로딩 전 기본값 — displayBackSprite()가 매번 다시 지정함 */
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+}
+
+/* 랭크업/회복 이펙트(내 쪽/상대 쪽) — #battle-back-shiny-effect와 같은 원리. 위치/크기/프레임은 재생
+   시점에 playBattleEffect()가 인라인으로 지정함. z-index 2라 각자 같은 층의 hp바/이름표(z-index 6)보다 아래 */
+#battle-move-effect,
+#battle-foe-move-effect {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+/* 내 포켓몬(뒷모습)용 shiny 등장 이펙트 — #shiny-effect(야생용)와 완전히 동일한 원리, 위치만
+   #battle-back-sprite-box 기준으로 재생 시점(playBackShinyEffect)에 JS가 인라인으로 지정함 */
+#battle-back-shiny-effect {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+/* #control-panel + #action-btns를 하나로 합친 위치/크기 — 캐치 게임의 액션박스와 완전히 동일한
+   자리에 놓이는 장식용 박스(버튼은 disabled, 기능은 추후 구현) */
+#battle-action-box {
+    position: absolute;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    width: var(--action-box-width);
+    height: var(--action-box-height);
+    background-image: url('images/pokemon/layout/action_box.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 10px;
+    box-sizing: border-box;
+}
+
+/* 컨트롤 패널 */
+#control-panel {
+    position: absolute;
+    bottom: 15px; /* 상단 여백(15px)과 동일하게 맞춤 */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+#action-btns {
+    position: relative;
+    width: var(--action-box-width);
+    height: var(--action-box-height); /* action_box.png 원본 비율(4045x791) 유지 */
+    background-image: url('images/pokemon/layout/action_box.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 10px;
+    box-sizing: border-box;
+}
+
+/* 던지기 / 도망가기 — 배경 이미지 위에 글자만 표시 */
+.menu-item {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+    font-family: var(--pixel-font);
+    font-size: 16px;
+    line-height: 20px;
+    letter-spacing: 0.5px;
+    color: #000;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.menu-item.btn-hidden {
+    opacity: 0;
+}
+
+/* 포획 성공 메시지 — 액션창(action-btns) 내부에 겹쳐서 좌측 정렬로 한 글자씩 타이핑 */
+#capture-message {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: calc((var(--action-box-height) - 50px) / 2) 30px 0; /* 2줄(줄간격 25px×2=50px) 기준 위아래 여백을 정확히 절반씩 */
+    box-sizing: border-box;
+    text-align: left;
+    white-space: pre-line;
+    font-family: var(--pixel-font);
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    line-height: 25px;
+    color: #000;
+    z-index: 8;
+    pointer-events: none;
+    background: none;
+}
+
+.menu-item:active:not(:disabled) {
+    transform: translate(1px, 1px);
+}
+
+.menu-item:disabled {
+    color: #999;
+    cursor: not-allowed;
+}
+
+/* 숨김 */
+.hidden { display: none !important; }
+
+/* 몬스터 이름 / 종족값 오버레이 — hp_bar.png 이미지를 그대로 표시창으로 사용 */
+#monster-info {
+    position: absolute;
+    top: var(--info-top);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 6;
+    width: var(--info-width);
+    height: var(--info-height);
+    background-image: url('images/pokemon/layout/hp_bar.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    pointer-events: none;
+    transition: opacity 0.4s ease-in; /* 몬스터(#monster)와 동일한 페이드 속도 */
+}
+
+/* 배틀 프리뷰 전용 hp바 디자인 — overlay_hp_back.png(138x14)로 배경만 교체(폭은 hp_bar.png와
+   동일하게 --info-width 유지, 높이만 새 이미지 비율 138:14로 재계산). 실제 포획 게임(hp_bar.png)
+   쪽은 이 클래스가 절대 안 붙으므로 전혀 영향 없음 — battleStartBtn/battlePreviewCloseBtn에서만
+   추가/제거함(script.js) */
+#monster-info.battle-hp-style {
+    width: calc(var(--info-width) * 0.8);
+    height: calc(var(--info-width) * 0.8 * 14 / 138);
+    background-image: url('images/pokemon/layout/overlay_hp_back.png');
+}
+
+/* overlay_hp_back.png 안에서 실측한 "빈 hp 트랙" 좌표(138x14 원본 기준 x:32~127, y:2~9)를
+   퍼센트로 환산해 배치. width는 hp 비율에 따라 script.js(updateWildHpFillDisplay)가 매 공격마다
+   0~69.5652%(=96/138, 트랙 최대폭) 사이로 갱신 — 왼쪽에 고정된 채로 오른쪽부터 줄어들어서, hp가
+   깎인 만큼 뒤에 있는 회색 빈 트랙(overlay_hp_back.png 자체에 포함됨)이 자연스럽게 드러남 */
+#monster-hp-fill {
+    position: absolute;
+    left: 23.1884%;   /* 32/138 */
+    top: 14.2857%;    /* 2/14 */
+    height: 57.1429%; /* 8/14 */
+    width: 0%;
+    background-image: url('images/pokemon/layout/overlay_hp.png');
+    background-repeat: no-repeat;
+    /* overlay_hp.png(96x24)는 초록/노랑/빨강 8px 띠 3개가 세로로 쌓여있음 — 세로 300%로 늘려두고
+       background-position만 0%/50%/100%로 옮기면 hp 구간별 색을 그대로 골라 쓸 수 있음 */
+    background-size: 100% 300%;
+    background-position: 0% 0%;
+    image-rendering: pixelated;
+}
+
+/* 이름/종족값 텍스트: #game-container 기준 좌표로 가로는 화면 전체 폭 기준 중앙정렬(긴 이름이
+   hp바 폭 밖으로 잘리는 문제 방지), 세로는 --info-top 기준 3px 위 위치 유지 */
+#monster-info-text {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(var(--container-height) - 4px - var(--info-top) + 3px); /* -4px: #game-container 테두리(border: 4px solid) 보정 */
+    z-index: 6;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    font-family: var(--pixel-font);
+    line-height: 20px;
+    transition: opacity 0.4s ease-in; /* #monster-info와 동일한 페이드 속도 유지 */
+}
+
+/* 배틀 프리뷰에서 야생 hp바/이름표의 위치(화면 우측 상단, 야생 스프라이트 발밑에 닿는 위치)는
+   battleStartBtn에서 인라인 style.left/top으로 직접 설정함(#monster-info/-text 참고) —
+   종/화면 크기와 무관한 고정값이라 CSS 클래스보다 script.js의 WILD_INFO_TOP 상수 하나로
+   관리하는 게 더 명확해서 이렇게 함 */
+
+#monster-name {
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #000;
+}
+
+#monster-bst {
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #e67e00;
+}
+
+/* 배틀 프리뷰에서 CP 대신 보여주는 타입 뱃지 한 줄 — types.png(64x560, 세로로 20칸) 원본을
+   절반(32x14)으로 다운스케일한 뒤 다시 1.5배(48x21) 키워서 씀. 뱃지 사이 간격만 여기서 정하고,
+   개별 뱃지 크기/위치는 .type-badge에서 renderTypeBadges()(script.js)가 지정한 배경 위치로 결정됨.
+   TYPE_BADGE_HEIGHT(script.js)도 이 height와 반드시 같은 값으로 유지해야 함 */
+.type-badges {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 3px;
+}
+
+.type-badge {
+    display: inline-block;
+    width: 48px;
+    height: 21px;
+    background-image: url('images/pokemon/layout/types.png');
+    background-size: 48px 420px; /* 원본 64x560의 절반(32x280)에서 다시 1.5배 */
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+/* 제한시간 타이머 / 포획 CP 합계 — hp_bar와 같은 세로 라인, 좌우 여백에 배치해 hp_bar와 겹치지 않음 */
+#game-timer,
+#cp-total {
+    position: absolute;
+    top: var(--info-top);
+    height: var(--info-height);
+    display: flex;
+    align-items: center;
+    z-index: 6;
+    font-family: var(--pixel-font);
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #000;
+    white-space: nowrap;
+    cursor: pointer;
+    /* 터치 반응 통일 패치: <div>를 <button>으로 전환하면서 브라우저 기본 버튼 룩 리셋 */
+    border: none;
+    background: none;
+    margin: 0;
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    /* 전역 button{width:100%} 리셋(로그인/로비 등 대형 버튼용)이 새어 들어와 커지는 것 방지 —
+       throwBtn 등 기존 3개 버튼에 이미 있는 #pokemon-catch-page .menu-item 등의 width:auto와 동일한 목적 */
+    width: auto;
+}
+
+#game-timer {
+    right: calc(50% + var(--info-width) / 2 + var(--side-gap));
+    text-align: right;
+    color: #ff4757;
+}
+
+#cp-total {
+    left: calc(50% + var(--info-width) / 2 + var(--side-gap));
+    text-align: left;
+    color: #27ae60;
+}
+
+/* 터치 반응 통일 패치: <button>으로 전환하면서 throwBtn 등과 동일한 :disabled 의사클래스 방식으로 통일.
+   (이전엔 <div>라 :disabled를 못 써서 pc-disabled-look 클래스를 수동으로 토글했음 — 이제 불필요) */
+#game-timer:disabled,
+#cp-total:disabled {
+    opacity: 0.6;
+    color: #999 !important;
+    cursor: not-allowed;
+}
+
+/* 몬스터 — transition은 포획 흡수 방향 전용 (탈출 시엔 JS 인라인으로 덮어씀) */
+#monster {
+    position: absolute;
+    top: var(--monster-top);
+    left: 50%;
+    transform: translateX(-50%) scale(1);
+    transform-origin: center center;
+    width: var(--monster-size);
+    height: var(--monster-size); /* 바깥 박스는 항상 이 고정 크기 — 포획/탈출 애니메이션은 전부 이 박스 기준 */
+    z-index: 1;
+    transition: opacity 0.4s ease-in, transform 0.4s ease-in;
+    overflow: hidden; /* 안쪽 스프라이트 레이어가 이 박스보다 커질 일은 없지만 안전장치로 유지 */
+}
+
+/* 배틀 프리뷰 전용 — 야생 포켓몬을 화면 중앙에서 오른쪽으로 고정 이동(왼쪽의 야생 hp바와 대각선
+   배치). 원본 게임(PLAYER_BASE_X/FOE_BASE_X)처럼 그림 크기와 무관한 고정 오프셋만 줌 — hp바가
+   화면 맨 위 안전지대에 있어서 스프라이트가 그걸 피하려는 계산은 필요 없음.
+   battleStartBtn/battlePreviewCloseBtn에서만 추가/제거되므로 포획 게임 쪽엔 전혀 영향 없음 */
+#monster.battle-side-right {
+    left: calc(50% + 40px);
+}
+
+
+/* 실제 그림(스프라이트시트 배경이미지)이 표시되는 안쪽 레이어.
+   크기(width/height)는 포켓몬마다 displayMonsterSprite()가 JS로 지정함 — 이 크기가
+   "보여주는 창"이자 동시에 "프레임 한 칸 크기"라서, 몸집이 작은 포켓몬은 이 레이어 자체가
+   작아지고(=박스 안에서 작게 보임), 여러 프레임이 한 창에 겹쳐 보이는 일이 없음. */
+#monster-sprite {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    /* background-image/size/position은 displayMonsterSprite()가 몬스터마다 JS로 설정함 */
+}
+
+/* 포획 흡수 연출: 정점에 있는 몬스터볼 중심으로 이동하며 작아지고 페이드아웃 */
+#monster.captured {
+    opacity: 0;
+    transform: translateX(-50%) translateY(calc(var(--bounce-peak-offset) * -1)) scale(0.05);
+    transition: opacity 0.28s ease-in, transform 0.28s ease-in; /* 포획 흡수 전용 — 기본 0.4s의 70% */
+}
+
+/* shiny 등장 이펙트 — #monster 밖의 독립 요소. top/left 모두 고정 CSS 값이 아니라, 재생
+   시점(playShinyEffect)에 #monster의 "그때그때 실제 렌더링된" 위치를 읽어 그 정중앙에 맞춰
+   JS가 인라인으로 지정함 — 포획 게임 기본(중앙) 위치든, 배틀 프리뷰에서 alignWildMonsterToGround()
+   가 세로/가로 모두 재조정한 위치든 항상 따라감.
+   translate(-50%,-50%)로 그 지점에 요소 중심을 맞추고, width/height/background-size/position도
+   재생 시점에 JS가 몬스터 크기에 맞춰 지정함 */
+#shiny-effect {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+/* 포켓볼 */
+#pokeball {
+    position: absolute;
+    bottom: 90px; /* 액션창(하단 15px, 높이 ~66.5px)과 겹치지 않도록 여유 확보 */
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--ball-size);
+    height: var(--ball-size);
+    object-fit: contain;
+    z-index: 5;
+    transition: bottom 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); /* script.js THROW_DURATION(400ms)과 반드시 동일하게 유지 */
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+/* 충돌 후 정점까지 솟아오르는 애니메이션 (forwards: 정점 위치 유지) */
+@keyframes ball-bounce {
+    0%   { transform: translateX(-50%) translateY(0); }
+    100% { transform: translateX(-50%) translateY(calc(var(--bounce-peak-offset) * -1)); }
+}
+
+#pokeball.bouncing {
+    animation: ball-bounce 0.525s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* 낙하 후 착지 위치 */
+.dropped {
+    bottom: var(--drop-bottom) !important;
+    transition: bottom 0.28s cubic-bezier(0.6, 0.05, 1, 0.5) !important;
+}
+
+/* 착지 바운스 애니메이션 */
+@keyframes ball-land {
+    0%   { transform: translateX(-50%) translateY(0)     scale(1,    1   ); }
+    25%  { transform: translateX(-50%) translateY(0)     scale(1.25, 0.75); }
+    55%  { transform: translateX(-50%) translateY(-12px) scale(0.95, 1.05); }
+    80%  { transform: translateX(-50%) translateY(0)     scale(1.05, 0.95); }
+    100% { transform: translateX(-50%) translateY(0)     scale(1,    1   ); }
+}
+
+#pokeball.landing {
+    animation: ball-land 0.28s ease-out;
+}
+
+/* =====================================================
+   📖 포켓몬 도감 — "포획한 포켓몬" 목록 창(#captured-box)과 동일한 디자인 언어로 통일
+   (흰 바탕 + 검정 테두리, 별도 배색/이미지 장식 없이 담백하게 구성. 이전에 쓰던 어나더 레드
+   참조 이미지는 더 이상 쓰지 않음 — 단, 같은 폴더의 images/pokemon/pokedex/icon_own.png는
+   포획 완료 배지(.dex-owned-badge)에 지금도 쓰이므로 폴더째 삭제하면 안 됨)
+   ===================================================== */
+#dex-modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 40;
+}
+
+#dex-box {
+    position: relative;
+    width: 300px;
+    /* 고정 height 대신 auto로 바꿔서, 배틀 선택 모드에서 #dex-core 아래에 슬롯 바가 붙는 만큼
+       박스 전체가 자연스럽게 더 길어지게 함(#dex-core가 예전 콘텐츠 영역 높이를 그대로 고정해서
+       가져가므로, 일반 도감 모드에서는 지금과 똑같이 480px가 됨 — #dex-core 규칙 참고) */
+    height: auto;
+    box-sizing: border-box;
+    /* 위쪽 34px: 모서리에 절대배치되는 닫기/뒤로가기 버튼(top:6px + 높이 26px = 32px)이
+       완전히 들어가고도 남을 만큼 여유를 둠(#captured-box의 28px보다 살짝 더 크게 잡음 —
+       #captured-box는 버튼과 겹치는 대신 짧은 제목 텍스트라 티가 안 났지만, 도감은 검색창이
+       가로로 꽉 차서 버튼과 실제로 겹치면 바로 눈에 띄기 때문) */
+    padding: 34px 14px 18px;
+    background-color: #ffffff;
+    border: 4px solid #1a1a1a;
+    border-radius: 6px;
+    font-family: var(--pixel-font);
+    display: flex;
+    flex-direction: column;
+}
+
+/* 도감 본문(헤더~치트 페이지) 전체를 감싸는 래퍼 — 예전 #dex-box가 height:480px 고정일 때의
+   콘텐츠 영역 높이(480 - 위 패딩34 - 아래 패딩18 - 테두리 4px×2 = 420px)를 그대로 고정으로
+   가져감. 그래서 일반 도감 모드에서는 지금까지와 완전히 동일하게 480px 박스로 보이고, 배틀
+   선택 모드에서 이 아래에 슬롯 바(#dex-battle-slot-row)+결정 버튼이 추가되면 #dex-box(auto)가
+   그 실제 높이만큼만 더 길어짐 — #dex-list/#dex-info 등 내부 flex:1 영역은 전혀 줄어들지 않음.
+   position을 지정하지 않아(기본 static) 새 containing block을 만들지 않으므로, .dex-back-btn/
+   .dex-settings-btn/.quiz-close-btn(전부 position:absolute)은 계속 #dex-box 기준으로 배치됨 */
+#dex-core {
+    height: 420px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 배틀 선택 모드(dexPickerMode, script.js가 #dex-box에 .picker-mode를 토글함)에서는 "잡음"
+   체크박스+카운트 줄(#dex-count-bar, 높이 20px + 아래 여백 12px = 32px)을 항상 숨기고, 그
+   확보된 공간만큼 #dex-core 자체 높이를 줄여서 #dex-box 총 높이에서 실제로 빠지게 함 — 단순히
+   숨기기만 하면 #dex-list(flex:1)가 그 공간을 흡수할 뿐 박스는 안 줄어들기 때문. 이렇게 확보한
+   공간을 슬롯 바(#dex-battle-slot-row)+결정 버튼이 대신 채워서, #dex-box가 게임 프레임
+   (370×600 고정) 밖으로 밀려나지 않도록 함 */
+#dex-box.picker-mode #dex-core {
+    height: calc(420px - 20px - 12px); /* 388px */
+}
+
+/* 선택 모드에서 "랜덤 선택"/"선택 완료" 버튼 줄이 #dex-box의 마지막 자식이 되면서, 버튼 위쪽
+   간격(#dex-battle-action-row의 margin-top:12px)보다 버튼 아래쪽 간격(#dex-box 기본 padding-
+   bottom:18px)이 더 넓어 보이는 문제가 있었음 — 일반 도감 모드(padding-bottom:18px 그대로 유지,
+   버튼 줄이 없어 이 값과 무관)는 건드리지 않고 선택 모드에서만 위쪽과 같은 12px로 줄여 균형을 맞춤 */
+#dex-box.picker-mode {
+    padding-bottom: 12px;
+}
+
+/* 검색창 한 줄. 닫기(#dex-close-btn)/뒤로가기(#dex-back-btn) 버튼은 .quiz-close-btn과
+   같은 방식으로 #dex-box 모서리에 position:absolute로 떠 있고(top:6px, 너비 26px), 그 폭이
+   #dex-header의 좌우 안쪽까지 파고들기 때문에, 검색창이 버튼과 겹치지 않도록 좌우에 20px씩
+   여백을 둬서 항상 버튼 바깥쪽에서만 폭을 차지하게 함(남는 폭은 flex:1이 전부 차지) */
+#dex-header {
+    flex-shrink: 0;
+    display: flex;
+    padding: 0 20px;
+    margin-bottom: 10px;
+}
+
+/* 이름 또는 도감번호로 목록을 실시간으로 좁혀주는 검색창 — 포획 목록의 담백한 흰/회색 톤에
+   맞춰 채색하고, 헤더 폭 전체를 차지해 중앙에 충분히 크게 배치됨 */
+.dex-search-input {
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border: 2px solid #1a1a1a;
+    border-radius: 15px;
+    background-color: #f7f7f7;
+    font-family: var(--pixel-font);
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    color: #000;
+    outline: none;
+}
+
+.dex-search-input::placeholder {
+    color: #9aa0a8;
+}
+
+.dex-search-input:focus {
+    background-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.15);
+}
+
+/* 검색과 무관하게 항상 "전체 포획 진행도"를 보여주는 카운트 표시 (#captured-title처럼
+   심플하게 가운데 정렬된 텍스트 한 줄로 처리) */
+/* 좌측: 포획한 것만 보기 체크박스 / 우측: 진행도 숫자("1 / 1025") — 도감 칸(.dex-row)의
+   좌우 폭에 맞춰 양 끝 정렬함(검색과 무관하게 항상 전체 기준 숫자를 보여줌) */
+#dex-count-bar {
+    flex-shrink: 0;
+    height: 20px; /* 명시적 높이 — #dex-box.picker-mode #dex-core 높이 계산에서 정확히 뺄 수 있도록 */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    /* #dex-list가 좌우 4px 패딩을 가진 채로 .dex-row를 담고 있어서(도감 칸 자체는 그만큼
+       안쪽에서 시작함), 이 바도 동일하게 4px씩 인셋을 줘야 체크박스/카운트 양끝이 도감 칸의
+       좌우 끝과 정확히 같은 선에 맞음 */
+    padding: 0 4px;
+    box-sizing: border-box;
+    margin-bottom: 12px;
+}
+
+.dex-owned-only-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    color: #555;
+    cursor: pointer;
+    user-select: none;
+    text-align: left;
+}
+
+.dex-owned-only-label input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: #1a1a1a;
+    cursor: pointer;
+}
+
+#dex-count-text {
+    flex-shrink: 0;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: #666;
+    text-align: right;
+}
+
+#dex-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 4px;
+}
+
+/* .captured-row와 동일한 스타일(흰 배경 대신 옅은 회색, 2px 검정 테두리, 각진 모서리) */
+.dex-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    box-sizing: border-box;
+    border: 2px solid #1a1a1a;
+    background-color: #f0f0f0;
+    text-align: left;
+    cursor: pointer; /* 포획 여부와 무관하게 눌러서 정보 화면으로 이동 가능 (미포획 종은 "???" + 실루엣으로 표시됨) */
+}
+
+.dex-row:hover {
+    background-color: #e6e6e6;
+}
+
+.dex-row:active {
+    transform: translate(1px, 1px);
+}
+
+.dex-num {
+    flex-shrink: 0;
+    width: 40px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    color: #888;
+}
+
+.dex-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px; /* .captured-icon과 동일 크기 */
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    background-size: 200% 100%; /* 아이콘 스프라이트시트 2프레임 중 첫 프레임만 사용 */
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+/* 미포획 항목: 실제 아이콘 이미지(JS에서 그대로 로드)를 검은 실루엣(그림자)으로만 보이게 처리.
+   brightness(0)이 색이 있는 픽셀을 전부 검게 만들고(투명 영역은 그대로 투명 유지되어 윤곽만
+   남음), opacity로 살짝 흐리게 낮춰 "그림자"에 가깝게 보이도록 함 — 색/무늬 등 실제 정보는
+   가려지고 형태만 드러남 */
+.dex-icon.locked {
+    filter: brightness(0);
+    opacity: 0.55;
+}
+
+/* 치트 코드(DexAll)로 언락되었지만(이름은 공개) 실제로 잡은 적은 없는 상태 — 검은 실루엣과
+   달리 형태/무늬가 흑백으로는 그대로 보이되 색 정보만 빠져서, 실제 포획(컬러)과 확실히 구분됨 */
+.dex-icon.grayed {
+    filter: grayscale(100%);
+}
+
+.dex-name {
+    flex: 1;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: #000;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dex-row.locked .dex-name {
+    color: #9aa0a8;
+}
+
+/* 포획 완료 배지 — images/pokemon/pokedex/icon_own.png 아이콘 이미지를 그대로 표시 (기존에는
+   순수 CSS로 그린 초록 원 + 체크 표시였음). 포켓몬 스프라이트처럼 픽셀을 유지해 축소(흐릿해지지 않게) */
+.dex-owned-badge {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    box-sizing: border-box;
+    background-image: url('images/pokemon/pokedex/icon_own.png');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+#dex-empty {
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: #666;
+    text-align: center;
+    padding: 20px 0;
+}
+
+/* 도감 헤더의 '‹' 뒤로가기 버튼 — 닫기(×) 버튼(.quiz-close-btn)과 완전히 같은 스타일/좌표계로,
+   #dex-box 모서리에 반대쪽(왼쪽)에 절대위치로 배치. 검색창이 있는 #dex-header 흐름과는
+   무관하게 떠 있으므로 서로 절대 겹치지 않음 */
+.dex-back-btn {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 26px;
+    height: 26px;
+    line-height: 20px;
+    border: 2px solid #1a1a1a;
+    background-color: #ff4757;
+    color: #fff;
+    font-family: var(--pixel-font);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.dex-back-btn:hover {
+    background-color: #ff6b81;
+}
+
+/* 도감 헤더의 '⚙' 설정 버튼 — 뒤로가기 버튼과 완전히 같은 자리(왼쪽 위 모서리)를 쓰되, 서로
+   동시에 보이지 않도록 항상 반대로 토글됨(목록 화면=설정 버튼, 정보/설정 화면=뒤로가기 버튼).
+   빨간 뒤로가기/닫기 버튼과 구분되도록 "위험하지 않은" 중립 회색으로 채색 */
+.dex-settings-btn {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 26px;
+    height: 26px;
+    line-height: 24px;
+    border: 2px solid #1a1a1a;
+    background-color: #6c757d;
+    color: #fff;
+    font-family: var(--pixel-font);
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+    text-align: center;
+}
+
+.dex-settings-btn:hover {
+    background-color: #7f868d;
+}
+
+/* =====================================================
+   ⚙ 도감 설정 화면 (좌측 상단 설정 버튼을 누르면 #dex-list 대신 표시됨)
+   ===================================================== */
+#dex-settings,
+#dex-reset-page,
+#dex-cheat-page {
+    flex: 1;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 4px 4px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#dex-settings-title,
+#dex-reset-page-title,
+#dex-cheat-page-title {
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #000;
+    text-align: center;
+    margin-bottom: 2px;
+}
+
+.dex-settings-action-btn {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: var(--pixel-font);
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    padding: 10px;
+    border: 2px solid #1a1a1a;
+    background-color: #f0f0f0;
+    color: #000;
+    cursor: pointer;
+}
+
+.dex-settings-action-btn:hover {
+    background-color: #e6e6e6;
+}
+
+.dex-settings-action-btn:active {
+    transform: translate(1px, 1px);
+}
+
+/* 되돌릴 수 없는 파괴적 동작(실제 초기화 확정)만 위험 색상으로 강조 */
+.dex-settings-action-btn.dex-danger {
+    background-color: #ff4757;
+    color: #fff;
+}
+
+.dex-settings-action-btn.dex-danger:hover {
+    background-color: #ff6b81;
+}
+
+/* 치트 코드 / 도감 초기화 입력 행 공용 — 검색창(.dex-search-input)과 같은 톤의 알약형
+   입력창 + 버튼을 한 줄에 배치. 두 페이지가 완전히 같은 상호작용 방식(각자 전용 페이지에서
+   입력 후 버튼 클릭, 전용 취소 버튼 없이 뒤로가기로 복귀)을 쓰므로 레이아웃도 하나의 규칙으로
+   공유함 */
+#dex-cheat-row,
+#dex-reset-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.dex-cheat-input {
+    flex: 1;
+    min-width: 0;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border: 2px solid #1a1a1a;
+    border-radius: 15px;
+    background-color: #f7f7f7;
+    font-family: var(--pixel-font);
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    color: #000;
+    outline: none;
+}
+
+.dex-cheat-input::placeholder {
+    color: #9aa0a8;
+}
+
+.dex-cheat-input:focus {
+    background-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.15);
+}
+
+/* 입력창(.dex-cheat-input)과 나란히 놓이는 버튼이라 border-radius도 입력창과 똑같이 15px로
+   맞춰서 한 세트로 보이게 함 — 치트 코드의 "적용하기"와 도감 초기화의 "초기화" 버튼 둘 다
+   이 클래스를 공유하므로 동시에 적용됨 */
+.dex-cheat-apply-btn {
+    width: auto;
+    flex-shrink: 0;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 15px;
+}
+
+#dex-cheat-feedback,
+#dex-reset-feedback {
+    min-height: 14px;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    text-align: center;
+    word-break: keep-all; /* 줄바꿈이 필요할 때 글자 단위가 아니라 띄어쓰기 기준 의미단위로 넘어가게 함 */
+    overflow-wrap: break-word;
+}
+
+#dex-cheat-feedback.success,
+#dex-reset-feedback.success {
+    color: #2ed573;
+}
+
+#dex-cheat-feedback.error,
+#dex-reset-feedback.error {
+    color: #b8281f;
+}
+
+/* =====================================================
+   📄 포켓몬 정보 화면 (도감 목록에서 포획한 종을 누르면 #dex-list 대신 표시됨)
+   ===================================================== */
+/* 번호/이름/큰 스프라이트 카드는 항상 고정으로 보이고, 폼 칸이 많아 넘칠 때는
+   #dex-info-form-grid 영역만 따로 스크롤되게 함(스크롤해도 위쪽 큰 카드는 안 밀려서
+   원하는 폼을 바로바로 확인하기 편함) — 그래서 이 컨테이너 자체는 더 이상 스크롤하지 않고,
+   min-height:0으로 자식(그리드)이 남은 공간 안에서만 늘어나도록 허용함 */
+#dex-info {
+    flex: 1;
+    min-height: 0;
+    box-sizing: border-box;
+    padding: 0 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+/* 스프라이트를 담는 카드 — 목록의 .dex-row와 같은 회색/검정 테두리 톤으로 통일 */
+#dex-info-sprite-card {
+    width: 100%;
+    box-sizing: border-box;
+    background-color: #f0f0f0;
+    border: 2px solid #1a1a1a;
+    padding: 14px 0 10px;
+    display: flex;
+    justify-content: center;
+}
+
+#dex-info-sprite-box {
+    position: relative;
+    width: 140px;
+    height: 140px;
+}
+
+#dex-info-sprite {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    /* background-image/size/position은 renderDexInfoSprite()가 JS로 설정함 */
+}
+
+/* 대표폼(repId) 자체를 정확히 잡은 적 없는 경우(openDexInfo에서 토글) — 실제로 종을 잡았어도
+   대표폼이 아닌 다른 폼만 잡았을 수 있어서, 목록의 .dex-icon.locked와 동일한 방식으로 검은
+   실루엣(그림자) 처리함 */
+#dex-info-sprite.locked {
+    filter: brightness(0);
+    opacity: 0.55;
+}
+
+#dex-info-sprite.grayed {
+    filter: grayscale(100%);
+}
+
+#dex-info-num {
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: #888;
+}
+
+#dex-info-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#dex-info-name {
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #000;
+}
+
+/* =====================================================
+   폼 그리드 (대표폼 포함, 리전/성별/코스튬/그림자 등 일반폼 + 메가진화 + 거다이맥스, 그리고 각
+   폼 바로 뒤에 그 폼 전용 "색이 다른" 이로치 가상 칸이 1:1로 붙음) 한 줄에 3칸씩 배치. 모든
+   칸은 정지 아이콘만 사용(잡은 폼은 컬러, 못 잡은 폼은 검은 실루엣). 칸을 클릭하면 위쪽 큰
+   카드가 해당 폼의 움직이는 스프라이트로 전환됨(showDexInfoForm). 정렬 순서는
+   renderDexFormGrid/DEX_FORM_BUCKET_ORDER 참고.
+   ===================================================== */
+#dex-info-form-grid {
+    width: 100%;
+    box-sizing: border-box;
+    display: grid;
+    /* "1fr"는 기본적으로 minmax(auto, 1fr)라, 텍스트가 있으면 그 칸의 최소폭이 텍스트 길이만큼
+       벌어져서 같은 줄의 다른 칸들과 폭이 제각각으로 달라짐(아이콘 크기/위치도 칸 폭에 비례해서
+       같이 어긋남). minmax(0, 1fr)로 최소폭을 0으로 강제해야 내용과 무관하게 3칸이 항상 균등한
+       폭을 갖음. 긴 이름은 .dex-form-name에서 3줄까지 줄바꿈되어 전부 표시됨(말줄임 없음) */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 4px;
+    /* 위쪽 스프라이트 카드는 고정해두고 폼 칸이 넘칠 때는 이 그리드 영역만 독립적으로
+       스크롤되게 함(#dex-info 주석 참고). align-content:start를 안 주면 칸 수가 적어
+       내용이 짧을 때 grid auto-rows가 늘어나 세로 중앙정렬처럼 보이는 문제가 있어서 항상
+       위에서부터 채우도록 고정 */
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+    padding-bottom: 4px;
+}
+
+.dex-form-cell {
+    position: relative; /* .in-party 체크 배지의 위치 기준 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px 5px;
+    box-sizing: border-box;
+    background-color: #f0f0f0;
+    border: 2px solid #1a1a1a;
+    cursor: pointer; /* 눌러서 큰 카드에 이 폼을 미리보기(showDexInfoForm) — 배틀 선택 모드에서는
+                        같은 클릭이 슬롯 등록/해제도 겸함(별도 추가/빼기 버튼 없음) */
+}
+
+.dex-form-cell:hover {
+    background-color: #e6e6e6;
+}
+
+.dex-form-cell:active {
+    transform: translate(1px, 1px);
+}
+
+/* 지금 위쪽 큰 카드에 표시 중인 폼 강조 표시(미리보기 중 — 슬롯 소속 여부와는 별개 개념) */
+.dex-form-cell.selected {
+    border-color: #e6392f;
+    background-color: #fbe9e7;
+}
+
+/* 배틀 선택 모드에서 이 폼이 지금 배틀 슬롯에 등록되어 있음을 표시하는 체크 배지
+   (markDexFormGridPartyCells 참고). .selected(빨간 테두리, 미리보기 중)와 동시에 표시될 수 있음 */
+.dex-form-cell.in-party::after {
+    content: '✓';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 14px;
+    height: 14px;
+    line-height: 14px;
+    font-size: 10px;
+    text-align: center;
+    color: #fff;
+    background-color: #2e9e44;
+    border-radius: 50%;
+}
+
+.dex-form-sprite-box {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+}
+
+/* 폼 그리드 칸은 전부 가벼운 정지 아이콘(32x32)만 사용함 — 움직이는 애니메이션은 위쪽 큰 카드
+   전용(renderDexInfoSprite). 못 잡은 폼은 목록의 .dex-icon.locked와 동일하게 검은 실루엣 처리 */
+.dex-form-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 32px;
+    height: 32px;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    background-size: 200% 100%;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+.dex-form-icon.locked {
+    filter: brightness(0);
+    opacity: 0.55;
+}
+
+.dex-form-icon.grayed {
+    filter: grayscale(100%);
+}
+
+/* 이름표는 말줄임(...) 없이 최대 3줄까지 전부 보여줌 — word-break:keep-all로 한글 단어(의미단위)
+   중간이 아니라 띄어쓰기 기준으로만 줄바꿈되게 하고, height를 3줄 고정값으로 둬서 1~2줄짜리
+   이름을 가진 칸도 전부 같은 칸 높이가 되도록 함(칸마다 높이가 들쭉날쭉해지는 것 방지).
+   폼별 "색이 다른" 칸이 추가되면서 "밀키바닐라 딸기사탕공예 색이 다른"처럼 원래 폼 이름(최대
+   4단어)에 " 색이 다른"까지 붙는 조합이 생겨 2줄로는 부족한 경우(실측 최대 63개 칸, 869번
+   마휘핑 계열)가 있어 3줄로 늘림 — 실측 결과 3줄을 넘는 조합은 없음(2026-08 검증).
+   line-clamp는 혹시라도 3줄을 넘는 극단적으로 긴 이름에 대한 안전장치(잘림 방지가 기본 목표라
+   실제로 동작할 일은 거의 없음) */
+.dex-form-name {
+    width: 100%;
+    font-size: 10px;
+    line-height: 11px;
+    height: 33px;
+    letter-spacing: 0.2px;
+    color: #000;
+    text-align: center;
+    overflow: hidden;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.dex-form-name.locked {
+    color: #9aa0a8;
+}
+
+/* ===================== 3v3 AI 트레이너 배틀 (액션박스 하위 화면들) ===================== */
+
+/* 기본 3버튼(상태 확인/싸운다/포켓몬) 줄 — 예전엔 #battle-action-box 자체가 이 flex 속성을
+   가지고 있었는데, 기술 메뉴/대화창을 형제로 추가하면서 이 안쪽 래퍼로 옮김(#battle-action-box는
+   배경/크기/위치만 유지) */
+#battle-main-menu {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
+    height: 100%;
+}
+
+/* "싸운다"를 누르면 기본 메뉴 대신 이게 보임 — 최대 4개 기술 버튼을 가로로 나열.
+   "포켓몬"을 눌렀을 때 뜨는 교체 이름 버튼 목록(#battle-switch-inline-menu)도 완전히
+   같은 레이아웃을 그대로 재사용함(뒤로가기 버튼 + 가로 버튼 목록) */
+#battle-move-menu,
+#battle-switch-inline-menu {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    z-index: 9;
+    box-sizing: border-box;
+    /* 왼쪽에만 뒤로가기(‹) 공간(22px)을 주면 정작 버튼 목록(#battle-move-list 등)은
+       왼쪽으로 22px만큼 밀린 좁은 영역 안에서만 가운데 정렬되어, 버튼 개수가 적을수록(특히
+       교체 메뉴의 이름 1~2개) 전체 액션박스 기준으로 오른쪽에 쏠려 보였음 — 오른쪽에도 똑같이
+       22px 여백을 줘서 목록이 차지하는 영역 자체를 액션박스 정중앙 기준으로 대칭시킴 */
+    padding-left: 22px;  /* 뒤로가기 버튼(‹) 공간 */
+    padding-right: 22px; /* 왼쪽과 대칭 — 버튼 목록이 진짜 가운데 오도록 */
+}
+
+/* 텍스트 "‹" 대신 images/pokemon/layout/left_arrow.png(40x224px, 세로로 8프레임 —
+   프레임당 40x28px) 스프라이트를 애니메이션으로 재생. 절반 크기(0.5배)로 표시하므로
+   background-size는 원본 전체(40x224)의 절반인 20x112px, 프레임 1개 높이는 14px임 —
+   실제 프레임 전환(background-position-y를 -14px씩 이동)은 pokemon_battle.js가 담당함 */
+.battle-move-back-btn {
+    position: absolute;
+    /* action_box.png(4045x791) 안에 그려진 검은 테두리가 왼쪽 위 모서리 부분에서
+       렌더링 기준 약 6px까지 차지함(테두리 자체 두께 + 모서리 장식 여백) — 5px/4px였을 땐
+       화살표 끝이 그 테두리와 겹쳐서 top/left를 7px로 늘려 완전히 안쪽으로 들어오게 함 */
+    /* left_arrow.png 스프라이트가 상하 여백 0px, 좌우 여백은 프레임마다 2~6px로
+       흔들리는 애니메이션임. 한때 8프레임 평균(4px) 기준으로 top:11px로 맞췄으나,
+       "애니메이션이 가장 왼쪽으로 이동했을 때"(프레임0, 좌측 여백 2px)를 기준으로 재조정 —
+       top:9px, left:7px일 때 그 프레임에서 위/좌 간격이 정확히 일치함(약 7.4px). 단,
+       애니메이션이 오른쪽으로 흔들릴수록 좌측 간격만 점점 벌어짐(최대 프레임4에서 좌측이
+       위보다 약 4px 더 넓어짐) — 정지 프레임 기준 보정이라 애니메이션 전체로는 편차가
+       발생하는 트레이드오프가 있음(사용자 확인 후 적용). */
+    top: 9px;
+    left: 7px;
+    width: 20px;
+    height: 14px;
+    background-color: transparent; /* 버튼 기본 배경(브라우저 기본 회색 상자)이 그대로
+        남아있어서 이미지의 투명 배경이 안 보이던 문제 수정 — 명시적으로 투명 처리함 */
+    background-image: url('images/pokemon/layout/left_arrow.png');
+    background-repeat: no-repeat;
+    background-size: 20px 112px;
+    background-position: 0 0;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+/* 기술 메뉴(최대 4버튼)는 기존 그대로 가로로 고르게 배치 */
+#battle-move-list {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+}
+
+/* 교체 후보 목록(battleParty가 항상 3마리 고정이라 나가있는 개체를 빼면 후보는 최대 2마리)은
+   위 기술 메뉴와 달리 세로로 한 줄씩 쌓음 — 거다이맥스·무한다이맥스처럼 이름이 아주 긴 폼이
+   섞이면, 두 후보를 한 줄에 나란히 두는 방식으로는 이름+타입아이콘 폭 합이 액션박스(340px)를
+   넘어 화면 밖으로 삐져나오는 문제가 있었음. 후보 하나가 한 줄을 통째로 쓰면 실제 로스터에서
+   가장 긴 이름(다이맥스 이중타입 조합, 약 226px)도 한 줄 예산(약 296px)에 여유 있게 들어감 */
+#battle-switch-inline-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px; /* 두 후보 사이 세로 간격 */
+}
+
+
+/* 공격/랭크업/회복 버튼을 "싸운다"/"포켓몬"(#battle-main-menu)과 완전히 같은 디자인
+   으로 통일 — 별도 테두리/배경 없이 .menu-item 그대로 사용(script.js에서 menu-item 클래스를
+   같이 붙임). 이 규칙은 #battle-move-list의 3버튼 레이아웃(가로로 고르게 배치)만 담당함 */
+.battle-move-btn,
+.battle-switch-inline-btn {
+    text-align: center;
+}
+
+/* 버튼 자체 높이/정렬은 라벨(기존 16px 한 줄) 기준 그대로 유지 — 효과 미리보기 줄이 버튼 박스
+   안에 같이 쌓이면(flex-column) 버튼이 커지면서 #battle-move-list의 align-items:center 기준
+   세 버튼이 통째로 위로 밀려 보이는 문제가 있었음(패치87 직후 발견). 그래서 버튼은 흐름상
+   라벨만 갖고, 미리보기 줄은 position:absolute로 버튼 바깥 바로 아래에 겹쳐 붙임 */
+.battle-move-btn {
+    position: relative;
+}
+
+/* 공격 버튼 아래 상성 효과 미리보기 — 버튼 텍스트(16px)보다 작은 10px. 버튼의 문서 흐름에서
+   빠져있어(position:absolute) 버튼 높이/위치에 영향을 주지 않음. 아이콘(judgment.png, .bs-icon
+   재사용)은 효과 있음(1배)일 때만 비워서 안 보이게 함(matchupIconClass가 빈 문자열 반환) */
+.battle-move-eff {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    height: 12px;
+    font-family: var(--pixel-font);
+    font-size: 10px;
+    line-height: 12px;
+    letter-spacing: 0.3px;
+    color: #555;
+    white-space: nowrap;
+}
+
+/* 교체 이름 버튼(.battle-switch-inline-btn)은 이름 + 타입 아이콘(들)을 가로로 나란히
+   보여줘야 해서 .battle-move-btn과 달리 flex 레이아웃이 필요함 */
+.battle-switch-inline-btn {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    /* 위아래 패딩으로 실제 클릭/탭 가능 영역을 20px -> 28px로 넓힘 — 세로 2줄로 쌓이면서 두
+       후보 버튼이 위아래로 가까워진 만큼, 모바일에서 오조작 없이 구분해서 누를 수 있도록
+       액션박스 높이(약 66.5px) 안에서 최대한 확보한 값(2*28px + 줄 간격 4px = 60px) */
+    padding: 4px 0;
+}
+
+/* 교체 이름 버튼 옆에 붙는 작은 타입 아이콘 — types_short.png(28x560, types.png와 같은
+   20줄 순서지만 정사각형이라 이름 옆에 작게 붙이기 좋음)를 16x16으로 그대로 축소해서 씀.
+   개별 아이콘 위치는 renderBattleSwitchInlineMenu()(script.js)가 TYPE_ICON_INDEX 기준으로 지정 */
+.battle-switch-inline-type-icon {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background-image: url('images/pokemon/layout/types_short.png');
+    background-size: 16px 320px; /* 원본 28x560 -> 16px 폭 기준 320px 높이(20줄 x 16px) */
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+/* 공격 상호작용 중 액션박스가 대화창으로 전환될 때 쓰는 영역 — #capture-message와 동일한
+   패턴(showBattleMessage()가 typeMessage()로 채움) */
+#battle-message-box {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 16px;
+    box-sizing: border-box;
+    text-align: left;
+    white-space: pre-line;
+    font-family: var(--pixel-font);
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    line-height: 18px;
+    color: #000;
+    z-index: 9;
+    background: none;
+}
+
+/* 상태 확인 오버레이 — #quiz-modal/#quiz-box와 같은 반투명 배경 + 흰 박스 + 검정 테두리.
+   슬롯 칸은 .battle-slot 스타일을 그대로 쓰고, 여기서는 3열 배치와 기절/현재 출전 표시만 덧붙임 */
+#battle-status-modal {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 40;
+}
+
+#battle-status-box {
+    position: relative;
+    width: 320px;
+    box-sizing: border-box;
+    padding: 30px 12px 12px;
+    background-color: #ffffff;
+    border: 4px solid #1a1a1a;
+    border-radius: 6px;
+    font-family: var(--pixel-font);
+    text-align: center;
+}
+
+.battle-status-label {
+    font-size: 13px;
+    line-height: 16px;
+    color: #000;
+    text-align: left;
+    margin: 0 0 4px 2px;
+}
+
+.battle-status-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+    align-items: start;
+}
+
+.battle-status-cell {
+    min-width: 0;
+}
+
+/* 이 오버레이의 슬롯은 누를 수 없는 표시 전용 칸 */
+#battle-status-box .battle-slot:not(.empty) {
+    cursor: default;
+}
+
+/* 내/상대 어느 칸이든 눌러서 빨간 칸(.active)을 옮기며 그 포켓몬 입장의 반대편 상성을 볼 수 있음 */
+#battle-status-box .battle-slot:not(.empty) {
+    cursor: pointer;
+}
+
+/* 아직 전장에 나오지 않은 상대 포켓몬 — 스프라이트 대신 물음표(000.png, 프레임 2장이 가로로 나열됨)의
+   첫 프레임만 정지 이미지로 표시. 도감 아이콘(.dex-icon)과 동일하게 32x32 박스 + background-size 200% 100%로
+   두 번째 프레임을 박스 밖으로 밀어냄 */
+#battle-status-box .battle-slot.unknown {
+    cursor: default;
+}
+#battle-status-box .battle-slot.unknown .battle-slot-sprite {
+    width: 32px;
+    height: 32px;
+    background-size: 200% 100%;
+    background-position: 0 0;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+#battle-status-box .battle-slot.fainted {
+    filter: grayscale(1);
+    opacity: 0.45;
+}
+
+#battle-status-box .battle-slot.active {
+    border-color: #ff4757;
+    background-color: #fff4f4;
+}
+
+/* 상대 슬롯의 이름 줄 — 판정 아이콘(judgment.png: O / X / △ 32px 3칸)을 이름 왼쪽에 붙임 */
+.battle-status-namerow {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    min-width: 0;
+    flex-shrink: 0;
+    /* 아이콘(12px)이 있을 때/없을 때 줄 높이가 같도록 고정 — 이름 줄(11px)만 있을 땐 줄이 11px, 아이콘이
+       붙으면 12px가 되어 이름이 0.5px 어긋나고 위쪽 스프라이트 박스도 1px 줄어들던 문제 */
+    height: 12px;
+}
+
+.battle-status-namerow .battle-slot-name {
+    width: auto;
+    flex: 0 1 auto;
+    min-width: 0;
+    line-height: 12px;
+}
+
+/* 이름 밑 타입 뱃지 줄 — 배틀 화면(이름 16px : 뱃지 48x21 = 뱃지 높이 1.31배, 너비 3.0배)과 같은 비율로,
+   이름 글씨(10px)에 맞춰 30x13(types.png 64x560, 20칸 → 30x260)으로 씀.
+   배경 위치는 renderTypeBadges(script.js, badgeHeight=STATUS_TYPE_BADGE_HEIGHT)가 지정. 뱃지가 없는 칸(빈 칸/
+   모르는 상대)에서도 높이가 같도록 줄 높이를 고정(이름 줄과 같은 이유) */
+.battle-status-types {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    height: 13px;
+    flex-shrink: 0;
+}
+.battle-status-types .type-badge {
+    width: 30px;
+    height: 13px;
+    background-size: 30px 260px;
+}
+/* 이름 밑에 타입 줄이 늘어난 만큼 칸을 세로로 키워 스프라이트 박스 높이를 유지함(정사각 1:1 → 5:6) */
+#battle-status-box .battle-slot {
+    aspect-ratio: 5 / 6;
+}
+
+.bs-icon {
+    display: none;
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    background: url('images/pokemon/layout/judgment.png') no-repeat;
+    background-size: 36px 12px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+.bs-icon.good { display: block; background-position: 0 0; }      /* 굉장 / 매우 굉장 */
+.bs-icon.none { display: block; background-position: -12px 0; } /* 효과 없음 */
+.bs-icon.bad  { display: block; background-position: -24px 0; } /* 별로 / 매우 별로 */
+
+/* 승패 결과 오버레이 — 포획 게임 결과 화면(#result-screen)과 완전히 동일한 디자인으로
+   통일(밝은 반투명 흰 배경 + gap 20px). #battle-result-text는 아직 배틀 쪽에 학습 데이터 연계
+   통계(점수/정답/오답) 시스템이 없어서 hidden 처리 — 나중에 그 기능이 추가되면 재사용 예정 */
+#battle-result-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    background-color: rgba(255, 255, 255, 0.9);
+    z-index: 30;
+}
+
+#battle-result-text {
+    font-family: var(--pixel-font);
+    font-size: 20px;
+    letter-spacing: 1px;
+    color: #000;
+    text-align: center;
+    padding: 0 20px;
+}
+
+/* 포획 게임 결과 화면(#result-actions)과 완전히 동일한 세로 스택 레이아웃 +
+   배경/테두리 없는 순수 텍스트 버튼(.menu-item 기본값 그대로 — 별도 버튼 chrome 없음) */
+#battle-result-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ===================== 함께하기(1:1 대전) — pokemon_multiplayer.js ===================== */
+/* "포켓몬 배틀" 하위 메뉴(혼자하기/함께하기, 초대 코드 생성/입력) — 시작화면(#start-screen)과
+   완전히 같은 레이아웃(흰 반투명 배경 위 세로로 나열된 글자 버튼)이라 그 자리를 그대로 대신함 */
+.start-submenu {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    background-color: rgba(255, 255, 255, 0.9);
+    z-index: 20;
+}
+
+/* 대기실/코드 입력/알림 — #quiz-modal/#quiz-box와 같은 반투명 배경 + 흰 박스 + 검정 테두리.
+   도감(#dex-modal) 위에서도 알림이 떠야 하므로 z-index를 한 단계 높게 둠 */
+.mp-modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 50;
+}
+
+.mp-box {
+    position: relative;
+    width: 300px;
+    box-sizing: border-box;
+    padding: 28px 18px 18px;
+    background-color: #ffffff;
+    border: 4px solid #1a1a1a;
+    border-radius: 6px;
+    font-family: var(--pixel-font);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.mp-title {
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    color: #000;
+}
+
+.mp-label {
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    color: #666;
+}
+
+/* 초대 코드 — 상대에게 불러주기 쉽게 크게, 글자 사이를 넓게 */
+.mp-code {
+    font-size: 32px;
+    line-height: 40px;
+    letter-spacing: 6px;
+    padding: 8px 0 8px 6px; /* letter-spacing이 마지막 글자 뒤에도 붙어서 생기는 오른쪽 쏠림 보정 */
+    border: 2px solid #1a1a1a;
+    border-radius: 6px;
+    background-color: #f7f7f7;
+    color: #000;
+    user-select: all;
+}
+
+.mp-status {
+    font-size: 14px;
+    line-height: 20px;
+    letter-spacing: 0.5px;
+    color: #000;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
+/* "기다리는 중..." 점 3개가 하나씩 늘어나는 애니메이션(폭 고정이라 글자가 흔들리지 않음).
+   픽셀 폰트에서 "..."이 1.5em보다 살짝 넓어 칸 안에서 줄바꿈되며 대기실 창 높이가 커졌다 줄었다
+   했음 — 폭을 넉넉히(2em) 잡고 줄바꿈을 막고, 세로 위치도 줄 위쪽에 고정해 줄 높이가 안 바뀌게 함 */
+.mp-dots {
+    display: inline-block;
+    width: 2em;
+    text-align: left;
+    white-space: nowrap;
+    vertical-align: top;
+}
+.mp-dots::after {
+    content: '';
+    animation: mp-dots 1.2s steps(4, end) infinite;
+}
+@keyframes mp-dots {
+    0%   { content: ''; }
+    25%  { content: '.'; }
+    50%  { content: '..'; }
+    75%  { content: '...'; }
+}
+
+.mp-join-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.mp-join-input {
+    font-size: 16px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-align: center;
+}
+
+.mp-feedback {
+    min-height: 14px;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    color: #b8281f;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}

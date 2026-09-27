@@ -1,0 +1,245 @@
+import { db } from "./firebase_config.js";
+import { ref, set, get, child, push, remove, onValue } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+
+// DOM Elements
+const loginScreen = document.getElementById('login-screen');
+const startScreen = document.getElementById('start-screen');
+const adminDashboard = document.getElementById('admin-dashboard-screen');
+const adminDataManageScreen = document.getElementById('admin-data-manage-screen');
+
+// Modals
+const adminLoginModal = document.getElementById('admin-login-modal');
+const studentLoginModal = document.getElementById('student-login-modal');
+const adminStudentCreateModal = document.getElementById('admin-student-create-modal');
+const studentDataSelectModal = document.getElementById('student-data-select-modal');
+
+// --- Navigation & Modal Helpers ---
+function showModal(modal) { modal.classList.remove('hidden'); }
+function hideModal(modal) { modal.classList.add('hidden'); }
+function switchScreen(screen) {
+    [loginScreen, startScreen, adminDashboard, adminDataManageScreen].forEach(s => s.classList.add('hidden'));
+    screen.classList.remove('hidden');
+}
+
+// Close buttons
+document.getElementById('admin-login-close-btn').addEventListener('click', () => hideModal(adminLoginModal));
+document.getElementById('student-login-close-btn').addEventListener('click', () => hideModal(studentLoginModal));
+document.getElementById('admin-student-create-close-btn').addEventListener('click', () => hideModal(adminStudentCreateModal));
+document.getElementById('student-data-select-close-btn').addEventListener('click', () => hideModal(studentDataSelectModal));
+
+// Login Screen Buttons
+document.getElementById('btn-show-student-login').addEventListener('click', () => showModal(studentLoginModal));
+document.getElementById('btn-show-admin-login').addEventListener('click', () => showModal(adminLoginModal));
+
+// --- Admin Logic ---
+const ADMIN_PW = "1234";
+
+document.getElementById('btn-admin-login').addEventListener('click', () => {
+    const pw = document.getElementById('admin-pw-input').value;
+    if (pw === ADMIN_PW) {
+        hideModal(adminLoginModal);
+        document.getElementById('admin-pw-input').value = '';
+        switchScreen(adminDashboard);
+    } else {
+        alert("비밀번호가 틀렸습니다.");
+    }
+});
+
+document.getElementById('btn-admin-logout').addEventListener('click', () => {
+    switchScreen(loginScreen);
+});
+
+document.getElementById('btn-admin-create-student').addEventListener('click', () => {
+    showModal(adminStudentCreateModal);
+});
+
+document.getElementById('btn-admin-manage-data').addEventListener('click', () => {
+    switchScreen(adminDataManageScreen);
+    loadLearningDataForAdmin();
+});
+
+document.getElementById('btn-data-manage-back').addEventListener('click', () => {
+    switchScreen(adminDashboard);
+});
+
+// Student Create (Admin)
+document.getElementById('btn-create-student-submit').addEventListener('click', async () => {
+    const id = document.getElementById('new-student-id').value.trim();
+    const pw = document.getElementById('new-student-pw').value.trim();
+    
+    if (!id || !pw) {
+        alert("아이디와 비밀번호를 모두 입력해주세요.");
+        return;
+    }
+
+    try {
+        const userRef = ref(db, `users/${id}`);
+        const snapshot = await get(userRef);
+        if (snapshot.exists()) {
+            alert("이미 존재하는 아이디입니다.");
+            return;
+        }
+
+        await set(userRef, { password: pw, pokedex: {} });
+        alert("학생 계정이 생성되었습니다.");
+        hideModal(adminStudentCreateModal);
+        document.getElementById('new-student-id').value = '';
+        document.getElementById('new-student-pw').value = '';
+    } catch (e) {
+        console.error(e);
+        alert("계정 생성 실패: " + e.message);
+    }
+});
+
+// Excel Upload (Admin) -> Handled mostly by script.js but modified to save to Firebase
+window.uploadLearningDataToFirebase = async function(parsedQuestions) {
+    const title = document.getElementById('data-title-input').value.trim() || "제목 없음";
+    try {
+        const dataRef = ref(db, 'learningData');
+        const newDataRef = push(dataRef);
+        await set(newDataRef, {
+            title: title,
+            questions: parsedQuestions
+        });
+        alert("학습 데이터가 성공적으로 업로드되었습니다.");
+        document.getElementById('data-title-input').value = '';
+        document.getElementById('excel-input').value = ''; // reset file input
+        loadLearningDataForAdmin(); // refresh list
+    } catch (e) {
+        console.error(e);
+        alert("업로드 실패: " + e.message);
+    }
+};
+
+function loadLearningDataForAdmin() {
+    const listContainer = document.getElementById('data-list-container');
+    listContainer.innerHTML = '로딩 중...';
+    
+    onValue(ref(db, 'learningData'), (snapshot) => {
+        listContainer.innerHTML = '';
+        if (!snapshot.exists()) {
+            listContainer.innerHTML = '<div style="color:white; text-align:center;">등록된 학습 데이터가 없습니다.</div>';
+            return;
+        }
+        
+        snapshot.forEach((childSnapshot) => {
+            const dataId = childSnapshot.key;
+            const data = childSnapshot.val();
+            
+            const div = document.createElement('div');
+            div.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: white; padding: 5px 10px; margin-bottom: 5px; border-radius: 4px;";
+            
+            const titleSpan = document.createElement('span');
+            titleSpan.textContent = data.title + ` (${data.questions.length}문항)`;
+            
+            const delBtn = document.createElement('button');
+            delBtn.textContent = '삭제';
+            delBtn.style.cssText = "background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;";
+            delBtn.onclick = async () => {
+                if(confirm(`'${data.title}' 데이터를 삭제하시겠습니까?`)) {
+                    await remove(ref(db, `learningData/${dataId}`));
+                }
+            };
+            
+            div.appendChild(titleSpan);
+            div.appendChild(delBtn);
+            listContainer.appendChild(div);
+        });
+    });
+}
+
+
+// --- Student Logic ---
+window.currentStudentId = null;
+
+document.getElementById('btn-student-login').addEventListener('click', async () => {
+    const id = document.getElementById('student-id-input').value.trim();
+    const pw = document.getElementById('student-pw-input').value.trim();
+    
+    if (!id || !pw) {
+        alert("아이디와 비밀번호를 모두 입력해주세요.");
+        return;
+    }
+    
+    try {
+        const userRef = ref(db, `users/${id}`);
+        const snapshot = await get(userRef);
+        
+        if (!snapshot.exists()) {
+            alert("존재하지 않는 아이디입니다.");
+            return;
+        }
+        
+        const userData = snapshot.val();
+        if (userData.password !== pw) {
+            alert("비밀번호가 틀렸습니다.");
+            return;
+        }
+        
+        // Login Success
+        window.currentStudentId = id;
+        hideModal(studentLoginModal);
+        switchScreen(startScreen);
+        
+        // Load Pokedex Data
+        if (userData.pokedex) {
+            if (window.loadPokedexFromFirebase) {
+                window.loadPokedexFromFirebase(userData.pokedex);
+            }
+        }
+        
+        alert(`${id} 학생, 환영합니다!`);
+    } catch (e) {
+        console.error(e);
+        alert("로그인 실패: " + e.message);
+    }
+});
+
+document.getElementById('btn-student-logout').addEventListener('click', () => {
+    window.currentStudentId = null;
+    // Pokedex 초기화 (로그아웃 시 로컬 도감을 비워야 함)
+    if (window.resetPokedexLocal) window.resetPokedexLocal();
+    switchScreen(loginScreen);
+});
+
+// Student Select Learning Data
+document.getElementById('btn-select-learning-data').addEventListener('click', () => {
+    showModal(studentDataSelectModal);
+    const listContainer = document.getElementById('student-data-list-container');
+    listContainer.innerHTML = '로딩 중...';
+    
+    get(ref(db, 'learningData')).then((snapshot) => {
+        listContainer.innerHTML = '';
+        if (!snapshot.exists()) {
+            listContainer.innerHTML = '<div style="color:white; text-align:center;">등록된 학습 데이터가 없습니다. 선생님께 문의하세요.</div>';
+            return;
+        }
+        
+        snapshot.forEach((childSnapshot) => {
+            const data = childSnapshot.val();
+            
+            const div = document.createElement('div');
+            div.style.cssText = "background: white; padding: 10px; margin-bottom: 5px; border-radius: 4px; cursor: pointer; text-align: center; border: 2px solid transparent;";
+            div.textContent = data.title + ` (${data.questions.length}문항)`;
+            
+            div.onmouseover = () => div.style.borderColor = "#3f51b5";
+            div.onmouseout = () => div.style.borderColor = "transparent";
+            
+            div.onclick = () => {
+                // Apply data to game
+                if (window.applyLearningData) {
+                    window.applyLearningData(data.questions, data.title);
+                }
+                hideModal(studentDataSelectModal);
+                alert(`'${data.title}' 데이터를 선택했습니다!`);
+                // 버튼 텍스트 변경
+                document.getElementById('btn-select-learning-data').textContent = data.title + " (변경)";
+            };
+            
+            listContainer.appendChild(div);
+        });
+    }).catch(e => {
+        listContainer.innerHTML = '데이터 로딩 실패';
+        console.error(e);
+    });
+});
