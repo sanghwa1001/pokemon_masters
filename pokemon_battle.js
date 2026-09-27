@@ -426,7 +426,7 @@ let mpSelfPassStreak = 0;    // 내가 연속으로 제한시간을 못 지켜 �
 //  - 불러오기 신호 대기: 내 쪽 에셋을 불러오기 시작하는 순간부터(끝난 뒤가 아니라)
 const MP_ACTION_TIMEOUT_MS = 60000;
 const MP_FORCED_SWITCH_TIMEOUT_MS = 60000;
-const MP_PARTY_TIMEOUT_MS = 120000;
+const MP_PARTY_TIMEOUT_MS = 100000;
 const MP_LOADED_TIMEOUT_MS = 100000;
 let mpPartyLocked = false;   // 함께하기 선택창에서 "선택 완료"를 누르고 상대를 기다리는 중(파티 수정 불가)
 let mpRematchWaiting = false; // 함께하기 결과 화면에서 "다시하기"를 누르고 상대를 기다리는 중
