@@ -63,7 +63,12 @@ html, body {
     top: 0;
     left: 0;
     margin: 0;
-    padding: 0;
+    /* 원본 포켓몬 캐치 게임(shkit)의 body와 동일하게 15px 여백을 둠 — 그 여백만큼 게임창이
+       화면 가장자리에서 안쪽으로 떨어져서, 특히 모바일 세로 화면에서 좌우 폭이 화면에 꽉 차지
+       않고 원본처럼 좌우 여백이 생김. padding이 늘어난 만큼 width/height 100%가 넘치지 않도록
+       box-sizing도 border-box로 맞춤(원본과 동일) */
+    box-sizing: border-box;
+    padding: 15px;
     overflow: hidden;         /* 모바일 스크롤 방지 */
     touch-action: none;       /* 모바일 브라우저 기본 제스처(새로고침, 스와이프 등) 방지 */
     background-color: #f0f0f0;
@@ -75,13 +80,13 @@ html, body {
    script.js는 이 실제 렌더링 너비를 읽어 #game-container를 그 배율로 scale()함. */
 #game-frame {
     width: 100%;
-    /* 원본 포켓몬 캐치 게임(shkit)의 #game-frame과 동일한 창 크기 계산 — 그 게임은 바깥에 15px
-       바디 패딩이 있어서 100dvh에서 30px를 뺀 값을 쓰지만, 이 페이지는 바디 패딩이 0이라
-       그만큼을 빼지 않은 것 외에는 완전히 같은 비율 계산식(370:600, vh→dvh 우선순위)임 */
-    max-width: calc(100vh * 370 / 600);
-    max-width: calc(100dvh * 370 / 600);
-    max-height: 100vh;
-    max-height: 100dvh;
+    /* 원본 포켓몬 캐치 게임(shkit)의 #game-frame과 완전히 동일한 창 크기 계산 — body의 15px
+       패딩(위에서 추가)만큼을 100vh/100dvh에서 미리 빼서, 그 패딩이 만드는 여백 안에 정확히
+       들어맞는 크기로 계산됨(370:600 비율, vh→dvh 우선순위도 동일) */
+    max-width: calc((100vh - 30px) * 370 / 600);
+    max-width: calc((100dvh - 30px) * 370 / 600);
+    max-height: calc(100vh - 30px);
+    max-height: calc(100dvh - 30px);
     aspect-ratio: 370 / 600;
     flex-shrink: 0;
     display: flex;
