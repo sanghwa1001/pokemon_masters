@@ -151,8 +151,14 @@ html, body {
     gap: 12px;
 }
 
-/* 퀴즈 모달 */
-#quiz-modal {
+/* 화면 전체를 덮는 반투명 모달 배경 — #quiz-modal/#captured-modal/#dex-modal/
+   #battle-status-modal/.mp-modal이 전부 같은 값을 각자 따로 갖고 있던 걸 하나로 묶음.
+   z-index만 서로 달라서(.mp-modal은 도감 위에서도 떠야 해서 한 단계 높음) 아래에 따로 둠 */
+#quiz-modal,
+#captured-modal,
+#dex-modal,
+#battle-status-modal,
+.mp-modal {
     position: absolute;
     top: 0;
     left: 0;
@@ -162,18 +168,36 @@ html, body {
     justify-content: center;
     align-items: center;
     background-color: rgba(0, 0, 0, 0.6);
+}
+
+#quiz-modal,
+#captured-modal,
+#dex-modal,
+#battle-status-modal {
     z-index: 40;
 }
 
-#quiz-box {
+/* 모달 박스 뼈대(흰 배경 + 검정 테두리 + 각진 모서리 + 픽셀 폰트) — #quiz-box/#captured-box/
+   #dex-box/#battle-status-box/.mp-box가 전부 같은 값을 각자 따로 갖고 있던 걸 하나로 묶음.
+   실제 크기(width/height/padding)와 정렬·레이아웃(text-align, display 등)은 서로 조금씩 달라서
+   (#dex-box는 text-align 없음, .mp-box/#captured-box/#dex-box만 세로 flex인 등) 아래에 각자
+   그대로 따로 둠 */
+#quiz-box,
+#captured-box,
+#dex-box,
+#battle-status-box,
+.mp-box {
     position: relative;
-    width: 300px;
     box-sizing: border-box;
-    padding: 28px 18px 18px;
     background-color: #ffffff;
     border: 4px solid #1a1a1a;
     border-radius: 6px;
     font-family: var(--pixel-font);
+}
+
+#quiz-box {
+    width: 300px;
+    padding: 28px 18px 18px;
     text-align: center;
 }
 
@@ -283,31 +307,12 @@ html, body {
 }
 
 /* 포획한 포켓몬 목록 모달 */
-#captured-modal {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.6);
-    z-index: 40;
-}
-
 #captured-box {
-    position: relative;
     width: 300px;
     /* 도감 창(#dex-box)과 동일하게 고정 height로 맞춰서, 포획한 포켓몬 수가 적어도 창 크기가
        줄어들지 않고 항상 같은 크기를 유지하도록 함(#captured-list가 flex:1로 남는 공간을 채움) */
     height: 480px;
-    box-sizing: border-box;
     padding: 28px 14px 18px;
-    background-color: #ffffff;
-    border: 4px solid #1a1a1a;
-    border-radius: 6px;
-    font-family: var(--pixel-font);
     text-align: center;
     display: flex;
     flex-direction: column;
@@ -329,7 +334,13 @@ html, body {
     padding: 0 4px;
 }
 
-.captured-row {
+/* 목록 한 줄(칸) 공용 뼈대 — 포획 목록(.captured-row)/도감(.dex-row)/관리자·학생 목록
+   (.admin-row) 전부 같은 테두리·배경·패딩을 각자 따로 갖고 있던 걸 하나로 묶음. 클릭 가능
+   여부·정렬 등 서로 다른 부분(.dex-row는 항상 클릭 가능, .admin-row는 아이콘이 없어
+   min-height로 높이를 맞추는 등)은 아래에 각자 그대로 따로 둠 */
+.captured-row,
+.dex-row,
+.admin-row {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1010,36 +1021,17 @@ html, body {
    참조 이미지는 더 이상 쓰지 않음 — 단, 같은 폴더의 images/pokemon/pokedex/icon_own.png는
    포획 완료 배지(.dex-owned-badge)에 지금도 쓰이므로 폴더째 삭제하면 안 됨)
    ===================================================== */
-#dex-modal {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.6);
-    z-index: 40;
-}
-
 #dex-box {
-    position: relative;
     width: 300px;
     /* 고정 height 대신 auto로 바꿔서, 배틀 선택 모드에서 #dex-core 아래에 슬롯 바가 붙는 만큼
        박스 전체가 자연스럽게 더 길어지게 함(#dex-core가 예전 콘텐츠 영역 높이를 그대로 고정해서
        가져가므로, 일반 도감 모드에서는 지금과 똑같이 480px가 됨 — #dex-core 규칙 참고) */
     height: auto;
-    box-sizing: border-box;
     /* 위쪽 34px: 모서리에 절대배치되는 닫기/뒤로가기 버튼(top:6px + 높이 26px = 32px)이
        완전히 들어가고도 남을 만큼 여유를 둠(#captured-box의 28px보다 살짝 더 크게 잡음 —
        #captured-box는 버튼과 겹치는 대신 짧은 제목 텍스트라 티가 안 났지만, 도감은 검색창이
        가로로 꽉 차서 버튼과 실제로 겹치면 바로 눈에 띄기 때문) */
     padding: 34px 14px 18px;
-    background-color: #ffffff;
-    border: 4px solid #1a1a1a;
-    border-radius: 6px;
-    font-family: var(--pixel-font);
     display: flex;
     flex-direction: column;
 }
@@ -1170,25 +1162,18 @@ html, body {
     padding: 0 4px;
 }
 
-/* .captured-row와 동일한 스타일(흰 배경 대신 옅은 회색, 2px 검정 테두리, 각진 모서리) */
 .dex-row {
     position: relative;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 8px;
-    box-sizing: border-box;
-    border: 2px solid #1a1a1a;
-    background-color: #f0f0f0;
-    text-align: left;
     cursor: pointer; /* 포획 여부와 무관하게 눌러서 정보 화면으로 이동 가능 (미포획 종은 "???" + 실루엣으로 표시됨) */
 }
 
-.dex-row:hover {
+.dex-row:hover,
+.admin-row.clickable:hover {
     background-color: #e6e6e6;
 }
 
-.dex-row:active {
+.dex-row:active,
+.admin-row.clickable:active {
     transform: translate(1px, 1px);
 }
 
@@ -1832,27 +1817,12 @@ html, body {
     pointer-events: none;
 }
 
-/* 상태 확인 오버레이 — #quiz-modal/#quiz-box와 같은 반투명 배경 + 흰 박스 + 검정 테두리.
-   슬롯 칸은 .battle-slot 스타일을 그대로 쓰고, 여기서는 3열 배치와 기절/현재 출전 표시만 덧붙임 */
-#battle-status-modal {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.6);
-    z-index: 40;
-}
+/* 상태 확인 오버레이 — 슬롯 칸은 .battle-slot 스타일을 그대로 쓰고, 여기서는 3열 배치와
+   기절/현재 출전 표시만 덧붙임(배경 자체는 위쪽 공용 모달 배경 규칙 참고) */
 
 #battle-status-box {
-    position: relative;
     width: 320px;
-    box-sizing: border-box;
     padding: 30px 12px 12px;
-    background-color: #ffffff;
-    border: 4px solid #1a1a1a;
-    border-radius: 6px;
-    font-family: var(--pixel-font);
     text-align: center;
 }
 
@@ -2018,33 +1988,18 @@ html, body {
     z-index: 20;
 }
 
-/* 대기실/코드 입력/알림 — #quiz-modal/#quiz-box와 같은 반투명 배경 + 흰 박스 + 검정 테두리.
-   도감(#dex-modal) 위에서도 알림이 떠야 하므로 z-index를 한 단계 높게 둠 */
+/* 대기실/코드 입력/알림 배경(위쪽 공용 모달 배경 규칙 참고) — 도감(#dex-modal) 위에서도
+   떠야 하므로 z-index만 한 단계 높게 따로 둠 */
 .mp-modal {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.6);
     z-index: 50;
 }
 
 .mp-box {
-    position: relative;
     width: 300px;
-    box-sizing: border-box;
     /* 좌우 패딩을 도감 창(#dex-box, 14px)과 동일하게 맞춤 — 전체 폭(300px)은 그대로 두고
        안쪽 여백만 맞춰서, 이 창에 들어가는 학생/데이터 목록(.admin-row)의 실제 가로 폭이
        도감 목록(.dex-row)과 정확히 같아지도록 함 */
     padding: 28px 14px 18px;
-    background-color: #ffffff;
-    border: 4px solid #1a1a1a;
-    border-radius: 6px;
-    font-family: var(--pixel-font);
     text-align: center;
     display: flex;
     flex-direction: column;
@@ -2119,15 +2074,6 @@ html, body {
     text-align: center;
 }
 
-.mp-feedback {
-    min-height: 14px;
-    font-size: 11px;
-    letter-spacing: 0.3px;
-    color: #b8281f;
-    word-break: keep-all;
-    overflow-wrap: break-word;
-}
-
 /* 모바일 스크롤 허용 요소 */
 [style*="overflow-y: auto"],
 [style*="overflow: auto"],
@@ -2167,34 +2113,18 @@ html, body {
     padding: 0 4px;
 }
 
-/* 학생/데이터/학습자료 목록 한 줄 — .dex-row / .captured-row와 동일한 테두리·배경·패딩 */
 .admin-row {
-    display: flex;
-    align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    padding: 6px 8px;
     /* 도감 칸(.dex-row)의 실제 높이(32px 아이콘 + 위아래 패딩 6px×2 + 테두리 2px×2 = 48px)와
        같은 칸 크기로 맞춤 — 이 목록들은 아이콘이 없어 내용만으로는 그보다 짧아지므로 min-height로
        강제하고, 내용은 이미 align-items:center라 가운데에 그대로 정렬됨 */
     min-height: 48px;
-    box-sizing: border-box;
-    border: 2px solid #1a1a1a;
-    background-color: #f0f0f0;
-    text-align: left;
 }
 
-/* 학습 데이터 선택 목록(학생용)처럼 줄 전체가 클릭 대상일 때 — 도감 칸(.dex-row)과 같은 호버/누름 반응 */
+/* 학습 데이터 선택 목록(학생용)처럼 줄 전체가 클릭 대상일 때 — 도감 칸(.dex-row)과 같은
+   호버/누름 반응은 위 .dex-row:hover/:active 규칙에 이미 같이 묶여있음 */
 .admin-row.clickable {
     cursor: pointer;
-}
-
-.admin-row.clickable:hover {
-    background-color: #e6e6e6;
-}
-
-.admin-row.clickable:active {
-    transform: translate(1px, 1px);
 }
 
 .admin-row-name {
