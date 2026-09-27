@@ -48,12 +48,15 @@
     font-smooth: never;
 }
 
-body {
+html, body {
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
     margin: 0;
+    padding: 0;
+    overflow: hidden;         /* 모바일 스크롤 방지 */
+    touch-action: none;       /* 모바일 브라우저 기본 제스처(새로고침, 스와이프 등) 방지 */
     background-color: #f0f0f0;
     font-family: var(--pixel-font);
 }
@@ -1354,7 +1357,7 @@ body {
     border-radius: 15px;
     background-color: #f7f7f7;
     font-family: var(--pixel-font);
-    font-size: 13px;
+    font-size: 16px;
     letter-spacing: 0.3px;
     color: #000;
     outline: none;
@@ -2083,4 +2086,16 @@ body {
     color: #b8281f;
     word-break: keep-all;
     overflow-wrap: break-word;
+}
+
+/* 모바일 스크롤 허용 요소 */
+[style*="overflow-y: auto"],
+[style*="overflow: auto"],
+#captured-list,
+#dex-list,
+#dex-settings,
+#dex-reset-page,
+#dex-cheat-page,
+#dex-info-form-grid {
+    touch-action: pan-y !important;
 }
