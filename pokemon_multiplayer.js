@@ -1,10 +1,31 @@
 // ===================== pokemon_multiplayer.js (함께하기 — Firebase 연동) =====================
-// 기존의 BroadcastChannel/localStorage 통신을 Firebase Realtime Database(RTDB) 기반으로 교체했습니다.
-// 재접속 유예(presence 플래그 기반 60초 그레이스) 로직은 폐기하고, 턴/대기 제한시간 기반으로
-// 교체했습니다(pokemon_battle.js가 mpStartDeadline/mpForceDisconnect를 씀).
+// Firebase Realtime Database(RTDB)를 메시지 통로로 쓰는 서버 없는 구조(양쪽이 같은 계산을 돌림).
+//
+// 끊김 처리 원칙(업계 표준 턴제 PvP와 같은 방향):
+//  - "연결 끊김"과 "기권"을 분리함. 연결이 잠깐 끊겨도 방을 지우지 않고(onDisconnect는 내
+//    presence만 offline으로 바꿈), 유예(MP_RECONNECT_GRACE_MS) 안에 돌아오면 그대로 이어감
+//  - 자기 제한시간은 자기가 판정(자동 패스/기권), 상대는 "살아 있는지"만 판정함
+//  - 판정이 확정되는 순간(mpFinish) 구독·타이머를 전부 끊어서, 그 뒤로는 상대 메시지가 와도
+//    턴이 진행되지 않음(제출됐지만 처리 안 된 행동은 폐기)
+//  - 내 연결이 끊겼거나 막 돌아온 직후(백그라운드 복귀 포함)엔 상대를 끊는 판정을 보류하고,
+//    판정 직전에 서버 왕복(mpPingServer)으로 내 쪽이 정말 연결돼 있는지 확인함
+//
+// 방 구조: rooms/{code} = { host, guest, status, createdAt,
+//                           presence/{host|guest} = { online, lastSeen },
+//                           end = { reason: 'forfeit', loser: 'host'|'guest' },
+//                           messages/... }
 
 const MP_CODE_LENGTH = 6;
 const MP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+// ---- 네트워크 조정값(전부 여기서만 바꿈) ----
+const MP_RECONNECT_GRACE_MS = 30000;     // 배틀 중 상대 presence가 offline이어도 기다려 주는 시간
+const MP_PEER_SLACK_MS = 10000;          // 상대 응답을 기다릴 때 단계 제한시간에 더 주는 여유
+                                          // (양쪽 연출 길이 차이·기기 성능·모바일 네트워크 지연 흡수)
+const MP_RESUME_SETTLE_MS = 2000;        // 내가 재연결하거나 화면에 돌아온 직후 상대 판정을 보류하는 시간
+const MP_LOBBY_TTL_MS = 10 * 60 * 1000;  // 대기 방 유효 시간 — 넘으면 참가 시 만료로 처리
+const MP_PING_TIMEOUT_MS = 5000;         // 판정 직전 서버 왕복 확인 제한시간
+const MP_FREEZE_DETECT_MS = 3000;        // 1초 틱이 이만큼 밀리면 탭이 멈춰 있었던 것(백그라운드)으로 봄
 
 const battleModeMenuEl     = document.getElementById('battle-mode-menu');
 const battleTogetherMenuEl = document.getElementById('battle-together-menu');
@@ -24,28 +45,204 @@ const mpJoinInputEl        = document.getElementById('mp-join-input');
 const mpJoinSubmitBtn      = document.getElementById('mp-join-submit-btn');
 const mpJoinFeedbackEl     = document.getElementById('mp-join-feedback');
 const mpTogetherFeedbackEl = document.getElementById('mp-together-feedback');
+const mpSignalIconEls      = Array.from(document.querySelectorAll('.mp-signal-icon'));
 
 // 전역 객체로 외부에서 접근
 window.mp = { active: false, isHost: false, partnerId: null, roomCode: null };
 window.mpInbox = [];
 window.mpWaiters = [];
 window.mpHandlers = {};
-window.mpOnDisconnect = null;
+// 대전이 끝나는(더 이어갈 수 없는) 순간 한 번 불림 — info: { reason: 'forfeit', iLost } | { reason: 'disconnect' }
+window.mpOnTerminal = null;
 
 let currentRoomRef = null;
 let messagesRef = null;
 let unsubscribeMessages = null;
 let unsubscribeRoom = null;
-let isRoomOwner = false;      // 내가 만든 방인지(대기 중에도 true) — 대기 중 정리 시 방 삭제 여부 판단용
-let roomDisconnectOp = null;  // onDisconnect 핸들 — 방장이 끊기면(대기 중이든 매칭 후든) 방 전체를 삭제.
-                               // 매칭 후 "연결은 있는데 응답 없음"은 이제 presence가 아니라
-                               // pokemon_battle.js의 턴/대기 제한시간이 감지함(mpForceDisconnect 참고)
+let unsubscribePeerPresence = null;
+let unsubscribeEnd = null;
+let myRole = null;              // 'host' | 'guest' — 방에 들어가 있는 동안(대기 중 포함)만 값이 있음
+let myRoomCode = null;          // 들어가 있는 방 코드(매칭 전 대기 중에도 값이 있음 — mp.roomCode는 매칭 후에만)
+let presenceRef = null;
+let presenceDisconnectOp = null;
+
+let mpConnected = false;        // 내 RTDB 연결 상태(.info/connected)
+let mpSettleUntil = 0;          // 이 시각 전까지는 상대를 끊는 판정을 보류
+let mpLastTick = Date.now();    // 1초 틱 — 탭이 멈춰 있었는지(백그라운드) 감지용
+let peerOffline = false;        // 상대 presence가 offline인지
+let peerOfflineTimer = null;
+let peerOfflineGen = 0;
+let presenceGraceEnabled = false; // 배틀(결과 화면 포함) 중에만 켬 — 파티 선택은 파티 제한시간이 상한 역할
+let mpPendingJudges = [];       // 판정 보류 중인 시도들
+let mpJudgeRecheckTimer = null;
 
 const MP_CLIENT_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 function getFirebaseRef(path) {
     if (!window.firebaseDb) return null;
     return window.firebaseRef(window.firebaseDb, path);
+}
+
+function mpPeerRole() { return myRole === 'host' ? 'guest' : 'host'; }
+
+// ---------------- 연결 상태 표시(신호 아이콘) ----------------
+function mpUpdateSignalIcon() {
+    const lost = !mpConnected || peerOffline;
+    mpSignalIconEls.forEach(el => {
+        el.classList.toggle('hidden', !window.mp.active);
+        el.classList.toggle('mp-signal-lost', lost);
+    });
+}
+
+// ---------------- 내 연결 감시 ----------------
+let mpConnectionWatchStarted = false;
+function mpInitConnectionWatch() {
+    if (mpConnectionWatchStarted || !window.firebaseDb) return;
+    mpConnectionWatchStarted = true;
+    window.firebaseOnValue(getFirebaseRef('.info/connected'), (snap) => {
+        const nowConnected = snap.val() === true;
+        if (nowConnected && !mpConnected) {
+            // 막 (재)연결됨 — SDK가 밀린 쓰기·리스너를 다시 맞추는 동안 잠깐 판정을 보류하고,
+            // 서버가 이미 실행해 버린 onDisconnect(내 presence offline)를 다시 등록 + online으로 되돌림
+            mpSettleUntil = Math.max(mpSettleUntil, Date.now() + MP_RESUME_SETTLE_MS);
+            mpConnected = true;
+            mpRegisterPresence();
+            mpScheduleJudgeRecheck();
+        }
+        mpConnected = nowConnected;
+        mpUpdateSignalIcon();
+    });
+}
+if (window.firebaseDb) mpInitConnectionWatch();
+else window.addEventListener('firebase-ready', mpInitConnectionWatch);
+
+// 백그라운드에서 돌아오면 밀려 있던 setTimeout이 한꺼번에 실행되는데, 그때 소켓은 아직 다시
+// 연결되기 전일 수 있음 — 복귀 직후엔 판정을 보류. visibilitychange보다 타이머가 먼저 실행되는
+// 경우도 있어서 1초 틱이 밀렸는지로도 한 번 더 감지함(mpCanJudgePeer)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        mpSettleUntil = Math.max(mpSettleUntil, Date.now() + MP_RESUME_SETTLE_MS);
+        mpScheduleJudgeRecheck();
+    }
+});
+setInterval(() => {
+    const now = Date.now();
+    if (now - mpLastTick > MP_FREEZE_DETECT_MS) mpSettleUntil = Math.max(mpSettleUntil, now + MP_RESUME_SETTLE_MS);
+    mpLastTick = now;
+}, 1000);
+
+function mpCanJudgePeer() {
+    const now = Date.now();
+    if (now - mpLastTick > MP_FREEZE_DETECT_MS) {
+        mpSettleUntil = Math.max(mpSettleUntil, now + MP_RESUME_SETTLE_MS);
+        return false;
+    }
+    return mpConnected && now >= mpSettleUntil;
+}
+
+// 내 presence를 서버에 한 번 써서 응답(ack)이 오는지로 "내가 정말 연결돼 있는지" 확인함 —
+// .info/connected는 소켓이 반쯤 죽은 상태를 늦게 알아채는 경우가 있어서, 상대를 끊기 직전엔
+// 이 왕복 확인을 반드시 거침
+function mpPingServer() {
+    if (!presenceRef) return Promise.resolve(false);
+    const write = window.firebaseSet(presenceRef, { online: true, lastSeen: window.firebaseServerTimestamp() })
+        .then(() => true, () => false);
+    const timeout = new Promise(resolve => setTimeout(() => resolve(false), MP_PING_TIMEOUT_MS));
+    return Promise.race([write, timeout]);
+}
+
+// "상대가 사라졌다"는 판정 — isStillValid()가 거짓이 되면(그 사이 메시지가 와서 타이머가
+// 지워졌거나 상대가 돌아옴) 조용히 취소. 내 연결 상태가 판정할 수 없는 상태면 보류했다가 다시 시도
+function mpJudgePeer(isStillValid, onConfirmed) {
+    const attempt = () => {
+        if (!window.mp.active || !isStillValid()) return;
+        if (!mpCanJudgePeer()) { mpDeferJudge(attempt); return; }
+        mpPingServer().then((ok) => {
+            if (!window.mp.active || !isStillValid()) return;
+            if (!ok) { mpDeferJudge(attempt); return; } // 끊긴 건 내 쪽 — 상대를 탓하지 않음
+            onConfirmed();
+        });
+    };
+    attempt();
+}
+function mpDeferJudge(attempt) {
+    mpPendingJudges.push(attempt);
+    mpScheduleJudgeRecheck();
+}
+function mpScheduleJudgeRecheck() {
+    if (!mpPendingJudges.length || mpJudgeRecheckTimer) return;
+    const wait = Math.max(1000, mpSettleUntil - Date.now());
+    mpJudgeRecheckTimer = setTimeout(() => {
+        mpJudgeRecheckTimer = null;
+        const judges = mpPendingJudges;
+        mpPendingJudges = [];
+        judges.forEach(fn => fn());
+    }, wait);
+}
+
+// ---------------- presence(내 온라인 표시 + 상대 감시) ----------------
+// Firebase 권장 순서: onDisconnect를 먼저 등록하고 그다음 online으로 씀. 서버가 onDisconnect를
+// 한 번 실행하면 등록이 사라지므로, 재연결될 때마다(mpInitConnectionWatch) 다시 부름
+function mpRegisterPresence() {
+    if (!currentRoomRef || !myRole || !mpConnected) return;
+    presenceRef = getFirebaseRef(`rooms/${myRoomCode}/presence/${myRole}`);
+    presenceDisconnectOp = window.firebaseOnDisconnect(presenceRef);
+    const ref = presenceRef;
+    presenceDisconnectOp.set({ online: false, lastSeen: window.firebaseServerTimestamp() })
+        .then(() => {
+            if (presenceRef !== ref) return; // 그 사이 방을 나감
+            return window.firebaseSet(ref, { online: true, lastSeen: window.firebaseServerTimestamp() });
+        })
+        .catch(e => console.error('presence 등록 실패', e));
+}
+
+function mpWatchPeerPresence(code) {
+    unsubscribePeerPresence = window.firebaseOnValue(getFirebaseRef(`rooms/${code}/presence/${mpPeerRole()}`), (snap) => {
+        const v = snap.val();
+        if (!v) return; // 아직 등록 전이거나 상대가 방을 나가며 지움 — 나감은 방/메시지 쪽에서 처리
+        if (v.online === false) mpMarkPeerOffline();
+        else mpMarkPeerOnline();
+    });
+}
+
+function mpMarkPeerOffline() {
+    if (peerOffline) return;
+    peerOffline = true;
+    mpUpdateSignalIcon();
+    mpStartPeerOfflineTimer();
+}
+function mpMarkPeerOnline() {
+    peerOffline = false;
+    peerOfflineGen++;
+    if (peerOfflineTimer) { clearTimeout(peerOfflineTimer); peerOfflineTimer = null; }
+    mpUpdateSignalIcon();
+}
+function mpStartPeerOfflineTimer() {
+    if (peerOfflineTimer) { clearTimeout(peerOfflineTimer); peerOfflineTimer = null; }
+    const gen = ++peerOfflineGen;
+    if (!peerOffline || !presenceGraceEnabled) return;
+    peerOfflineTimer = setTimeout(() => {
+        peerOfflineTimer = null;
+        mpJudgePeer(() => peerOffline && presenceGraceEnabled && gen === peerOfflineGen,
+            () => window.mpForceDisconnect());
+    }, MP_RECONNECT_GRACE_MS);
+}
+
+// 상대 메시지가 도착했다 = 상대가 살아 있다 — offline 표시가 남아 있어도 유예 시계를 지금부터 다시 셈
+// (재연결 직후엔 밀린 행동 메시지가 presence online보다 먼저 도착하기 때문)
+function mpNotePeerAlive() {
+    if (peerOffline) mpStartPeerOfflineTimer();
+}
+
+// 배틀(결과 화면 포함) 중에만 presence 유예로 끊김 판정 — 파티 선택 단계는 로비에서 코드를
+// 공유하느라 앱을 오가는 경우가 많아서, 파티 선택 제한시간이 상한 역할을 함
+window.mpSetPresenceGrace = function(enabled) {
+    presenceGraceEnabled = !!enabled;
+    if (presenceGraceEnabled && peerOffline) mpStartPeerOfflineTimer();
+    else if (!presenceGraceEnabled) {
+        peerOfflineGen++;
+        if (peerOfflineTimer) { clearTimeout(peerOfflineTimer); peerOfflineTimer = null; }
+    }
 }
 
 // ---------------- 메시지 큐 처리 ----------------
@@ -76,14 +273,15 @@ window.mpClearInbox = function() {
 function mpHandleMessage(msg) {
     if (msg.from === MP_CLIENT_ID) return; // 내가 보낸 건 무시
     if (typeof msg.type !== 'string') return;
-    
+    mpNotePeerAlive();
+
     if (msg.type === 'leave') {
         mpHandleRemoteGone();
         return;
     }
 
     if (window.mpHandlers[msg.type]) { window.mpHandlers[msg.type](msg.data); return; }
-    
+
     const wi = window.mpWaiters.findIndex(w => w.type === msg.type);
     if (wi !== -1) {
         const [w] = window.mpWaiters.splice(wi, 1);
@@ -107,18 +305,15 @@ function mpGenerateCode() {
 // (동시에 두 곳이 겹칠 일이 없으므로 공유해도 안전). 카운트다운 표시는 캐치 게임의
 // #game-timer와 같은 MM:SS 스타일이고, 위치는 각 화면의 닫기(×) 버튼과 대칭.
 //
-// "내가 아직 결정 못 함"(자동 패스 등)은 네트워크와 무관한 내 로컬 얘기라 여유 없이 정확히
-// durationMs에 처리함. 반대로 "상대의 메시지를 기다리는 중"(이미 내 몫은 끝냄)일 때는, 상대가
-// 자기 제한시간이 끝나는 "그 순간" 보낸 메시지가 아직 네트워크로 오는 중일 수 있어서, 곧바로
-// 끊지 않고 아래 mpGraceThenDisconnect()로 한 번 더 짧게 기다려줌 — 호출하는 쪽(pokemon_battle.js)
-// 이 지금이 "내 결정" 상황인지 "상대 대기" 상황인지 구분해서 둘 중 하나를 씀
-// ※ 나중에 서버 로직(예: Cloud Functions 등)이 생겨서 "누구 시계가 먼저 끝나느냐" 경쟁 없이
-// 서버 시계로 최종 판정하게 되면 이 여유(grace) 자체가 필요 없어짐 — 그때는 지우고 서버 판정을
-// 그대로 따르는 구조로 바꿔야 함
-const MP_NETWORK_GRACE_MS = 1500;
+// "내가 아직 결정 못 함"(자동 패스·기권)은 내 로컬 얘기라 정확히 durationMs에 처리함. 반대로
+// "상대의 메시지를 기다리는 중"(이미 내 몫은 끝냄)이면 상대 시계는 연출 길이 차이만큼 늦게
+// 시작했을 수 있으므로 곧바로 끊지 않고 mpPeerSlackThenJudge()로 여유(MP_PEER_SLACK_MS)를 더
+// 준 뒤, 그래도 안 오면 mpJudgePeer로 판정함 — 호출하는 쪽(pokemon_battle.js)이 지금이
+// "내 결정" 상황인지 "상대 대기" 상황인지 구분해서 둘 중 하나를 씀
 let mpDeadlineTimeout = null;
 let mpDeadlineInterval = null;
 let mpDeadlineEl = null;
+let mpDeadlineGen = 0; // 타이머를 새로 걸거나 지울 때마다 증가 — 보류된 판정이 아직 유효한지 확인용
 
 function mpFormatCountdown(ms) {
     const totalSec = Math.max(0, Math.ceil(ms / 1000));
@@ -128,6 +323,7 @@ function mpFormatCountdown(ms) {
 }
 
 window.mpClearDeadlineTimer = function() {
+    mpDeadlineGen++;
     if (mpDeadlineTimeout) { clearTimeout(mpDeadlineTimeout); mpDeadlineTimeout = null; }
     if (mpDeadlineInterval) { clearInterval(mpDeadlineInterval); mpDeadlineInterval = null; }
     if (mpDeadlineEl) { mpDeadlineEl.classList.add('hidden'); mpDeadlineEl = null; }
@@ -153,14 +349,18 @@ window.mpStartDeadline = function(el, durationMs, onTimeout) {
     }, durationMs);
 }
 
-// "상대의 메시지를 기다리는 중" 상황에서만 씀 — 화면엔 아무것도 안 보이는 채로 네트워크 여유
-// (MP_NETWORK_GRACE_MS)만큼 한 번 더 기다렸다가, 그래도 메시지가 안 오면 끊김 처리. 그 사이
-// 메시지가 오면 기존과 동일하게 mpClearDeadlineTimer()로 취소됨(mpStartDeadline을 그대로
-// 재사용해서 같은 취소 경로를 씀)
-window.mpGraceThenDisconnect = function() {
-    window.mpStartDeadline(null, MP_NETWORK_GRACE_MS, () => { window.mpForceDisconnect(); });
+// "상대의 메시지를 기다리는 중"에 단계 제한시간이 다 됐을 때 — 화면엔 아무것도 안 보이는 채로
+// 여유만큼 더 기다렸다가, 그래도 메시지가 안 오면 끊김 판정. 그 사이 메시지가 오면 호출하는
+// 쪽이 mpClearDeadlineTimer()로 취소함(판정이 보류 중이어도 mpDeadlineGen이 바뀌어 무효가 됨)
+window.mpPeerSlackThenJudge = function() {
+    window.mpStartDeadline(null, MP_PEER_SLACK_MS, () => {
+        const gen = mpDeadlineGen;
+        mpJudgePeer(() => gen === mpDeadlineGen, () => window.mpForceDisconnect());
+    });
 }
 
+// ---------------- 정리/종료 ----------------
+// 구독·타이머·onDisconnect를 전부 해제함. 방 삭제 여부는 호출하는 쪽이 정함
 function mpTeardown() {
     window.mp.active = false;
     window.mp.isHost = false;
@@ -169,52 +369,85 @@ function mpTeardown() {
     window.mpInbox = [];
     window.mpWaiters = [];
     window.mpClearDeadlineTimer();
-    
-    if (unsubscribeMessages) {
-        unsubscribeMessages();
-        unsubscribeMessages = null;
-    }
-    if (unsubscribeRoom) {
-        unsubscribeRoom();
-        unsubscribeRoom = null;
-    }
-    
-    // 등록해 둔 onDisconnect 해제 — 안 하면 나중에 탭을 닫을 때 이미 끝난 방(또는 다음 판의
-    // 다른 방)에 뒤늦게 영향을 줄 수 있음
-    if (roomDisconnectOp) {
-        roomDisconnectOp.cancel().catch(() => {});
-        roomDisconnectOp = null;
-    }
-    // 방장은 정리 시 방(메시지 포함)을 삭제해 DB에 찌꺼기가 쌓이지 않게 함. 매칭 후 상대가
-    // 진짜 끊겼거나(하드 디스커넥트) 턴 제한시간 초과로 포기한 경우는 감지한 쪽이 먼저
-    // mpForceDisconnect()에서 방을 지우므로, 방장이 아니어도 정리가 항상 이루어짐
-    if (currentRoomRef && isRoomOwner) {
-        window.firebaseRemove(currentRoomRef).catch(() => {});
-    }
-    isRoomOwner = false;
+
+    [unsubscribeMessages, unsubscribeRoom, unsubscribePeerPresence, unsubscribeEnd].forEach(fn => { if (fn) fn(); });
+    unsubscribeMessages = unsubscribeRoom = unsubscribePeerPresence = unsubscribeEnd = null;
+
+    // 등록해 둔 onDisconnect 해제 + 내 presence 삭제 — 안 하면 나중에 탭을 닫을 때 이미 끝난
+    // 방에 뒤늦게 presence가 써짐
+    if (presenceDisconnectOp) { presenceDisconnectOp.cancel().catch(() => {}); presenceDisconnectOp = null; }
+    if (presenceRef) { window.firebaseRemove(presenceRef).catch(() => {}); presenceRef = null; }
+
+    peerOffline = false;
+    peerOfflineGen++;
+    if (peerOfflineTimer) { clearTimeout(peerOfflineTimer); peerOfflineTimer = null; }
+    presenceGraceEnabled = false;
+    mpPendingJudges = [];
+    if (mpJudgeRecheckTimer) { clearTimeout(mpJudgeRecheckTimer); mpJudgeRecheckTimer = null; }
+
+    myRole = null;
+    myRoomCode = null;
     currentRoomRef = null;
     messagesRef = null;
+    mpUpdateSignalIcon();
 }
 
-window.mpLeave = function() {
-    window.mpSend('leave');
+// 대전 종료 확정 — 이 순간 구독을 끊어서 이후 상대 메시지/타이머는 전부 무시됨
+function mpFinish(info, removeRoom) {
+    if (!window.mp.active) return;
+    const roomRef = currentRoomRef;
     mpTeardown();
+    if (removeRoom && roomRef) window.firebaseRemove(roomRef).catch(() => {});
+    if (window.mpOnTerminal) window.mpOnTerminal(info);
+}
+
+// 직접 나감(×/처음으로/선택창 닫기) — 상대는 끊김 안내를 봄
+window.mpLeave = function() {
+    if (!currentRoomRef) return;
+    window.mpSend('leave');
+    const roomRef = currentRoomRef;
+    mpTeardown();
+    window.firebaseRemove(roomRef).catch(() => {});
 }
 
 function mpHandleRemoteGone() {
-    if (!window.mp.active) return;
-    mpTeardown();
-    if (window.mpOnDisconnect) window.mpOnDisconnect();
+    mpFinish({ reason: 'disconnect' }, true);
 }
 
-// pokemon_battle.js가 "더는 상대를 기다릴 수 없다"고 판단했을 때(턴 액션/강제교체/파티선택/
-// 불러오기 대기가 제한시간을 넘김) 호출함 — 하드 디스커넥트와 동일하게 방을 지우고 기존
-// 끊김 처리 흐름(mpOnDisconnect)을 그대로 태움. 호스트/게스트 상관없이 감지한 쪽이 처리해서,
-// 어느 쪽이 방장이든 방이 영원히 안 지워지고 남는 일이 없게 함
+// 상대가 사라졌다고 판정됐을 때(presence 유예 초과 / 응답 대기 초과) 또는 내 로딩 자체가 실패했을
+// 때 — 방을 지워서 상대(살아 있다면)도 끊김 처리를 보게 함
 window.mpForceDisconnect = function() {
-    if (!window.mp.active) return;
-    if (currentRoomRef) window.firebaseRemove(currentRoomRef).catch(() => {});
-    mpHandleRemoteGone();
+    mpFinish({ reason: 'disconnect' }, true);
+}
+
+// 내 제한시간 초과로 기권 — end를 기록해서 상대가 "항복"으로 읽게 함. 방은 상대가 end를 읽은
+// 뒤 지우도록 남겨 둠(방을 먼저 지우면 상대 쪽에선 끊김으로 보임)
+window.mpForfeit = function() {
+    if (!window.mp.active || !currentRoomRef) return;
+    window.firebaseSet(getFirebaseRef(`rooms/${myRoomCode}/end`), { reason: 'forfeit', loser: myRole })
+        .catch(e => console.error('기권 기록 실패', e));
+    mpFinish({ reason: 'forfeit', iLost: true }, false);
+}
+
+// 상대가 end를 못 쓰고 두 번째 자동 패스를 보낸 경우 등 — 받은 쪽이 상대의 기권으로 처리
+window.mpDeclarePeerForfeit = function() {
+    mpFinish({ reason: 'forfeit', iLost: false }, true);
+}
+
+// ---------------- 매칭 후 공통 구독 ----------------
+function mpStartMatchListeners(code) {
+    messagesRef = getFirebaseRef(`rooms/${code}/messages`);
+    unsubscribeMessages = window.firebaseOnChildAdded(messagesRef, (snapshot) => {
+        const msg = snapshot.val();
+        if (msg) mpHandleMessage(msg);
+    });
+    mpWatchPeerPresence(code);
+    unsubscribeEnd = window.firebaseOnValue(getFirebaseRef(`rooms/${code}/end`), (snap) => {
+        const v = snap.val();
+        if (!v || !window.mp.active || v.loser === myRole) return;
+        if (v.reason === 'forfeit') mpFinish({ reason: 'forfeit', iLost: false }, true);
+    });
+    mpUpdateSignalIcon();
 }
 
 // ---------------- UI 연결 및 이벤트 ----------------
@@ -238,38 +471,36 @@ battleModeBackBtn.addEventListener('click', () => showStartSubmenu(null));
 battleTogetherBackBtn.addEventListener('click', () => showStartSubmenu('mode'));
 document.getElementById('battle-btn').addEventListener('click', () => showStartSubmenu('mode'));
 
-
 mpCreateBtn.addEventListener('click', async () => {
     if (!window.firebaseDb) {
         if (mpTogetherFeedbackEl) mpTogetherFeedbackEl.textContent = '데이터베이스 초기화 중입니다. 잠시 후 다시 시도해주세요.';
         return;
     }
     if (mpTogetherFeedbackEl) mpTogetherFeedbackEl.textContent = '';
-    
+
     const code = mpGenerateCode();
     mpLobbyCodeEl.textContent = code;
     mpLobbyStatusEl.innerHTML = '상대를 기다리는 중<span class="mp-dots"></span>';
     mpLobbyModalEl.classList.remove('hidden');
-    
+
     currentRoomRef = getFirebaseRef(`rooms/${code}`);
-    isRoomOwner = true;
+    myRoomCode = code;
+    myRole = 'host';
     await window.firebaseSet(currentRoomRef, {
         host: MP_CLIENT_ID,
         status: 'waiting',
-        timestamp: Date.now()
+        createdAt: Date.now()
     });
-    
-    // onDisconnect 훅: 방장이 끊기면(대기 중이든 매칭 후든) 방 삭제
-    roomDisconnectOp = window.firebaseOnDisconnect(currentRoomRef);
-    roomDisconnectOp.remove();
-    
+
+    // 방장이 잠깐 앱을 전환해도(초대 코드를 메신저로 보내는 등) 방은 유지 — presence만 offline이 됨
+    mpRegisterPresence();
+
     // 방 전체가 아니라 guest 값만 감시 — 방 전체를 감시하면 messages가 추가될 때마다
     // 콜백이 다시 불리고 메시지 전체를 매번 다시 내려받음
     unsubscribeRoom = window.firebaseOnValue(getFirebaseRef(`rooms/${code}/guest`), (snapshot) => {
         const guestId = snapshot.val();
         if (!guestId) {
-            // 게임 중에 guest가 사라짐 = 방 자체가 삭제됨(상대의 하드 디스커넥트 또는 턴 제한시간
-            // 초과로 상대 쪽이 먼저 정리한 경우) → 지연 없이 즉시 처리
+            // 게임 중에 guest가 사라짐 = 방 자체가 삭제됨(상대가 나갔거나 상대 쪽에서 끊김 판정) → 즉시 처리
             if (window.mp.active) mpHandleRemoteGone();
             return;
         }
@@ -279,9 +510,9 @@ mpCreateBtn.addEventListener('click', async () => {
         window.mp.isHost = true;
         window.mp.partnerId = guestId;
         window.mp.roomCode = code;
-        
-        setupMessageListener(code);
-        
+
+        mpStartMatchListeners(code);
+
         mpLobbyModalEl.classList.add('hidden');
         showStartSubmenu(null);
         if(window.openBattlePartyPicker) window.openBattlePartyPicker();
@@ -292,22 +523,27 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
     if (!window.firebaseDb) { mpJoinFeedbackEl.textContent = '데이터베이스 초기화 중입니다. 잠시 후 다시 시도해주세요.'; return; }
     const code = mpJoinInputEl.value.toUpperCase().trim();
     if (code.length !== MP_CODE_LENGTH) return;
-    
+
     mpJoinFeedbackEl.textContent = '확인 중...';
     const roomRef = getFirebaseRef(`rooms/${code}`);
-    
+
     const snapshot = await window.firebaseGet(roomRef);
     if (!snapshot.exists()) {
         mpJoinFeedbackEl.textContent = '유효하지 않은 코드입니다.';
         return;
     }
-    
+
     const val = snapshot.val();
-    if (val.status !== 'waiting') {
+    if (!val.host || val.status !== 'waiting') {
         mpJoinFeedbackEl.textContent = '이미 게임이 시작되었거나 닫힌 방입니다.';
         return;
     }
-    
+    if (!val.createdAt || Date.now() - val.createdAt > MP_LOBBY_TTL_MS) {
+        window.firebaseRemove(roomRef).catch(() => {}); // 오래 방치된 방은 정리
+        mpJoinFeedbackEl.textContent = '만료된 코드입니다. 새 코드를 받아주세요.';
+        return;
+    }
+
     // 입장! — 트랜잭션으로 처리해서 두 명이 동시에 같은 코드로 들어와도 한 명만 성공
     let joined = false;
     try {
@@ -328,25 +564,24 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
         mpJoinFeedbackEl.textContent = '이미 게임이 시작되었거나 닫힌 방입니다.';
         return;
     }
-    
-    // 게스트가 끊기면(대기 중이든 매칭 후든) 방 전체를 삭제
-    roomDisconnectOp = window.firebaseOnDisconnect(roomRef);
-    roomDisconnectOp.remove();
-    
+
     window.mp.active = true;
     window.mp.isHost = false;
     window.mp.partnerId = val.host;
     window.mp.roomCode = code;
-    
+
     currentRoomRef = roomRef;
-    
+    myRoomCode = code;
+    myRole = 'guest';
+    mpRegisterPresence();
+
     // 방 전체 대신 host 값만 감시(메시지마다 전체를 다시 받지 않도록) — 방이 삭제되면 null이 됨
     unsubscribeRoom = window.firebaseOnValue(getFirebaseRef(`rooms/${code}/host`), (snap) => {
         if (!snap.exists()) mpHandleRemoteGone();
     });
-    
-    setupMessageListener(code);
-    
+
+    mpStartMatchListeners(code);
+
     mpJoinModalEl.classList.add('hidden');
     mpJoinInputEl.value = '';
     mpJoinFeedbackEl.textContent = '';
@@ -356,7 +591,9 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
 
 mpLobbyCloseBtn.addEventListener('click', () => {
     mpLobbyModalEl.classList.add('hidden');
-    mpTeardown(); // 방장(isRoomOwner)이므로 방 삭제 + onDisconnect 해제까지 처리됨
+    const roomRef = currentRoomRef;
+    mpTeardown();
+    if (roomRef) window.firebaseRemove(roomRef).catch(() => {});
 });
 
 mpJoinBtn.addEventListener('click', () => {
@@ -368,13 +605,3 @@ mpJoinCloseBtn.addEventListener('click', () => {
     mpJoinFeedbackEl.textContent = '';
     mpJoinInputEl.value = '';
 });
-
-function setupMessageListener(code) {
-    messagesRef = getFirebaseRef(`rooms/${code}/messages`);
-    unsubscribeMessages = window.firebaseOnChildAdded(messagesRef, (snapshot) => {
-        const msg = snapshot.val();
-        if (msg) mpHandleMessage(msg);
-    });
-}
-
-

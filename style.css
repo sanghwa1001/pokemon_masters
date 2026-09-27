@@ -242,6 +242,28 @@ html, body {
     z-index: 5;
 }
 
+/* 함께하기 연결 상태 아이콘 — 각 화면의 닫기(×) 버튼(.quiz-close-btn, top/right 6px·26x26) 바로
+   왼쪽에 같은 크기로 둠. 평소엔 hidden, 매칭 중일 때만 pokemon_multiplayer.js가 표시하고, 내 연결
+   또는 상대 presence가 끊기면 .mp-signal-lost가 붙어 끊김 신호 이미지로 바뀜 */
+.mp-signal-icon {
+    position: absolute;
+    top: 6px;
+    right: 38px;
+    width: 26px;
+    height: 26px;
+    background-image: url('images/pokemon/layout/icon_signal.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    image-rendering: pixelated;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.mp-signal-icon.mp-signal-lost {
+    background-image: url('images/pokemon/layout/icon_nosignal.png');
+}
+
 #quiz-question {
     font-size: 16px;
     line-height: 20px;

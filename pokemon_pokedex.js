@@ -754,7 +754,7 @@ dexCloseBtn.addEventListener('click', () => {
         dexPickerMode = false;
         battleParty = [];
         mpPartyLocked = false;
-        mpPickerDisconnected = false;
+        mpPickerEndText = null;
         dexBattleRandomBtn.classList.remove('hidden');
         battleSlotController.stopAll();
         // 함께하기 선택창을 닫으면 방을 나간 것으로 처리(상대는 끊김 알림을 봄)
