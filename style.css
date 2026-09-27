@@ -1879,7 +1879,7 @@ html, body {
     cursor: pointer;
 }
 
-/* 아직 전장에 나오지 않은 상대 포켓몬 — 스프라이트 대신 물음표(000.png, 프레임 2장이 가로로 나열됨)의
+/* 아직 전장에 나오지 않은 상대 포켓몬 — 스프라이트 대신 물음표(16b594c1fd07.png, 프레임 2장이 가로로 나열됨)의
    첫 프레임만 정지 이미지로 표시. 도감 아이콘(.dex-icon)과 동일하게 32x32 박스 + background-size 200% 100%로
    두 번째 프레임을 박스 밖으로 밀어냄 */
 #battle-status-box .battle-slot.unknown {

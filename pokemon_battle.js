@@ -733,8 +733,8 @@ function playHitBlink(defenderSide, onDone) {
 const BATTLE_EFFECTS = {
     // 원작 칼춤은 칼들이 머리 근처에 모임 — 원작에서 칼들의 최대 범위 중심(포켓몬 중심보다 61px 위)이 기준 포켓몬
     // (키 128)의 머리 끝(64px 위)과 거의 같은 높이라서, 칼 무리 중심을 포켓몬 머리 끝(키의 절반 위)에 맞춤
-    SWORDS_DANCE: { src: 'images/pokemon/battle_effect/swords_dance.png', frameCount: 21, offsetY: -0.5 },
-    RECOVER:      { src: 'images/pokemon/battle_effect/recover.png',      frameCount: 9 },
+    SWORDS_DANCE: { src: 'images/pokemon/battle/swords_dance.png', frameCount: 21, offsetY: -0.5 },
+    RECOVER:      { src: 'images/pokemon/battle/recover.png',      frameCount: 9 },
 };
 
 // 첫 재생 때 그림이 늦게 떠서 깜빡이지 않도록 미리 받아둠
@@ -1900,7 +1900,7 @@ function attackEffPreview(mult) {
 
 // 아직 전장에 나오지 않아 플레이어가 모르는 상대 포켓몬인지(내 파티 엔트리엔 known 필드가 없어 해당 없음)
 const isStatusUnknown = (entry) => !!entry && entry.known === false;
-const STATUS_UNKNOWN_SPRITE_SRC = 'images/pokemon/layout/000.png';
+const STATUS_UNKNOWN_SPRITE_SRC = 'images/pokemon/layout/16b594c1fd07.png';
 const STATUS_TYPE_BADGE_HEIGHT = 13; // px, .battle-status-types .type-badge(style.css)와 반드시 일치
 
 function renderBattleStatusSlots(slotEls, controller, party) {
