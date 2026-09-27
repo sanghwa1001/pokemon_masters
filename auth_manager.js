@@ -508,6 +508,28 @@ studentSelectAllEl.addEventListener('change', () => {
 // 한 번에 삭제. 학생 데이터는 명단에 기록된 uid뿐 아니라 이메일로도 찾아서, uid 기록이 빠져 있어도
 // 데이터가 남지 않게 함. 구글 로그인 기록(Authentication 사용자 목록)은 브라우저에서 지울 수 없어
 // 남지만, 명단에서 빠졌으므로 더 이상 로그인할 수 없음
+// 이메일로 학생 데이터(students/{uid})의 uid를 찾음 — 보안 규칙에 students의 email 인덱스가 게시돼
+// 있지 않으면 이메일 검색 자체가 "Index not defined" 오류로 실패하므로, 그때는 학생 데이터 전체를
+// 한 번 읽어서 이메일을 직접 비교함(관리자는 전체를 읽을 수 있음). 인덱스가 있으면 필요한 것만 받음
+async function findStudentUidsByEmail(emails) {
+    const found = new Set();
+    try {
+        await Promise.all(emails.map(async (email) => {
+            const snap = await get(query(ref(db, 'students'), orderByChild('email'), equalTo(email)));
+            snap.forEach(child => { found.add(child.key); });
+        }));
+    } catch (e) {
+        console.warn('이메일 검색 실패 — 학생 데이터 전체에서 찾음', e);
+        const wanted = new Set(emails);
+        const all = await get(ref(db, 'students'));
+        all.forEach(child => {
+            const data = child.val();
+            if (data && wanted.has(String(data.email || '').toLowerCase())) found.add(child.key);
+        });
+    }
+    return found;
+}
+
 studentDeleteBtn.addEventListener('click', async () => {
     const selected = studentCheckboxes().filter(b => b.checked);
     if (!selected.length) return;
@@ -517,12 +539,12 @@ studentDeleteBtn.addEventListener('click', async () => {
     setFieldFeedback(studentDeleteFeedbackEl, '삭제 중...');
     try {
         const updates = {};
-        await Promise.all(selected.map(async (b) => {
+        selected.forEach(b => {
             updates[`allowedStudents/${b.dataset.key}`] = null;
             if (b.dataset.uid) updates[`students/${b.dataset.uid}`] = null;
-            const byEmail = await get(query(ref(db, 'students'), orderByChild('email'), equalTo(b.dataset.email)));
-            byEmail.forEach(child => { updates[`students/${child.key}`] = null; });
-        }));
+        });
+        const uidsByEmail = await findStudentUidsByEmail(selected.map(b => String(b.dataset.email || '').toLowerCase()));
+        uidsByEmail.forEach(uid => { updates[`students/${uid}`] = null; });
         // 여러 경로를 한 번에 지우는 다중 경로 update — 중간에 실패해도 일부만 지워지지 않음
         await update(ref(db), updates);
         setFieldFeedback(studentDeleteFeedbackEl, `${selected.length}명이 삭제되었습니다`, 'success');
