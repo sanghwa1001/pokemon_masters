@@ -268,38 +268,36 @@ document.getElementById('btn-admin-manage-students').addEventListener('click', a
         let hasStudents = false;
         
         for (const [id, data] of Object.entries(users)) {
-            if (data.role === 'student') {
-                hasStudents = true;
-                const row = document.createElement('div');
-                row.style.display = 'flex';
-                row.style.justifyContent = 'space-between';
-                row.style.alignItems = 'center';
-                row.style.borderBottom = '1px solid #ccc';
-                row.style.paddingBottom = '4px';
-                
-                const titleSpan = document.createElement('span');
-                titleSpan.textContent = `${id}`;
-                titleSpan.style.color = '#000';
-                titleSpan.style.fontSize = '14px';
-                
-                const delBtn = document.createElement('button');
-                delBtn.className = 'dex-settings-action-btn dex-danger';
-                delBtn.textContent = '삭제';
-                delBtn.style.padding = '0 8px';
-                delBtn.style.height = '24px';
-                delBtn.style.fontSize = '12px';
-                
-                delBtn.onclick = async () => {
-                    if (confirm(`'${id}' 학생 계정을 삭제하시겠습니까?`)) {
-                        await window.firebaseRemove(window.firebaseRef(db, `users/${id}`));
-                        row.remove();
-                    }
-                };
-                
-                row.appendChild(titleSpan);
-                row.appendChild(delBtn);
-                listContainer.appendChild(row);
-            }
+            hasStudents = true;
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+            row.style.alignItems = 'center';
+            row.style.borderBottom = '1px solid #ccc';
+            row.style.paddingBottom = '4px';
+            
+            const titleSpan = document.createElement('span');
+            titleSpan.textContent = `${id}`;
+            titleSpan.style.color = '#000';
+            titleSpan.style.fontSize = '14px';
+            
+            const delBtn = document.createElement('button');
+            delBtn.className = 'dex-settings-action-btn dex-danger';
+            delBtn.textContent = '삭제';
+            delBtn.style.padding = '0 8px';
+            delBtn.style.height = '24px';
+            delBtn.style.fontSize = '12px';
+            
+            delBtn.onclick = async () => {
+                if (confirm(`'${id}' 학생 계정을 삭제하시겠습니까?`)) {
+                    await window.firebaseRemove(window.firebaseRef(db, `users/${id}`));
+                    row.remove();
+                }
+            };
+            
+            row.appendChild(titleSpan);
+            row.appendChild(delBtn);
+            listContainer.appendChild(row);
         }
         
         if (!hasStudents) {

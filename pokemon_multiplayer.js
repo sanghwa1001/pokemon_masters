@@ -32,6 +32,7 @@ window.mpOnDisconnect = null;
 let currentRoomRef = null;
 let messagesRef = null;
 let unsubscribeMessages = null;
+let unsubscribeRoom = null;
 
 const MP_CLIENT_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -105,6 +106,10 @@ function mpTeardown() {
         unsubscribeMessages();
         unsubscribeMessages = null;
     }
+    if (unsubscribeRoom) {
+        unsubscribeRoom();
+        unsubscribeRoom = null;
+    }
     
     if (currentRoomRef && window.mp.isHost) {
         window.firebaseRemove(currentRoomRef);
@@ -162,7 +167,11 @@ mpCreateBtn.addEventListener('click', async () => {
     window.firebaseOnDisconnect(currentRoomRef).remove();
     
     // Guest가 들어오는지 감지
-    window.firebaseOnValue(currentRoomRef, (snapshot) => {
+    unsubscribeRoom = window.firebaseOnValue(currentRoomRef, (snapshot) => {
+        if (!snapshot.exists()) {
+            mpHandleRemoteGone();
+            return;
+        }
         const val = snapshot.val();
         if (val && val.status === 'playing' && val.guest) {
             // 연결됨!
@@ -176,9 +185,6 @@ mpCreateBtn.addEventListener('click', async () => {
             mpLobbyModalEl.classList.add('hidden');
             showStartSubmenu(null);
             if(window.openBattlePartyPicker) window.openBattlePartyPicker();
-            
-            // 더 이상 room 상태를 리스닝할 필요는 없음 (메시지로 통신)
-            // (onValue 해제는 간소화를 위해 생략하거나 ref를 분리)
         }
     });
 });
@@ -217,6 +223,11 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
     window.mp.roomCode = code;
     
     currentRoomRef = roomRef;
+    
+    unsubscribeRoom = window.firebaseOnValue(roomRef, (snap) => {
+        if (!snap.exists()) mpHandleRemoteGone();
+    });
+    
     setupMessageListener(code);
     
     mpJoinModalEl.classList.add('hidden');
