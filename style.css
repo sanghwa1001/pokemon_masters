@@ -2192,3 +2192,88 @@ html, body {
 
 .field-feedback.success { color: #2ed573; }
 .field-feedback.error { color: #b8281f; }
+
+/* =====================================================
+   🔑 구글 로그인 화면 / 학생 등록·관리(관리자)
+   ===================================================== */
+/* 로그인 상태 안내(확인 중/등록되지 않은 계정/로그아웃 안내 등) — 기본 .field-feedback보다 조금 크게 */
+.login-feedback {
+    max-width: 260px;
+    font-size: 12px;
+    line-height: 17px;
+}
+
+/* 카카오톡 등 앱 내부 브라우저 안내 */
+.login-notice {
+    max-width: 260px;
+    font-size: 13px;
+    line-height: 19px;
+    letter-spacing: 0.3px;
+    color: #000;
+    text-align: center;
+    word-break: keep-all;
+}
+
+/* 학생 이메일 붙여넣기 칸 — .dex-cheat-input과 같은 톤(테두리·배경·픽셀 폰트)의 여러 줄 입력 */
+.admin-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 2px solid #1a1a1a;
+    border-radius: 8px;
+    background-color: #f7f7f7;
+    font-family: var(--pixel-font);
+    font-size: 12px;
+    line-height: 17px;
+    letter-spacing: 0.3px;
+    color: #000;
+    outline: none;
+    resize: vertical;
+}
+
+.admin-textarea::placeholder {
+    color: #9aa0a8;
+}
+
+/* 학생 관리 목록 위 "전체 선택 / N명" 줄 */
+.admin-bulk-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 4px;
+}
+
+.admin-check-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    color: #000;
+    cursor: pointer;
+}
+
+.admin-check-sub {
+    justify-content: center;
+}
+
+.admin-count {
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    color: #666;
+}
+
+/* 학생 한 줄 — 체크박스 + 이름/이메일(두 줄) */
+.admin-row .admin-row-check {
+    flex-shrink: 0;
+    margin: 0 8px 0 0;
+}
+
+.admin-row-sub {
+    display: block;
+    font-size: 11px;
+    color: #666;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

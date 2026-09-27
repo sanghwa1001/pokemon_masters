@@ -52,7 +52,7 @@ let ownedDexSpecies = new Set();
 let ownedDexForms = new Set();
 let ownedDexShinyForms = new Set();
 
-// 도감 저장 형식: users/{id}/pokedex/{species|forms|shinyForms}/{id} = true (키 단위).
+// 도감 저장 형식: students/{uid}/pokedex/{species|forms|shinyForms}/{id} = true (키 단위).
 // 예전엔 배열 전체를 매번 덮어써서, 탭 두 개나 기기 두 대로 동시에 잡으면 나중에 저장한 쪽이
 // 이겨 포획 기록이 사라졌음 — 이제는 새로 잡은 항목 하나만 추가로 씀
 //
@@ -76,7 +76,7 @@ window.loadPokedexFromFirebase = function(pokedexData) {
     ownedDexSpecies = new Set(species.ids);
     ownedDexForms = new Set(forms.ids);
     ownedDexShinyForms = new Set(shinyForms.ids);
-    // 치트 코드 상태도 도감 데이터와 같은 계정 경로(users/{id}/pokedex)에서 불러와서,
+    // 치트 코드 상태도 도감 데이터와 같은 계정 경로(students/{uid}/pokedex)에서 불러와서,
     // 어떤 기기로 로그인해도 이전에 켜둔 치트 상태가 그대로 유지됨(기기별 localStorage가 아님)
     dexCheatDexAll = !!pokedexData.cheatDexAll;
     dexCheatCaughtAll = !!pokedexData.cheatCaughtAll;
@@ -106,7 +106,7 @@ window.resetPokedexLocal = function() {
 
 function dexFirebaseRef() {
     if (!window.currentStudentId || !window.firebaseDb) return null;
-    return window.firebaseRef(window.firebaseDb, `users/${window.currentStudentId}/pokedex`);
+    return window.firebaseRef(window.firebaseDb, `students/${window.currentStudentId}/pokedex`);
 }
 
 // 도감 경로 아래 여러 칸을 한 번에 갱신(update) — 로그인 전이면 아무것도 안 함
@@ -122,7 +122,7 @@ function writeDexToFirebase(changes) {
 //   DexAll    : 모든 종/폼이 "언락"(이름 공개) 상태가 되지만, 실제로 잡지 않은 건 흑백(grayed)으로 표시
 //   CaughtAll : 모든 종/폼이 실제로 잡은 것처럼 컬러(owned)로 표시
 // 치트 코드 상태(DexAll/CaughtAll)는 기기별 localStorage가 아니라 도감 데이터와 같은
-// 계정 경로(users/{id}/pokedex)에 저장됨 — loadPokedexFromFirebase/writeDexToFirebase 참고.
+// 계정 경로(students/{uid}/pokedex)에 저장됨 — loadPokedexFromFirebase/writeDexToFirebase 참고.
 // 로그인 전에는 도감 화면 자체에 진입할 수 없으므로 기본값은 항상 false로 시작함
 let dexCheatDexAll    = false;
 let dexCheatCaughtAll = false;
