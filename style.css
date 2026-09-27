@@ -2112,11 +2112,4 @@ html, body {
     height: auto;
     margin-bottom: 30px; /* 로고와 버튼들 사이의 간격을 좀 더 넓게 */
     filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
-    animation: logoFloat 3.5s ease-in-out infinite;
-}
-
-@keyframes logoFloat {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0px); }
 }
