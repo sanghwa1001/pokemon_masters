@@ -110,6 +110,24 @@ html, body {
     transform-origin: center center; /* 반응형 스케일링(JS) 시 중앙 기준으로 확대/축소 */
 }
 
+/* 게임 창 배경 이미지 — ::before로 따로 그려서 opacity를 이 레이어에만 걸고(50%), 그
+   위의 실제 게임 내용(::before보다 뒤에 오는 모든 자식)은 opacity 영향 없이 그대로 선명하게
+   보이도록 함(#game-container 자체에 opacity를 걸면 글자/버튼까지 다 흐려짐) */
+#game-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url('images/game-background.png');
+    background-size: cover;
+    background-position: center;
+    opacity: 0.5;
+    z-index: 0;
+    pointer-events: none;
+}
+
 /* 시작 화면 / 결과 화면 / 일시정지 화면 (공통 오버레이 레이아웃) */
 #start-screen,
 #result-screen,
