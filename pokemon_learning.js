@@ -41,8 +41,13 @@ excelInput.addEventListener('change', (e) => {
                 .map(row => ({ en: String(row[0]).trim(), kr: String(row[1]).trim() }));
 
             const distinctMeanings = new Set(parsedList.map(w => w.kr)).size;
+            const uploadFeedbackEl = document.getElementById('data-upload-feedback');
             if (distinctMeanings < QUIZ_MIN_WORDS) {
-                alert(`뜻이 다른 단어가 ${QUIZ_MIN_WORDS}개 이상 필요합니다 (현재 ${distinctMeanings}개)`);
+                if (uploadFeedbackEl) {
+                    uploadFeedbackEl.textContent = `뜻이 다른 단어가 ${QUIZ_MIN_WORDS}개 이상 필요합니다 (현재 ${distinctMeanings}개)`;
+                    uploadFeedbackEl.classList.remove('success');
+                    uploadFeedbackEl.classList.add('error');
+                }
                 excelInput.value = '';
                 return;
             }
@@ -51,7 +56,12 @@ excelInput.addEventListener('change', (e) => {
                 window.uploadLearningDataToFirebase(parsedList);
             }
         } catch (err) {
-            alert('파일을 읽을 수 없습니다. 다시 업로드해주세요');
+            const uploadFeedbackEl = document.getElementById('data-upload-feedback');
+            if (uploadFeedbackEl) {
+                uploadFeedbackEl.textContent = '파일을 읽을 수 없습니다. 다시 업로드해주세요';
+                uploadFeedbackEl.classList.remove('success');
+                uploadFeedbackEl.classList.add('error');
+            }
             excelInput.value = '';
         }
     };

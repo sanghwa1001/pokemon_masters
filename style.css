@@ -2112,3 +2112,98 @@ html, body {
     height: auto;
     margin-bottom: 30px; /* 로고와 버튼들 사이의 간격을 좀 더 넓게 */
 }
+
+/* =====================================================
+   👤 관리자 화면 통일 — 학생 계정 관리 / 학습 데이터 관리 / 학습 데이터 선택
+   포켓몬 도감(#dex-list/.dex-row, #captured-list/.captured-row)과 동일한 룩(리스트 자체는
+   테두리 없이 투명, 각 항목만 검정 2px 테두리 + 옅은 회색 배경의 각진 사각형)으로 통일해서
+   이 화면들도 도감과 같은 계열의 UI로 보이게 함. 기존에는 JS에서 매번 인라인 스타일로
+   테두리색(#ccc/#000)·모서리 반경(4px)이 도감과 다르게 그려지고 있었음 */
+.admin-panel-title {
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #000;
+    text-align: center;
+}
+
+.admin-list {
+    width: 280px;
+    max-height: 220px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 4px;
+}
+
+/* 학생/데이터/학습자료 목록 한 줄 — .dex-row / .captured-row와 동일한 테두리·배경·패딩 */
+.admin-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 8px;
+    box-sizing: border-box;
+    border: 2px solid #1a1a1a;
+    background-color: #f0f0f0;
+    text-align: left;
+}
+
+/* 학습 데이터 선택 목록(학생용)처럼 줄 전체가 클릭 대상일 때 — 도감 칸(.dex-row)과 같은 호버/누름 반응 */
+.admin-row.clickable {
+    cursor: pointer;
+}
+
+.admin-row.clickable:hover {
+    background-color: #e6e6e6;
+}
+
+.admin-row.clickable:active {
+    transform: translate(1px, 1px);
+}
+
+.admin-row-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: #000;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-row-empty {
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: #666;
+    text-align: center;
+    padding: 20px 0;
+}
+
+/* 목록 안 삭제 버튼 — .dex-settings-action-btn.dex-danger와 같은 색이지만 줄 안에 들어가는
+   작은 크기 변형 */
+.dex-settings-action-btn.dex-danger-sm {
+    width: auto;
+    flex-shrink: 0;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+/* 로그인/계정 생성/업로드 등 입력 폼 공용 피드백 한 줄 — 도감 치트 코드 페이지의
+   #dex-cheat-feedback과 동일한 규격. alert() 팝업 대신 이 자리에 결과를 표시해서
+   네이티브 브라우저 알림이 튀지 않고 나머지 UI와 같은 톤으로 보이게 함 */
+.field-feedback {
+    min-height: 14px;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    text-align: center;
+    color: #666;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
+.field-feedback.success { color: #2ed573; }
+.field-feedback.error { color: #b8281f; }

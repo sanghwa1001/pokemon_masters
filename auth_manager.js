@@ -24,6 +24,16 @@ function switchScreen(screen) {
     screen.classList.remove('hidden');
 }
 
+// alert() 팝업 대신 모달 안 한 줄에 결과를 표시하는 공용 헬퍼 — 도감 치트 코드 페이지
+// (#dex-cheat-feedback)와 같은 방식으로, 네이티브 브라우저 알림 대신 나머지 UI와
+// 같은 톤으로 성공/실패를 보여줌
+function setFieldFeedback(el, message, type) {
+    if (!el) return;
+    el.textContent = message || '';
+    el.classList.remove('success', 'error');
+    if (type) el.classList.add(type);
+}
+
 // Close buttons
 document.getElementById('admin-login-close-btn').addEventListener('click', () => hideModal(adminLoginModal));
 document.getElementById('student-login-close-btn').addEventListener('click', () => hideModal(studentLoginModal));
@@ -31,21 +41,29 @@ document.getElementById('admin-student-create-close-btn').addEventListener('clic
 document.getElementById('student-data-select-close-btn').addEventListener('click', () => hideModal(studentDataSelectModal));
 
 // Login Screen Buttons
-document.getElementById('btn-show-student-login').addEventListener('click', () => showModal(studentLoginModal));
-document.getElementById('btn-show-admin-login').addEventListener('click', () => showModal(adminLoginModal));
+document.getElementById('btn-show-student-login').addEventListener('click', () => {
+    setFieldFeedback(document.getElementById('student-login-feedback'), '');
+    showModal(studentLoginModal);
+});
+document.getElementById('btn-show-admin-login').addEventListener('click', () => {
+    setFieldFeedback(document.getElementById('admin-login-feedback'), '');
+    showModal(adminLoginModal);
+});
 
 // --- Admin Logic ---
 const ADMIN_PW = "1234";
 
 document.getElementById('btn-admin-login').addEventListener('click', () => {
+    const feedbackEl = document.getElementById('admin-login-feedback');
     const pw = document.getElementById('admin-pw-input').value;
     if (pw === ADMIN_PW) {
+        setFieldFeedback(feedbackEl, '');
         hideModal(adminLoginModal);
         document.getElementById('admin-pw-input').value = '';
         loginScreen.classList.add('hidden');
         switchScreen(adminDashboard);
     } else {
-        alert("비밀번호가 틀렸습니다.");
+        setFieldFeedback(feedbackEl, '비밀번호가 틀렸습니다.', 'error');
     }
 });
 
@@ -59,6 +77,7 @@ document.getElementById('btn-admin-create-student').addEventListener('click', ()
 });
 
 document.getElementById('btn-admin-manage-data').addEventListener('click', () => {
+    setFieldFeedback(document.getElementById('data-upload-feedback'), '');
     switchScreen(adminDataManageScreen);
     loadLearningDataForAdmin();
 });
@@ -70,11 +89,12 @@ document.getElementById('btn-data-manage-back').addEventListener('click', () => 
 
 // Student Create (Admin)
 document.getElementById('btn-create-student-submit').addEventListener('click', async () => {
+    const feedbackEl = document.getElementById('admin-student-create-feedback');
     const id = document.getElementById('new-student-id').value.trim();
     const pw = document.getElementById('new-student-pw').value.trim();
     
     if (!id || !pw) {
-        alert("아이디와 비밀번호를 모두 입력해주세요.");
+        setFieldFeedback(feedbackEl, '아이디와 비밀번호를 모두 입력해주세요.', 'error');
         return;
     }
 
@@ -82,24 +102,25 @@ document.getElementById('btn-create-student-submit').addEventListener('click', a
         const userRef = ref(db, `users/${id}`);
         const snapshot = await get(userRef);
         if (snapshot.exists()) {
-            alert("이미 존재하는 아이디입니다.");
+            setFieldFeedback(feedbackEl, '이미 존재하는 아이디입니다.', 'error');
             return;
         }
 
         await set(userRef, { password: pw, pokedex: {} });
-        alert("학생 계정이 생성되었습니다.");
+        setFieldFeedback(feedbackEl, '학생 계정이 생성되었습니다.', 'success');
         hideModal(adminStudentCreateModal);
         document.getElementById('new-student-id').value = '';
         document.getElementById('new-student-pw').value = '';
     } catch (e) {
         console.error(e);
-        alert("계정 생성 실패: " + e.message);
+        setFieldFeedback(feedbackEl, '계정 생성 실패: ' + e.message, 'error');
     }
 });
 
 // Excel Upload (Admin) -> Handled mostly by script.js but modified to save to Firebase
 window.uploadLearningDataToFirebase = async function(parsedQuestions) {
     const title = document.getElementById('data-title-input').value.trim() || "제목 없음";
+    const feedbackEl = document.getElementById('data-upload-feedback');
     try {
         const dataRef = ref(db, 'learningData');
         const newDataRef = push(dataRef);
@@ -107,13 +128,13 @@ window.uploadLearningDataToFirebase = async function(parsedQuestions) {
             title: title,
             questions: parsedQuestions
         });
-        alert("학습 데이터가 성공적으로 업로드되었습니다.");
+        setFieldFeedback(feedbackEl, '학습 데이터가 성공적으로 업로드되었습니다.', 'success');
         document.getElementById('data-title-input').value = '';
         document.getElementById('excel-input').value = ''; // reset file input
         loadLearningDataForAdmin(); // refresh list
     } catch (e) {
         console.error(e);
-        alert("업로드 실패: " + e.message);
+        setFieldFeedback(feedbackEl, '업로드 실패: ' + e.message, 'error');
     }
 };
 
@@ -134,7 +155,7 @@ function loadLearningDataForAdmin() {
     unsubscribeAdminLearningData = onValue(ref(db, 'learningData'), (snapshot) => {
         listContainer.innerHTML = '';
         if (!snapshot.exists()) {
-            listContainer.innerHTML = '<div style="color:white; text-align:center;">등록된 학습 데이터가 없습니다.</div>';
+            listContainer.innerHTML = '<div class="admin-row-empty">등록된 학습 데이터가 없습니다.</div>';
             return;
         }
         
@@ -142,25 +163,25 @@ function loadLearningDataForAdmin() {
             const dataId = childSnapshot.key;
             const data = childSnapshot.val();
             
-            const div = document.createElement('div');
-            div.style.cssText = "display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc; padding: 8px 0; color: #000; font-size: 14px;";
+            const row = document.createElement('div');
+            row.className = 'admin-row';
             
             const titleSpan = document.createElement('span');
+            titleSpan.className = 'admin-row-name';
             titleSpan.textContent = data.title + ` (${data.questions.length}문항)`;
             
             const delBtn = document.createElement('button');
             delBtn.textContent = '삭제';
-            delBtn.className = 'dex-settings-action-btn dex-danger';
-            delBtn.style.cssText = "padding: 2px 8px; width: auto; min-width: 40px; border-radius: 4px; border: none; font-size: 12px;";
+            delBtn.className = 'dex-settings-action-btn dex-danger dex-danger-sm';
             delBtn.onclick = async () => {
                 if(confirm(`'${data.title}' 데이터를 삭제하시겠습니까?`)) {
                     await remove(ref(db, `learningData/${dataId}`));
                 }
             };
             
-            div.appendChild(titleSpan);
-            div.appendChild(delBtn);
-            listContainer.appendChild(div);
+            row.appendChild(titleSpan);
+            row.appendChild(delBtn);
+            listContainer.appendChild(row);
         });
     });
 }
@@ -170,11 +191,12 @@ function loadLearningDataForAdmin() {
 window.currentStudentId = null;
 
 document.getElementById('btn-student-login').addEventListener('click', async () => {
+    const feedbackEl = document.getElementById('student-login-feedback');
     const id = document.getElementById('student-id-input').value.trim();
     const pw = document.getElementById('student-pw-input').value.trim();
     
     if (!id || !pw) {
-        alert("아이디와 비밀번호를 모두 입력해주세요.");
+        setFieldFeedback(feedbackEl, '아이디와 비밀번호를 모두 입력해주세요.', 'error');
         return;
     }
     
@@ -183,17 +205,18 @@ document.getElementById('btn-student-login').addEventListener('click', async () 
         const snapshot = await get(userRef);
         
         if (!snapshot.exists()) {
-            alert("존재하지 않는 아이디입니다.");
+            setFieldFeedback(feedbackEl, '존재하지 않는 아이디입니다.', 'error');
             return;
         }
         
         const userData = snapshot.val();
         if (userData.password !== pw) {
-            alert("비밀번호가 틀렸습니다.");
+            setFieldFeedback(feedbackEl, '비밀번호가 틀렸습니다.', 'error');
             return;
         }
         
         // Login Success
+        setFieldFeedback(feedbackEl, '');
         window.currentStudentId = id;
         hideModal(studentLoginModal);
         loginScreen.classList.add('hidden'); // 로그인 창 명시적으로 숨김
@@ -208,7 +231,7 @@ document.getElementById('btn-student-login').addEventListener('click', async () 
         
     } catch (e) {
         console.error(e);
-        alert("로그인 실패: " + e.message);
+        setFieldFeedback(feedbackEl, '로그인 실패: ' + e.message, 'error');
     }
 });
 
@@ -228,33 +251,33 @@ document.getElementById('btn-select-learning-data').addEventListener('click', ()
     get(ref(db, 'learningData')).then((snapshot) => {
         listContainer.innerHTML = '';
         if (!snapshot.exists()) {
-            listContainer.innerHTML = '<div style="color:white; text-align:center;">등록된 학습 데이터가 없습니다. 선생님께 문의하세요.</div>';
+            listContainer.innerHTML = '<div class="admin-row-empty">등록된 학습 데이터가 없습니다. 선생님께 문의하세요.</div>';
             return;
         }
         
         snapshot.forEach((childSnapshot) => {
             const data = childSnapshot.val();
             
-            const div = document.createElement('div');
-            div.style.cssText = "padding: 10px; margin-bottom: 8px; border-radius: 4px; cursor: pointer; text-align: center; border: 2px solid #ccc; font-size: 16px; color: #000; font-family: 'NeoDunggeunmo';";
-            div.textContent = data.title + ` (${data.questions.length}문항)`;
+            const row = document.createElement('div');
+            row.className = 'admin-row clickable';
             
-            div.onmouseover = () => div.style.borderColor = "#000";
-            div.onmouseout = () => div.style.borderColor = "#ccc";
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'admin-row-name';
+            titleSpan.textContent = data.title + ` (${data.questions.length}문항)`;
+            row.appendChild(titleSpan);
             
-            div.onclick = () => {
+            row.onclick = () => {
                 if (window.applyLearningData) {
                     window.applyLearningData(data.questions, data.title);
                 }
                 hideModal(studentDataSelectModal);
-                alert(`'${data.title}' 데이터를 선택했습니다!`);
                 document.getElementById('btn-select-learning-data').textContent = "학습 데이터 변경";
             };
             
-            listContainer.appendChild(div);
+            listContainer.appendChild(row);
         });
     }).catch(e => {
-        listContainer.innerHTML = '데이터 로딩 실패';
+        listContainer.innerHTML = '<div class="admin-row-empty">데이터 로딩 실패</div>';
         console.error(e);
     });
 });
@@ -272,7 +295,7 @@ document.getElementById('btn-admin-manage-students').addEventListener('click', a
         listContainer.innerHTML = '';
         
         if (!snapshot.exists()) {
-            listContainer.innerHTML = '<div style="color:#000;">학생 계정이 없습니다.</div>';
+            listContainer.innerHTML = '<div class="admin-row-empty">학생 계정이 없습니다.</div>';
             return;
         }
         
@@ -282,23 +305,15 @@ document.getElementById('btn-admin-manage-students').addEventListener('click', a
         for (const [id, data] of Object.entries(users)) {
             hasStudents = true;
             const row = document.createElement('div');
-            row.style.display = 'flex';
-            row.style.justifyContent = 'space-between';
-            row.style.alignItems = 'center';
-            row.style.borderBottom = '1px solid #ccc';
-            row.style.paddingBottom = '4px';
+            row.className = 'admin-row';
             
             const titleSpan = document.createElement('span');
-            titleSpan.textContent = `${id}`;
-            titleSpan.style.color = '#000';
-            titleSpan.style.fontSize = '14px';
+            titleSpan.className = 'admin-row-name';
+            titleSpan.textContent = id;
             
             const delBtn = document.createElement('button');
-            delBtn.className = 'dex-settings-action-btn dex-danger';
+            delBtn.className = 'dex-settings-action-btn dex-danger dex-danger-sm';
             delBtn.textContent = '삭제';
-            delBtn.style.padding = '0 8px';
-            delBtn.style.height = '24px';
-            delBtn.style.fontSize = '12px';
             
             delBtn.onclick = async () => {
                 if (confirm(`'${id}' 학생 계정을 삭제하시겠습니까?`)) {
@@ -313,12 +328,12 @@ document.getElementById('btn-admin-manage-students').addEventListener('click', a
         }
         
         if (!hasStudents) {
-            listContainer.innerHTML = '<div style="color:#000;">학생 계정이 없습니다.</div>';
+            listContainer.innerHTML = '<div class="admin-row-empty">학생 계정이 없습니다.</div>';
         }
         
     } catch (e) {
         console.error(e);
-        listContainer.innerHTML = '<div style="color:#000;">오류 발생</div>';
+        listContainer.innerHTML = '<div class="admin-row-empty">오류 발생</div>';
     }
 });
 
