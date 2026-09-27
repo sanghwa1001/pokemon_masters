@@ -1386,10 +1386,25 @@ html, body {
    입력 후 버튼 클릭, 전용 취소 버튼 없이 뒤로가기로 복귀)을 쓰므로 레이아웃도 하나의 규칙으로
    공유함 */
 #dex-cheat-row,
-#dex-reset-row {
+#dex-reset-row,
+.form-row {
     display: flex;
     gap: 8px;
     align-items: center;
+}
+
+/* 관리자 창·초대 코드 창 등 모달 안 입력 폼 — 도감 설정 화면과 같은 규칙: 입력칸 + 실행 버튼은
+   한 줄(.form-row, 둥근 .dex-cheat-apply-btn), 그 밖의 실행 버튼은 전체 폭 각진 버튼
+   (.dex-settings-action-btn), 줄 간격은 설정 화면(#dex-settings)과 같은 10px */
+.form-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.dex-cheat-input.form-full {
+    flex: none;
+    width: 100%;
 }
 
 .dex-cheat-input {
@@ -2041,8 +2056,10 @@ html, body {
     gap: 12px;
 }
 
+/* 모달 제목 — 도감 설정 화면 제목(#dex-settings-title 등)과 같은 크기·굵기 */
 .mp-title {
-    font-size: 16px;
+    font-size: 14px;
+    font-weight: bold;
     letter-spacing: 0.5px;
     color: #000;
 }
@@ -2094,12 +2111,6 @@ html, body {
     25%  { content: '.'; }
     50%  { content: '..'; }
     75%  { content: '...'; }
-}
-
-.mp-join-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
 }
 
 .mp-join-input {

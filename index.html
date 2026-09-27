@@ -72,33 +72,36 @@
             </div>
         </div>
 
-        <!-- 학생 등록 창 (관리자용) — 한 명씩: 이메일·이름 입력칸 두 개(이름은 선택) 후 등록.
+        <!-- 학생 등록 창 (관리자용) — 도감 설정 화면과 같은 구성: 한 명씩은 이메일 입력칸 + "이름 입력칸
+             + 둥근 등록 버튼" 한 줄(치트 코드 입력 줄과 같은 모양), 이름은 선택.
              여러 명: 엑셀(첫 열 이메일, 둘째 열 이름)로 일괄 등록. 등록된 이메일만 로그인할 수 있음 -->
         <div id="admin-student-create-modal" class="mp-modal hidden">
             <div class="mp-box">
                 <button id="admin-student-create-close-btn" class="quiz-close-btn">×</button>
                 <div class="mp-title">학생 등록</div>
                 <input type="file" id="student-register-file" accept=".xlsx,.xls,.csv" class="hidden">
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <input type="email" id="student-register-email" class="dex-cheat-input" placeholder="학생 구글 이메일" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex: none; width: 100%;">
-                    <input type="text" id="student-register-name" class="dex-cheat-input" placeholder="이름 (선택)" autocomplete="off" style="flex: none; width: 100%;">
-                    <button id="btn-register-student" class="dex-settings-action-btn" style="width: 100%;">등록하기</button>
-                    <button id="btn-register-students-excel" class="dex-settings-action-btn" style="width: 100%;">엑셀로 일괄 등록</button>
+                <div class="form-stack">
+                    <input type="email" id="student-register-email" class="dex-cheat-input form-full" placeholder="학생 구글 이메일" autocomplete="off" autocapitalize="off" spellcheck="false">
+                    <div class="form-row">
+                        <input type="text" id="student-register-name" class="dex-cheat-input" placeholder="이름 (선택)" autocomplete="off">
+                        <button id="btn-register-student" class="dex-settings-action-btn dex-cheat-apply-btn">등록하기</button>
+                    </div>
+                    <button id="btn-register-students-excel" class="dex-settings-action-btn">엑셀로 일괄 등록</button>
                 </div>
                 <div id="admin-student-create-feedback" class="field-feedback"></div>
             </div>
         </div>
 
-        <!-- 학습 데이터 업로드 창 (관리자용) — 학생 계정 생성 모달과 동일한 구성(입력칸을 세로로
-             쌓고 버튼은 전체폭) -->
+        <!-- 학습 데이터 업로드 창 (관리자용) — 도감 치트 코드 페이지와 같은 입력 줄(입력칸 + 둥근 버튼)
+             로 데이터 이름을 적고 업로드를 누르면 엑셀 파일 선택 창이 열림 -->
         <div id="admin-data-upload-modal" class="mp-modal hidden">
             <div class="mp-box">
                 <button id="admin-data-upload-close-btn" class="quiz-close-btn">×</button>
                 <div class="mp-title">학습 데이터 업로드</div>
                 <input type="file" id="excel-input" accept=".xlsx,.xls" class="hidden">
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <input type="text" id="data-title-input" class="dex-cheat-input" placeholder="데이터 이름" style="flex: none; width: 100%;">
-                    <button id="upload-btn" class="dex-settings-action-btn" style="width: 100%;">업로드</button>
+                <div class="form-row">
+                    <input type="text" id="data-title-input" class="dex-cheat-input" placeholder="데이터 이름" autocomplete="off">
+                    <button id="upload-btn" class="dex-settings-action-btn dex-cheat-apply-btn">업로드</button>
                 </div>
                 <div id="data-upload-feedback" class="field-feedback"></div>
             </div>
@@ -170,7 +173,7 @@
             <div class="mp-box">
                 <button id="mp-join-close-btn" class="quiz-close-btn">×</button>
                 <div class="mp-title">초대 코드 입력</div>
-                <div class="mp-join-row">
+                <div class="form-row">
                     <input type="text" id="mp-join-input" class="dex-cheat-input mp-join-input" placeholder="코드 6자리" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false">
                     <button id="mp-join-submit-btn" class="dex-settings-action-btn dex-cheat-apply-btn">입장</button>
                 </div>
