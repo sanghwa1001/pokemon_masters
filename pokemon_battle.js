@@ -435,6 +435,7 @@ const MP_ACTION_TIMEOUT_MS = 60000;
 const MP_FORCED_SWITCH_TIMEOUT_MS = 60000;
 const MP_PARTY_TIMEOUT_MS = 100000;
 const MP_LOADED_TIMEOUT_MS = 100000;
+const MP_REMATCH_TIMEOUT_MS = 60000; // 다시하기를 누르고 상대를 기다리는 최대 시간
 let mpPartyLocked = false;   // 함께하기 선택창에서 "선택 완료"를 누르고 상대를 기다리는 중(파티 수정 불가)
 let mpMyLoadSent = false;    // 내 배틀 에셋 로딩을 끝내고 'loaded' 신호를 이미 보냈는지(상대
                               // 신호를 기다리는 중인지) — 켜져 있으면 여유를 더 준 뒤 판정
@@ -1383,11 +1384,58 @@ function showBattleWaiting(text) {
     battleMessageBoxEl.textContent = text;
 }
 
-// 이번 턴의 랜덤 판정을 호스트가 미리 굴림 — first: 선공(교체끼리/싸우기끼리일 때만 씀),
-// host/guest: 각자 공격했을 때의 명중/치명타. 행동을 고르기 전에 굴려도 확률은 똑같음
-function mpRollTurn() {
-    const rollAttack = () => ({ hit: Math.random() < BATTLE_ACCURACY, crit: Math.random() < BATTLE_CRIT_CHANCE });
-    return { first: Math.random() < 0.5 ? 'host' : 'guest', host: rollAttack(), guest: rollAttack() };
+// 이번 턴의 랜덤 판정 — 양쪽이 reveal로 공개한 난수를 합쳐서 정하므로 두 화면에서 결과가 같고,
+// 어느 한쪽도 미리 알거나 조작할 수 없음. first: 선공(교체끼리/싸우기끼리일 때만 씀),
+// host/guest: 각자 공격했을 때의 명중/치명타
+function mpRollTurn(hostNonce, guestNonce, turn) {
+    const u = window.mpSeededUniforms(`${hostNonce}|${guestNonce}|${turn}`);
+    return {
+        first: u[0] < 0.5 ? 'host' : 'guest',
+        host: { hit: u[1] < BATTLE_ACCURACY, crit: u[2] < BATTLE_CRIT_CHANCE },
+        guest: { hit: u[3] < BATTLE_ACCURACY, crit: u[4] < BATTLE_CRIT_CHANCE }
+    };
+}
+
+// 턴 시작 시점의 배틀 상태를 호스트 기준(host/guest 순서)의 짧은 문자열로 — 양쪽이 commit에 실어
+// 보내 서로 비교함(같은 계산을 각자 돌리는 구조라 어긋나면 이후 결과가 계속 달라지므로 바로 잡아야 함)
+function mpSideState(party, activeIdx, rank) {
+    return `${activeIdx}:${rank}:` + party.map(p => `${p.hp}${p.fainted ? 'x' : ''}`).join(',');
+}
+function mpStateString() {
+    const mine = mpSideState(battleParty, activePartyIndex, playerRank);
+    const theirs = mpSideState(aiParty, activeAiIndex, aiRank);
+    return mp.isHost ? `${mine}/${theirs}` : `${theirs}/${mine}`;
+}
+
+// 상태가 어긋났을 때 — 호스트 상태를 정답으로 보고 게스트가 hp·기절·랭크를 맞춤(hp바도 즉시 갱신).
+// 출전 중인 포켓몬 자체가 다르면 화면 연출까지 달라진 것이라 맞출 수 없음 → false
+function mpApplyHostState(hostState) {
+    if (mp.isHost) return true; // 호스트는 자기 상태가 정답
+    const parse = (side) => {
+        const [active, rank, list] = side.split(':');
+        return { active: Number(active), rank: Number(rank), mons: list.split(',').map(t => ({ hp: parseFloat(t), fainted: t.endsWith('x') })) };
+    };
+    const [hostSide, guestSide] = String(hostState || '').split('/').map(parse);
+    if (!hostSide || !guestSide) return false;
+    const apply = (party, side) => {
+        if (side.mons.length !== party.length || side.mons.some(m => Number.isNaN(m.hp))) return false;
+        party.forEach((p, i) => { p.hp = side.mons[i].hp; p.fainted = side.mons[i].fainted; });
+        return true;
+    };
+    if (hostSide.active !== activeAiIndex || guestSide.active !== activePartyIndex) return false;
+    if (!apply(aiParty, hostSide) || !apply(battleParty, guestSide)) return false;
+    aiRank = hostSide.rank;
+    playerRank = guestSide.rank;
+    aiHpBar.reset(aiParty[activeAiIndex].hp);
+    playerHpBar.reset(battleParty[activePartyIndex].hp);
+    updateBattleSwitchBtnState();
+    return true;
+}
+
+// 맞출 수 없는 동기화 오류 — 더 진행하면 양쪽 화면이 계속 달라지므로 끊김으로 정리
+function mpDesync(reason) {
+    console.error('함께하기 동기화 오류:', reason);
+    window.mpForceDisconnect();
 }
 
 // 상대가 보낸 행동이 지금 상태에서 말이 되는지 확인 — 이상하면 공격으로 대체(양쪽 상태가 같으면
@@ -1398,6 +1446,7 @@ function mpSanitizeAction(action) {
         const target = aiParty[action.switch];
         if (target && !target.fainted && action.switch !== activeAiIndex) return { switch: action.switch };
     }
+    console.warn('함께하기: 상대 행동이 현재 상태와 맞지 않아 공격으로 대체함', action);
     return 'attack';
 }
 
@@ -1413,19 +1462,35 @@ function mpSanitizeParty(list) {
         .map(p => ({ id: p.id, isShiny: !!p.isShiny, hp: BATTLE_MON_MAX_HP, fainted: false, known: false }));
 }
 
-// 내 행동을 상대에게 보내고, 상대 행동이 오면(이미 와 있으면 즉시) 이번 턴을 판정·진행함.
-// 호스트는 자기 행동 메시지에 이번 턴 랜덤 판정(mpRollTurn)을 실어 보냄 — 그래서 어느 쪽이든
-// "양쪽 행동이 다 모인 순간" 곧바로 같은 결과로 진행할 수 있음(게스트가 판정을 따로 기다리지 않음)
+// 내 행동을 commit-reveal로 교환하고 이번 턴을 판정·진행함:
+//  1) commit: 행동+난수의 해시와 턴 시작 상태(mpStateString)를 보냄 — 이 단계에선 행동이 안 보임
+//  2) 상대 commit이 오면: 턴 번호·상태를 비교(어긋나면 호스트 상태로 맞춤) → reveal(행동+난수) 공개
+//  3) 상대 reveal이 오면: 해시가 commit과 맞는지 확인 → 양쪽 난수로 판정값을 정해 진행
+// 상대 메시지가 이미 와 있으면 mpWaitFor가 즉시 불려 곧바로 이어짐
 function mpSubmitTurnAction(playerAction) {
     const turn = mpTurn;
-    const myMsg = { turn, action: playerAction };
-    if (mp.isHost) myMsg.rolls = mpRollTurn();
-    mpSend('action', myMsg);
+    const nonce = window.mpRandomNonce();
+    const commitOf = (action, n) => window.mpSha256Hex(`${turn}|${JSON.stringify(action)}|${n}`);
+    const myState = mpStateString();
+    mpSend('commit', { turn, c: commitOf(playerAction, nonce), st: myState });
     showBattleWaiting('통신 대기 중...');
-    mpWaitFor('action', battleCallback((oppMsg) => {
-        mpTurn = turn + 1;
-        const rolls = mp.isHost ? myMsg.rolls : oppMsg.rolls;
-        mpResolveTurn(playerAction, mpSanitizeAction(oppMsg.action), rolls);
+    mpWaitFor('commit', battleCallback((oppCommit) => {
+        if (!oppCommit || oppCommit.turn !== turn) { mpDesync(`턴 번호 불일치(${turn} vs ${oppCommit && oppCommit.turn})`); return; }
+        if (oppCommit.st !== myState) {
+            console.warn('함께하기: 턴 시작 상태가 달라 호스트 기준으로 맞춤', myState, oppCommit.st);
+            if (!mpApplyHostState(mp.isHost ? myState : oppCommit.st)) { mpDesync('상태를 맞출 수 없음'); return; }
+        }
+        mpSend('reveal', { turn, action: playerAction, nonce });
+        mpWaitFor('reveal', battleCallback((oppReveal) => {
+            if (!oppReveal || oppReveal.turn !== turn || typeof oppReveal.nonce !== 'string' ||
+                commitOf(oppReveal.action, oppReveal.nonce) !== oppCommit.c) {
+                mpDesync('reveal이 commit과 다름');
+                return;
+            }
+            mpTurn = turn + 1;
+            const rolls = mp.isHost ? mpRollTurn(nonce, oppReveal.nonce, turn) : mpRollTurn(oppReveal.nonce, nonce, turn);
+            mpResolveTurn(playerAction, mpSanitizeAction(oppReveal.action), rolls);
+        }));
     }));
 }
 
@@ -2269,7 +2334,15 @@ battleResultRetryBtn.addEventListener('click', () => {
         battleResultRetryBtn.textContent = '대기 중';
         battleResultRetryBtn.disabled = true;
         mpSend('rematch');
+        // 상대가 결과 화면에 머문 채 응답하지 않으면 무한히 기다리지 않고 방을 나감
+        window.mpStartDeadline(battleTurnTimerEl, MP_REMATCH_TIMEOUT_MS, () => {
+            if (!mpRematchWaiting) return;
+            mpRematchWaiting = false;
+            battleResultRetryBtn.textContent = '상대가 응답하지 않습니다';
+            mpLeave();
+        });
         mpWaitFor('rematch', battleCallback(() => {
+            window.mpClearDeadlineTimer();
             // 양쪽 다 동의 — 다음 대전용 새 메시지 채널로 옮긴 뒤 선택창으로
             window.mpNextMatch();
             resetBattlePreview();

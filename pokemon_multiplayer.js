@@ -311,6 +311,67 @@ function mpHandleMessage(msg) {
     window.mpInbox.push({ type: msg.type, data: msg.data });
 }
 
+// ---------------- 공정성: commit-reveal용 해시/난수 ----------------
+// 턴마다 각자 "행동+난수"의 해시(commit)만 먼저 보내고, 양쪽 commit이 모인 뒤에야 실제 행동과
+// 난수(reveal)를 공개함 — 먼저 고른 쪽의 행동을 나중 쪽이 미리 볼 수 없고, 명중/치명타 판정도
+// 양쪽 난수를 합친 값으로 정해져서 어느 한쪽이 미리 알거나 조작할 수 없음(pokemon_battle.js
+// mpSubmitTurnAction). crypto.subtle은 비동기이고 https/localhost에서만 되므로, 턴 흐름을 단순하게
+// 유지하려고 동기식 SHA-256을 직접 둠
+const MP_SHA256_K = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+];
+function mpSha256Words(str) {
+    const bytes = new TextEncoder().encode(str);
+    const len = bytes.length;
+    const total = Math.ceil((len + 9) / 64) * 64;
+    const buf = new Uint8Array(total);
+    buf.set(bytes);
+    buf[len] = 0x80;
+    const dv = new DataView(buf.buffer);
+    const bitLen = len * 8;
+    dv.setUint32(total - 8, Math.floor(bitLen / 0x100000000));
+    dv.setUint32(total - 4, bitLen >>> 0);
+    const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+    const w = new Uint32Array(64);
+    const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+    for (let off = 0; off < total; off += 64) {
+        for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
+        for (let i = 16; i < 64; i++) {
+            const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+            const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+            w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+        }
+        let [a, b, c, d, e, f, g, h] = H;
+        for (let i = 0; i < 64; i++) {
+            const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + MP_SHA256_K[i] + w[i]) >>> 0;
+            const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+            h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+        }
+        H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+        H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+    }
+    return H;
+}
+window.mpSha256Hex = function(str) {
+    return mpSha256Words(str).map(x => x.toString(16).padStart(8, '0')).join('');
+}
+// 해시에서 뽑은 0~1 사이 값 8개 — 양쪽 난수를 합친 문자열을 넣으면 두 화면에서 똑같은 판정값이 나옴
+window.mpSeededUniforms = function(seedStr) {
+    return mpSha256Words(seedStr).map(x => x / 0x100000000);
+}
+window.mpRandomNonce = function() {
+    const a = new Uint32Array(4);
+    crypto.getRandomValues(a);
+    return Array.from(a, x => x.toString(16).padStart(8, '0')).join('');
+}
+
 // ---------------- 방 관리 ----------------
 function mpGenerateCode() {
     let code = '';
