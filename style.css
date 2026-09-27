@@ -197,6 +197,27 @@ html, body {
     background-color: #ff6b81;
 }
 
+/* 함께하기(멀티플레이) 연결 상태 아이콘 — #battle-preview-close-btn(닫기 ×)과 좌우 대칭 위치에
+   같은 크기로 둠. 평소엔 index.html에서 hidden, 매칭 중일 때만 pokemon_multiplayer.js가 표시함.
+   기본은 정상 신호 이미지이고, 상대 쪽 presence 플래그가 꺼져 60초 유예가 도는 동안만
+   .mp-signal-lost가 붙어 끊김 신호 이미지로 바뀜(남은 시간 표시는 따로 안 함) */
+#mp-signal-icon {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 26px;
+    height: 26px;
+    background-image: url('images/pokemon/layout/icon_signal.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    z-index: 5;
+}
+
+#mp-signal-icon.mp-signal-lost {
+    background-image: url('images/pokemon/layout/icon_nosignal.png');
+}
+
 #quiz-question {
     font-size: 16px;
     line-height: 20px;

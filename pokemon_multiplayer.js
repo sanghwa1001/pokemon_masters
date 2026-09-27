@@ -3,6 +3,7 @@
 
 const MP_CODE_LENGTH = 6;
 const MP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const MP_GRACE_MS = 60000; // 상대 presence 플래그가 꺼진 뒤 진짜 끊김으로 판단하기까지의 유예 시간
 
 const battleModeMenuEl     = document.getElementById('battle-mode-menu');
 const battleTogetherMenuEl = document.getElementById('battle-together-menu');
@@ -21,6 +22,7 @@ const mpJoinCloseBtn       = document.getElementById('mp-join-close-btn');
 const mpJoinInputEl        = document.getElementById('mp-join-input');
 const mpJoinSubmitBtn      = document.getElementById('mp-join-submit-btn');
 const mpJoinFeedbackEl     = document.getElementById('mp-join-feedback');
+const mpSignalIconEl       = document.getElementById('mp-signal-icon');
 
 // 전역 객체로 외부에서 접근
 window.mp = { active: false, isHost: false, partnerId: null, roomCode: null };
@@ -33,8 +35,15 @@ let currentRoomRef = null;
 let messagesRef = null;
 let unsubscribeMessages = null;
 let unsubscribeRoom = null;
-let isRoomOwner = false;      // 내가 만든 방인지(대기 중에도 true) — 정리 시 방 삭제 여부 판단용
-let roomDisconnectOp = null;  // 등록해 둔 onDisconnect 핸들(정상 종료 시 cancel)
+let isRoomOwner = false;      // 내가 만든 방인지(대기 중에도 true) — 대기 중 정리 시 방 삭제 여부 판단용
+let roomDisconnectOp = null;  // 대기 중(매칭 전) 등록해 둔 "방 전체 삭제" onDisconnect 핸들
+
+// ---- 매칭 후 presence(재접속 유예) 관련 상태 ----
+let presenceDisconnectOp = null; // 매칭 후: 방 전체 대신 "내 플래그만 false로" 바꾸는 onDisconnect 핸들
+let unsubscribePresence = null;  // 상대 presence 플래그 감시 구독 해제 함수
+let unsubscribeConnInfo = null;  // .info/connected 감시 구독 해제 함수(재연결 자가복구, shkit 방식)
+let mpGraceTimer = null;         // 상대 플래그가 false로 바뀐 뒤 도는 60초 유예 타이머
+let partnerLastOnline = null;    // 상대의 마지막 감지 온라인 상태(진짜 "전환"만 반응하기 위한 기준값)
 
 const MP_CLIENT_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -97,6 +106,15 @@ function mpGenerateCode() {
     return code;
 }
 
+// 함께하기 연결 상태 아이콘 — 매칭 전/후엔 완전히 숨김('hidden'), 매칭되면 정상 신호('ok'),
+// 상대 presence 플래그가 꺼져서 유예 타이머가 도는 동안만 끊김 신호('lost')로 바꿈.
+// 남은 유예 시간은 따로 표시하지 않고 아이콘 상태만 교체함
+function mpSetSignalIcon(state) {
+    if (!mpSignalIconEl) return;
+    mpSignalIconEl.classList.toggle('hidden', state === 'hidden');
+    mpSignalIconEl.classList.toggle('mp-signal-lost', state === 'lost');
+}
+
 function mpTeardown() {
     window.mp.active = false;
     window.mp.isHost = false;
@@ -113,14 +131,34 @@ function mpTeardown() {
         unsubscribeRoom();
         unsubscribeRoom = null;
     }
+    if (unsubscribePresence) {
+        unsubscribePresence();
+        unsubscribePresence = null;
+    }
+    if (unsubscribeConnInfo) {
+        unsubscribeConnInfo();
+        unsubscribeConnInfo = null;
+    }
+    if (mpGraceTimer) {
+        clearTimeout(mpGraceTimer);
+        mpGraceTimer = null;
+    }
+    partnerLastOnline = null;
+    mpSetSignalIcon('hidden');
     
-    // 등록해 둔 onDisconnect 해제 — 안 하면 나중에 탭을 닫을 때 같은 코드의 다른 방을 지울 수 있음
+    // 등록해 둔 onDisconnect들 해제 — 안 하면 나중에 탭을 닫을 때 이미 끝난 방(또는 다음 판의
+    // 다른 방)에 뒤늦게 영향을 줄 수 있음
     if (roomDisconnectOp) {
         roomDisconnectOp.cancel().catch(() => {});
         roomDisconnectOp = null;
     }
-    // 방장은 방(메시지 포함)을 삭제해 DB에 찌꺼기가 쌓이지 않게 함
-    // (isHost는 위에서 이미 false로 초기화되므로 별도 플래그 isRoomOwner로 판단)
+    if (presenceDisconnectOp) {
+        presenceDisconnectOp.cancel().catch(() => {});
+        presenceDisconnectOp = null;
+    }
+    // 방장은 매칭 전(대기 중) 정리라면 방(메시지 포함)을 삭제해 DB에 찌꺼기가 쌓이지 않게 함.
+    // 매칭 후 "상대가 진짜 끊김"을 감지해서 정리하는 경우는 mpStartPresence의 유예 타이머
+    // 콜백에서 호스트/게스트 상관없이 별도로 방을 지움(아래 참고)
     if (currentRoomRef && isRoomOwner) {
         window.firebaseRemove(currentRoomRef).catch(() => {});
     }
@@ -138,6 +176,63 @@ function mpHandleRemoteGone() {
     if (!window.mp.active) return;
     mpTeardown();
     if (window.mpOnDisconnect) window.mpOnDisconnect();
+}
+
+// 매칭이 성사된 순간(호스트: 상대 입장 감지 / 게스트: 입장 성공) 호출됨.
+// "방 전체를 지우는 onDisconnect"에서 "내 presence 플래그만 false로 바꾸는 onDisconnect"로
+// 전환하고, 상대 플래그를 감시하며 60초 유예 로직을 돌림(shkit의 presence 패턴 차용)
+function mpStartPresence(code) {
+    const myFlagPath = `rooms/${code}/${window.mp.isHost ? 'hostOnline' : 'guestOnline'}`;
+    const partnerFlagPath = `rooms/${code}/${window.mp.isHost ? 'guestOnline' : 'hostOnline'}`;
+    const myFlagRef = getFirebaseRef(myFlagPath);
+
+    // 1) 새 presence onDisconnect부터 먼저 등록 — 대기방용 onDisconnect(방 전체 삭제)를 취소하기
+    //    "전"에 걸어서, 취소~등록 사이의 짧은 틈에도 최소한의 보호가 항상 걸려있게 함
+    const newOp = window.firebaseOnDisconnect(myFlagRef);
+    newOp.set(false).catch(() => {});
+    presenceDisconnectOp = newOp;
+
+    // 2) 대기방용 "방 전체 삭제" onDisconnect는 이제 필요 없으니 취소
+    if (roomDisconnectOp) {
+        roomDisconnectOp.cancel().catch(() => {});
+        roomDisconnectOp = null;
+    }
+
+    // 3) 재연결 자가복구 — 끊겼다가 다시 연결되면(.info/connected가 true로 바뀌면) 내 플래그를
+    //    true로 복구하고 onDisconnect도 다시 걸어줌(재연결 후엔 이전 onDisconnect가 이미 소모됨)
+    unsubscribeConnInfo = window.firebaseOnValue(getFirebaseRef('.info/connected'), (snap) => {
+        if (snap.val() !== true) return;
+        window.firebaseSet(myFlagRef, true).catch(() => {});
+        const op = window.firebaseOnDisconnect(myFlagRef);
+        op.set(false).catch(() => {});
+        presenceDisconnectOp = op;
+    });
+
+    // 4) 상대 플래그 감시 — false로 "전환"되는 순간에만 반응해서 60초 유예를 시작하고,
+    //    그 안에 true로 돌아오면 취소. 최초 스냅샷은 진짜 전환이 아니므로 기준값으로만 씀
+    partnerLastOnline = true;
+    mpSetSignalIcon('ok');
+    unsubscribePresence = window.firebaseOnValue(getFirebaseRef(partnerFlagPath), (snap) => {
+        const isOnline = snap.val() !== false; // 아직 값이 없는 경우(null)도 온라인으로 취급
+        if (isOnline === partnerLastOnline) return;
+        partnerLastOnline = isOnline;
+
+        if (isOnline) {
+            if (mpGraceTimer) { clearTimeout(mpGraceTimer); mpGraceTimer = null; }
+            mpSetSignalIcon('ok');
+            return;
+        }
+        mpSetSignalIcon('lost');
+        mpGraceTimer = setTimeout(() => {
+            mpGraceTimer = null;
+            if (!window.mp.active) return;
+            // 60초가 지나도 복구되지 않음 → 진짜 끊김으로 판단. 상대가 이미 없으니 호스트/게스트
+            // 상관없이 지금 감지한 쪽이 방을 정리함(방장만 지우면 방장이 먼저 끊겼을 때 방이
+            // 영원히 안 지워지고 남을 수 있음)
+            if (currentRoomRef) window.firebaseRemove(currentRoomRef).catch(() => {});
+            mpHandleRemoteGone();
+        }, MP_GRACE_MS);
+    });
 }
 
 // ---------------- UI 연결 및 이벤트 ----------------
@@ -172,10 +267,13 @@ mpCreateBtn.addEventListener('click', async () => {
     await window.firebaseSet(currentRoomRef, {
         host: MP_CLIENT_ID,
         status: 'waiting',
+        hostOnline: true, // 매칭 성사 후 presence 감시에 쓰는 플래그 — 방 생성과 동시에 심어서
+                           // 별도 쓰기로 인한 경쟁 상태(그 사이 끊기면 값이 없는 경우) 자체를 없앰
         timestamp: Date.now()
     });
     
-    // onDisconnect 훅: 방장이 끊기면 방 삭제
+    // onDisconnect 훅: 매칭 전(대기 중)에 방장이 끊기면 방 삭제. 매칭 성사 후에는
+    // mpStartPresence()가 이걸 취소하고 presence 플래그 기반으로 전환함
     roomDisconnectOp = window.firebaseOnDisconnect(currentRoomRef);
     roomDisconnectOp.remove();
     
@@ -184,7 +282,8 @@ mpCreateBtn.addEventListener('click', async () => {
     unsubscribeRoom = window.firebaseOnValue(getFirebaseRef(`rooms/${code}/guest`), (snapshot) => {
         const guestId = snapshot.val();
         if (!guestId) {
-            // 게임 중에 guest가 사라짐 = 게스트 이탈로 방이 삭제됨
+            // 게임 중에 guest가 사라짐 = 방 자체가 삭제됨(상대 쪽 유예 타이머 만료로 정리했거나,
+            // 드문 경쟁 상태로 대기방용 onDisconnect가 실행된 경우) → 지연 없이 즉시 처리
             if (window.mp.active) mpHandleRemoteGone();
             return;
         }
@@ -195,6 +294,7 @@ mpCreateBtn.addEventListener('click', async () => {
         window.mp.partnerId = guestId;
         window.mp.roomCode = code;
         
+        mpStartPresence(code);
         setupMessageListener(code);
         
         mpLobbyModalEl.classList.add('hidden');
@@ -232,6 +332,7 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
             if (room.status !== 'waiting' || room.guest) return; // 이미 찬 방 → 중단
             room.status = 'playing';
             room.guest = MP_CLIENT_ID;
+            room.guestOnline = true; // 입장과 동시에 심어서(방장과 동일하게) 별도 쓰기의 경쟁 상태를 없앰
             return room;
         });
         const after = result.snapshot.val();
@@ -244,6 +345,9 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
         return;
     }
     
+    // 입장 직후는 이미 매칭된 상태라 대기 구간이 따로 없지만, mpStartPresence가 presence
+    // onDisconnect를 걸기 전의 아주 짧은 틈까지 보호하기 위해 우선 방 전체 삭제용 onDisconnect를
+    // 걸어두고, mpStartPresence 안에서 바로 presence 기반으로 전환함
     roomDisconnectOp = window.firebaseOnDisconnect(roomRef);
     roomDisconnectOp.remove();
     
@@ -259,6 +363,7 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
         if (!snap.exists()) mpHandleRemoteGone();
     });
     
+    mpStartPresence(code);
     setupMessageListener(code);
     
     mpJoinModalEl.classList.add('hidden');
