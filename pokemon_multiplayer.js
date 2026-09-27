@@ -10,7 +10,7 @@
 //  - 내 연결이 끊겼거나 막 돌아온 직후(백그라운드 복귀 포함)엔 상대를 끊는 판정을 보류하고,
 //    판정 직전에 서버 왕복(mpPingServer)으로 내 쪽이 정말 연결돼 있는지 확인함
 //
-// 방 구조: rooms/{code} = { host, guest, status, createdAt,
+// 방 구조: rooms/{code} = { host, guest, hostUid, guestUid, status, createdAt,
 //                           presence/{host|guest} = { online, lastSeen },
 //                           end = { reason: 'forfeit', loser: 'host'|'guest' },
 //                           match/{n}/messages/... }   ← 대전(재대결)마다 채널을 새로 씀
@@ -91,6 +91,12 @@ function getFirebaseRef(path) {
 }
 
 function mpPeerRole() { return myRole === 'host' ? 'guest' : 'host'; }
+
+// 로그인한 구글 계정의 uid — 보안 규칙이 방장·참가자만 방에 쓸 수 있게 확인할 때 씀
+function mpMyUid() {
+    const user = window.firebaseAuth && window.firebaseAuth.currentUser;
+    return user ? user.uid : null;
+}
 
 function mpServerNow() { return Date.now() + mpServerTimeOffset; }
 
@@ -591,18 +597,26 @@ document.getElementById('battle-btn').addEventListener('click', () => showStartS
 // 비어 있거나(또는 만료된 대기 방/찌꺼기) 쓸 수 있는 코드를 트랜잭션으로 차지함 — 진행 중인
 // 남의 방을 덮어쓰지 않음. 코드가 겹치면 새 코드로 다시 시도
 async function mpClaimRoomCode() {
+    const uid = mpMyUid();
+    if (!uid) throw new Error('not signed in');
+    let lastError = null;
     for (let i = 0; i < MP_CREATE_RETRIES; i++) {
         const code = mpGenerateCode();
         const now = mpServerNow();
-        const result = await mpWithTimeout(window.firebaseRunTransaction(getFirebaseRef(`rooms/${code}`), (room) => {
-            if (room && room.host && (room.status === 'playing' || (room.createdAt && now - room.createdAt < MP_LOBBY_TTL_MS))) {
-                return; // 사용 중인 방 → 중단
-            }
-            return { host: MP_CLIENT_ID, status: 'waiting', createdAt: now };
-        }), MP_NET_TIMEOUT_MS);
-        if (result.committed && result.snapshot.val() && result.snapshot.val().host === MP_CLIENT_ID) return code;
+        try {
+            const result = await mpWithTimeout(window.firebaseRunTransaction(getFirebaseRef(`rooms/${code}`), (room) => {
+                if (room && room.host && (room.status === 'playing' || (room.createdAt && now - room.createdAt < MP_LOBBY_TTL_MS))) {
+                    return; // 사용 중인 방 → 중단
+                }
+                return { host: MP_CLIENT_ID, hostUid: uid, status: 'waiting', createdAt: now };
+            }), MP_NET_TIMEOUT_MS);
+            if (result.committed && result.snapshot.val() && result.snapshot.val().host === MP_CLIENT_ID) return code;
+        } catch (e) {
+            // 남이 쓰고 있는 코드면 보안 규칙이 거부할 수 있음 — 다른 코드로 다시 시도
+            lastError = e;
+        }
     }
-    throw new Error('no free room code');
+    throw lastError || new Error('no free room code');
 }
 
 // 서버(Cloud Functions) 없이 하는 가벼운 청소 — 만든 지 24시간이 넘은 방(비정상 종료로 남은 방,
@@ -698,6 +712,7 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
     const code = mpJoinInputEl.value.toUpperCase().trim();
     if (code.length !== MP_CODE_LENGTH) return;
     if (!mpConnected) { mpJoinFeedbackEl.textContent = '인터넷 연결을 확인해주세요.'; return; }
+    if (!mpMyUid()) { mpJoinFeedbackEl.textContent = '로그인이 필요합니다. 다시 로그인해주세요.'; return; }
 
     mpBusy = true;
     mpJoinSubmitBtn.disabled = true;
@@ -713,7 +728,12 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
     // 코드로 들어와도 한 명만 성공하고 확인과 입장 사이에 방 상태가 바뀌는 틈도 없음
     let outcome = 'invalid';
     let hostId = null;
+    const uid = mpMyUid();
+    // 트랜잭션 첫 호출이 빈 로컬 캐시(null)로 불리면 null 쓰기가 서버에 먼저 가서 보안 규칙에
+    // 거부될 수 있으므로, 방을 잠깐 구독해 캐시를 채운 상태로 트랜잭션을 시작함
+    const unsubscribePrime = window.firebaseOnValue(roomRef, () => {}, () => {});
     try {
+        await mpWithTimeout(window.firebaseGet(roomRef), MP_NET_TIMEOUT_MS);
         const now = mpServerNow();
         const result = await mpWithTimeout(window.firebaseRunTransaction(roomRef, (room) => {
             // 로컬 캐시가 비어 첫 호출이 null로 올 수 있음 → null을 돌려주면 서버 값으로 재시도됨
@@ -724,6 +744,7 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
             outcome = 'joined';
             room.status = 'playing';
             room.guest = MP_CLIENT_ID;
+            room.guestUid = uid;
             return room;
         }), MP_NET_TIMEOUT_MS);
         const after = result.snapshot.val();
@@ -733,10 +754,12 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
             hostId = after.host;
         }
     } catch (e) {
+        unsubscribePrime();
         console.error('Firebase join error', e);
         fail(e && e.message === 'timeout' ? '응답이 없습니다. 인터넷 연결을 확인해주세요.' : '입장하지 못했습니다. 잠시 후 다시 시도해주세요.');
         return;
     }
+    unsubscribePrime();
     if (outcome === 'expired') {
         window.firebaseRemove(roomRef).catch(() => {}); // 오래 방치된 방은 정리
         fail('만료된 코드입니다. 새 코드를 받아주세요.');
