@@ -6,6 +6,7 @@ const loginScreen = document.getElementById('login-screen');
 const startScreen = document.getElementById('start-screen');
 const adminDashboard = document.getElementById('admin-dashboard-screen');
 const adminDataManageScreen = document.getElementById('admin-data-manage-screen');
+const adminStudentManageScreen = document.getElementById('admin-student-manage-screen');
 
 // Modals
 const adminLoginModal = document.getElementById('admin-login-modal');
