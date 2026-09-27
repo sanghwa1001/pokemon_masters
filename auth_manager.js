@@ -16,6 +16,7 @@ const startScreen = document.getElementById('start-screen');
 const adminDashboard = document.getElementById('admin-dashboard-screen');
 const googleLoginBtn = document.getElementById('btn-google-login');
 const loginFeedbackEl = document.getElementById('login-feedback');
+const loginStatusEl = document.getElementById('login-status');
 const inappNoticeEl = document.getElementById('inapp-browser-notice');
 const openExternalBtn = document.getElementById('btn-open-external');
 
@@ -121,9 +122,18 @@ function externalBrowserUrl() {
     return null;
 }
 
+// 로그인 상태 확인 중 — 버튼 자리에 진행 문구(로그인 확인 중/계정 확인 중)를 대신 보여줌
+function showLoginStatus(text) {
+    googleLoginBtn.classList.add('hidden');
+    loginStatusEl.textContent = text;
+    loginStatusEl.classList.remove('hidden');
+    setFieldFeedback(loginFeedbackEl, '');
+}
+
 function showLoginScreen(message, type) {
     window.currentStudentId = null;
     switchScreen(loginScreen);
+    loginStatusEl.classList.add('hidden');
     if (isInAppBrowser) {
         googleLoginBtn.classList.add('hidden');
         inappNoticeEl.classList.remove('hidden');
@@ -190,8 +200,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 async function routeSignedInUser(user, token) {
-    googleLoginBtn.classList.add('hidden');
-    setFieldFeedback(loginFeedbackEl, '계정 확인 중...');
+    showLoginStatus('계정 확인 중...');
     const key = emailKeyOf(user.email);
     try {
         const adminSnap = await get(ref(db, `admins/${key}`));

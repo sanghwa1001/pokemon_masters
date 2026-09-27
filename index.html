@@ -29,13 +29,15 @@
              판단함(auth_manager.js). 로그인 상태를 확인하는 동안엔 버튼 대신 안내 문구만 보임 -->
         <div id="login-screen" class="home-screen">
             <img class="home-logo" src="images/pokemon/layout/logo.png" alt="Pokemon Masters">
+            <!-- 로그인 상태를 확인하는 동안엔 버튼 대신 같은 자리·같은 크기로 진행 문구를 보여줌 -->
+            <div id="login-status" class="login-status">로그인 확인 중...</div>
             <button id="btn-google-login" class="menu-item hidden">Google로 로그인</button>
             <!-- 카카오톡 등 앱 안의 브라우저에서는 구글이 로그인을 막으므로 외부 브라우저로 안내 -->
             <div id="inapp-browser-notice" class="login-notice hidden">
                 앱 안의 브라우저에서는 구글 로그인을 할 수 없습니다.<br>Chrome 또는 Safari에서 열어주세요.
             </div>
             <button id="btn-open-external" class="menu-item hidden">외부 브라우저로 열기</button>
-            <div id="login-feedback" class="field-feedback login-feedback">로그인 확인 중...</div>
+            <div id="login-feedback" class="field-feedback login-feedback"></div>
             <!-- Firebase SDK(gstatic)를 제시간에 못 불러왔을 때 안내 — 평소엔 빈 줄(pokemon_multiplayer.js) -->
             <div id="firebase-load-error" class="field-feedback error"></div>
         </div>

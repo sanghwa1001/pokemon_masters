@@ -2229,6 +2229,16 @@ html, body {
     line-height: 17px;
 }
 
+/* 로그인 확인 중/계정 확인 중 — "Google로 로그인" 버튼(관리자 화면의 "학생 등록"과 같은 자리)을
+   대신해 같은 자리·같은 글자 크기(.menu-item: 16px/20px)로 표시, 색은 안내 문구 회색 그대로 */
+.login-status {
+    font-size: 16px;
+    line-height: 20px;
+    letter-spacing: 0.5px;
+    color: #666;
+    white-space: nowrap;
+}
+
 /* 카카오톡 등 앱 내부 브라우저 안내 */
 .login-notice {
     max-width: 260px;
