@@ -329,12 +329,12 @@ async function registerOneStudent() {
     const email = studentRegisterEmailEl.value.trim();
     const name = studentRegisterNameEl.value.trim();
     if (!email) {
-        setFieldFeedback(studentCreateFeedbackEl, '이메일을 입력해주세요.', 'error');
+        setFieldFeedback(studentCreateFeedbackEl, '이메일을 입력해주세요', 'error');
         studentRegisterEmailEl.focus();
         return;
     }
     if (!EMAIL_RE.test(email)) {
-        setFieldFeedback(studentCreateFeedbackEl, '이메일 형식이 올바르지 않습니다.', 'error');
+        setFieldFeedback(studentCreateFeedbackEl, '올바르지 않은 이메일입니다', 'error');
         studentRegisterEmailEl.focus();
         return;
     }
@@ -343,15 +343,15 @@ async function registerOneStudent() {
     try {
         const { added } = await addStudents([[email, name]]);
         if (added) {
-            setFieldFeedback(studentCreateFeedbackEl, `${name || email.toLowerCase()} 학생을 등록했습니다.`, 'success');
+            setFieldFeedback(studentCreateFeedbackEl, '학생이 등록되었습니다', 'success');
             studentRegisterEmailEl.value = '';
             studentRegisterNameEl.value = '';
         } else {
-            setFieldFeedback(studentCreateFeedbackEl, '이미 등록된 이메일입니다.', 'error');
+            setFieldFeedback(studentCreateFeedbackEl, '이미 등록된 이메일입니다', 'error');
         }
     } catch (e) {
         console.error(e);
-        setFieldFeedback(studentCreateFeedbackEl, '등록 실패: ' + e.message, 'error');
+        setFieldFeedback(studentCreateFeedbackEl, '등록하지 못했습니다', 'error');
     }
     studentRegisterBtn.disabled = false;
     studentRegisterEmailEl.focus();
@@ -374,17 +374,22 @@ async function registerStudentsFromRows(rows) {
         .filter(([email]) => email !== '');
     if (pairs.length && !EMAIL_RE.test(pairs[0][0])) pairs.shift();
     if (!pairs.length) {
-        setFieldFeedback(studentCreateFeedbackEl, '파일에 등록할 이메일이 없습니다.', 'error');
+        setFieldFeedback(studentCreateFeedbackEl, '등록할 이메일이 없습니다', 'error');
         return;
     }
     setFieldFeedback(studentCreateFeedbackEl, '등록 중...');
     try {
         const { added, duplicate, invalid } = await addStudents(pairs);
-        const summary = `추가 ${added}명` + (duplicate ? `, 이미 등록 ${duplicate}명` : '') + (invalid ? `, 형식 오류 ${invalid}건` : '');
-        setFieldFeedback(studentCreateFeedbackEl, summary, added ? 'success' : 'error');
+        // 치트 코드 안내처럼 결과만 한 문장으로 — 건너뛴 줄이 있으면 괄호로 개수만 덧붙임
+        const skipped = [duplicate ? `중복 ${duplicate}` : '', invalid ? `오류 ${invalid}` : ''].filter(Boolean).join(', ');
+        if (added) {
+            setFieldFeedback(studentCreateFeedbackEl, `${added}명이 등록되었습니다` + (skipped ? ` (${skipped})` : ''), 'success');
+        } else {
+            setFieldFeedback(studentCreateFeedbackEl, invalid ? `등록된 학생이 없습니다 (${skipped})` : '이미 등록된 이메일입니다', 'error');
+        }
     } catch (e) {
         console.error(e);
-        setFieldFeedback(studentCreateFeedbackEl, '등록 실패: ' + e.message, 'error');
+        setFieldFeedback(studentCreateFeedbackEl, '등록하지 못했습니다', 'error');
     }
 }
 
@@ -404,7 +409,7 @@ studentRegisterFileEl.addEventListener('change', (e) => {
             registerStudentsFromRows(rows.filter(Array.isArray));
         } catch (err) {
             console.error(err);
-            setFieldFeedback(studentCreateFeedbackEl, '파일을 읽을 수 없습니다. 다시 선택해주세요.', 'error');
+            setFieldFeedback(studentCreateFeedbackEl, '파일을 읽을 수 없습니다', 'error');
         }
     };
     reader.readAsArrayBuffer(file);
@@ -475,11 +480,11 @@ document.getElementById('btn-admin-manage-students').addEventListener('click', (
 async function deleteStudentByEmail() {
     const email = studentDeleteInputEl.value.trim().toLowerCase();
     if (!email) {
-        setFieldFeedback(studentDeleteFeedbackEl, '삭제할 학생의 이메일을 입력해주세요.', 'error');
+        setFieldFeedback(studentDeleteFeedbackEl, '이메일을 입력해주세요', 'error');
         return;
     }
     if (!EMAIL_RE.test(email)) {
-        setFieldFeedback(studentDeleteFeedbackEl, '이메일 형식이 올바르지 않습니다.', 'error');
+        setFieldFeedback(studentDeleteFeedbackEl, '올바르지 않은 이메일입니다', 'error');
         return;
     }
     studentDeleteBtn.disabled = true;
@@ -493,20 +498,19 @@ async function deleteStudentByEmail() {
         byEmail.forEach(child => { uids.add(child.key); });
 
         if (!entry && !uids.size) {
-            setFieldFeedback(studentDeleteFeedbackEl, '등록되지 않은 이메일입니다.', 'error');
+            setFieldFeedback(studentDeleteFeedbackEl, '등록되지 않은 이메일입니다', 'error');
         } else {
             // 여러 경로를 한 번에 지우는 다중 경로 update — 중간에 실패해도 일부만 지워지지 않음
             const updates = { [`allowedStudents/${key}`]: null };
             uids.forEach(uid => { updates[`students/${uid}`] = null; });
             await update(ref(db), updates);
-            const label = entry && entry.name ? `${entry.name}(${email})` : email;
-            setFieldFeedback(studentDeleteFeedbackEl, `${label} 학생의 계정과 데이터를 삭제했습니다.`, 'success');
+            setFieldFeedback(studentDeleteFeedbackEl, '학생이 삭제되었습니다', 'success');
             studentDeleteInputEl.value = '';
             loadStudentList();
         }
     } catch (e) {
         console.error(e);
-        setFieldFeedback(studentDeleteFeedbackEl, '삭제 실패: ' + e.message, 'error');
+        setFieldFeedback(studentDeleteFeedbackEl, '삭제하지 못했습니다', 'error');
     }
     studentDeleteBtn.disabled = false;
 }
