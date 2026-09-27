@@ -23,6 +23,7 @@ const mpJoinInputEl        = document.getElementById('mp-join-input');
 const mpJoinSubmitBtn      = document.getElementById('mp-join-submit-btn');
 const mpJoinFeedbackEl     = document.getElementById('mp-join-feedback');
 const mpSignalIconEl       = document.getElementById('mp-signal-icon');
+const mpTogetherFeedbackEl = document.getElementById('mp-together-feedback');
 
 // 전역 객체로 외부에서 접근
 window.mp = { active: false, isHost: false, partnerId: null, roomCode: null };
@@ -248,14 +249,21 @@ battleSoloBtn.addEventListener('click', () => {
     if(typeof openBattlePartyPicker === 'function') openBattlePartyPicker();
     else if (window.openBattlePartyPicker) window.openBattlePartyPicker();
 });
-battleTogetherBtn.addEventListener('click', () => showStartSubmenu('together'));
+battleTogetherBtn.addEventListener('click', () => {
+    if (mpTogetherFeedbackEl) mpTogetherFeedbackEl.textContent = '';
+    showStartSubmenu('together');
+});
 battleModeBackBtn.addEventListener('click', () => showStartSubmenu(null));
 battleTogetherBackBtn.addEventListener('click', () => showStartSubmenu('mode'));
 document.getElementById('battle-btn').addEventListener('click', () => showStartSubmenu('mode'));
 
 
 mpCreateBtn.addEventListener('click', async () => {
-    if (!window.firebaseDb) { alert('데이터베이스 초기화 중입니다. 잠시 후 시도해주세요.'); return; }
+    if (!window.firebaseDb) {
+        if (mpTogetherFeedbackEl) mpTogetherFeedbackEl.textContent = '데이터베이스 초기화 중입니다. 잠시 후 다시 시도해주세요.';
+        return;
+    }
+    if (mpTogetherFeedbackEl) mpTogetherFeedbackEl.textContent = '';
     
     const code = mpGenerateCode();
     mpLobbyCodeEl.textContent = code;
@@ -304,7 +312,7 @@ mpCreateBtn.addEventListener('click', async () => {
 });
 
 mpJoinSubmitBtn.addEventListener('click', async () => {
-    if (!window.firebaseDb) { alert('데이터베이스 초기화 중입니다. 잠시 후 시도해주세요.'); return; }
+    if (!window.firebaseDb) { mpJoinFeedbackEl.textContent = '데이터베이스 초기화 중입니다. 잠시 후 다시 시도해주세요.'; return; }
     const code = mpJoinInputEl.value.toUpperCase().trim();
     if (code.length !== MP_CODE_LENGTH) return;
     

@@ -36,6 +36,48 @@ function setFieldFeedback(el, message, type) {
     if (type) el.classList.add(type);
 }
 
+// 관리자/학생 쪽 목록(학습 데이터 관리, 학습 데이터 선택, 학생 계정 관리) 세 곳이 전부
+// "이름 + (있으면) 삭제 버튼" 또는 "줄 전체 클릭"이라는 같은 모양의 .admin-row 한 줄을
+// 각자 손으로 다시 만들고 있어서 공용으로 뽑음 — 세 목록이 서로 달라지면(예: 삭제 버튼
+// 문구/스타일) 한 곳만 고치면 되도록 함
+function renderAdminRow(labelText, { clickable, onClick, deleteConfirmMessage, onDelete } = {}) {
+    const row = document.createElement('div');
+    row.className = clickable ? 'admin-row clickable' : 'admin-row';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'admin-row-name';
+    titleSpan.textContent = labelText;
+    row.appendChild(titleSpan);
+
+    if (onClick) row.onclick = onClick;
+
+    if (onDelete) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'dex-settings-action-btn dex-danger dex-danger-sm';
+        delBtn.textContent = '삭제';
+        delBtn.onclick = async () => {
+            if (confirm(deleteConfirmMessage)) {
+                await onDelete();
+                row.remove(); // onValue 실시간 목록이면 어차피 다시 그려지지만, 그 전까지 기다리지 않고 바로 빠지도록
+            }
+        };
+        row.appendChild(delBtn);
+    }
+    return row;
+}
+
+// listContainer를 "items가 비어있으면 안내문 / 아니면 rowBuilder(item)으로 만든 줄들"로 채움.
+// "로딩 중..." 표시~완료까지의 흐름은 목록마다 비동기 방식이 달라서(onValue 실시간 vs get()
+// 1회성) 호출하는 쪽에서 그대로 처리하고, 이 함수는 다 받아온 뒤의 렌더링만 담당
+function renderAdminList(listContainer, items, emptyMessage, rowBuilder) {
+    listContainer.innerHTML = '';
+    if (!items.length) {
+        listContainer.innerHTML = `<div class="admin-row-empty">${emptyMessage}</div>`;
+        return;
+    }
+    items.forEach(item => listContainer.appendChild(rowBuilder(item)));
+}
+
 // Close buttons
 document.getElementById('admin-login-close-btn').addEventListener('click', () => hideModal(adminLoginModal));
 document.getElementById('student-login-close-btn').addEventListener('click', () => hideModal(studentLoginModal));
@@ -161,36 +203,16 @@ function loadLearningDataForAdmin() {
     // 화면에 들어올 때마다 리스너가 중복으로 쌓이지 않도록 기존 리스너 해제 후 등록
     stopAdminLearningDataListener();
     unsubscribeAdminLearningData = onValue(ref(db, 'learningData'), (snapshot) => {
-        listContainer.innerHTML = '';
-        if (!snapshot.exists()) {
-            listContainer.innerHTML = '<div class="admin-row-empty">등록된 학습 데이터가 없습니다.</div>';
-            return;
-        }
-        
+        const entries = [];
         snapshot.forEach((childSnapshot) => {
-            const dataId = childSnapshot.key;
-            const data = childSnapshot.val();
-            
-            const row = document.createElement('div');
-            row.className = 'admin-row';
-            
-            const titleSpan = document.createElement('span');
-            titleSpan.className = 'admin-row-name';
-            titleSpan.textContent = data.title + ` (${data.questions.length}문항)`;
-            
-            const delBtn = document.createElement('button');
-            delBtn.textContent = '삭제';
-            delBtn.className = 'dex-settings-action-btn dex-danger dex-danger-sm';
-            delBtn.onclick = async () => {
-                if(confirm(`'${data.title}' 데이터를 삭제하시겠습니까?`)) {
-                    await remove(ref(db, `learningData/${dataId}`));
-                }
-            };
-            
-            row.appendChild(titleSpan);
-            row.appendChild(delBtn);
-            listContainer.appendChild(row);
+            entries.push({ id: childSnapshot.key, data: childSnapshot.val() });
         });
+        renderAdminList(listContainer, entries, '등록된 학습 데이터가 없습니다.', ({ id, data }) =>
+            renderAdminRow(data.title + ` (${data.questions.length}문항)`, {
+                deleteConfirmMessage: `'${data.title}' 데이터를 삭제하시겠습니까?`,
+                onDelete: () => remove(ref(db, `learningData/${id}`))
+            })
+        );
     });
 }
 
@@ -276,40 +298,28 @@ document.getElementById('btn-select-learning-data').addEventListener('click', ()
     listContainer.innerHTML = '로딩 중...';
     
     get(ref(db, 'learningData')).then((snapshot) => {
-        listContainer.innerHTML = '';
-        if (!snapshot.exists()) {
-            listContainer.innerHTML = '<div class="admin-row-empty">등록된 학습 데이터가 없습니다. 선생님께 문의하세요.</div>';
-            return;
-        }
-        
+        const entries = [];
         snapshot.forEach((childSnapshot) => {
-            const dataId = childSnapshot.key;
-            const data = childSnapshot.val();
-            
-            const row = document.createElement('div');
-            row.className = 'admin-row clickable';
-            
-            const titleSpan = document.createElement('span');
-            titleSpan.className = 'admin-row-name';
-            titleSpan.textContent = data.title + ` (${data.questions.length}문항)`;
-            row.appendChild(titleSpan);
-            
-            row.onclick = () => {
-                if (window.applyLearningData) {
-                    window.applyLearningData(data.questions, data.title);
-                }
-                // 선택한 데이터를 계정에 저장 — 다음에 로그인해도 다시 고르지 않아도 됨
-                if (window.currentStudentId && window.firebaseDb && window.firebaseUpdate) {
-                    window.firebaseUpdate(window.firebaseRef(window.firebaseDb, `users/${window.currentStudentId}`), {
-                        selectedDataId: dataId
-                    }).catch(e => console.error('학습 데이터 선택 저장 실패', e));
-                }
-                hideModal(studentDataSelectModal);
-                document.getElementById('btn-select-learning-data').textContent = "학습 데이터 변경";
-            };
-            
-            listContainer.appendChild(row);
+            entries.push({ id: childSnapshot.key, data: childSnapshot.val() });
         });
+        renderAdminList(listContainer, entries, '등록된 학습 데이터가 없습니다. 선생님께 문의하세요.', ({ id, data }) =>
+            renderAdminRow(data.title + ` (${data.questions.length}문항)`, {
+                clickable: true,
+                onClick: () => {
+                    if (window.applyLearningData) {
+                        window.applyLearningData(data.questions, data.title);
+                    }
+                    // 선택한 데이터를 계정에 저장 — 다음에 로그인해도 다시 고르지 않아도 됨
+                    if (window.currentStudentId && window.firebaseDb && window.firebaseUpdate) {
+                        window.firebaseUpdate(window.firebaseRef(window.firebaseDb, `users/${window.currentStudentId}`), {
+                            selectedDataId: id
+                        }).catch(e => console.error('학습 데이터 선택 저장 실패', e));
+                    }
+                    hideModal(studentDataSelectModal);
+                    document.getElementById('btn-select-learning-data').textContent = "학습 데이터 변경";
+                }
+            })
+        );
     }).catch(e => {
         listContainer.innerHTML = '<div class="admin-row-empty">데이터 로딩 실패</div>';
         console.error(e);
@@ -326,45 +336,15 @@ document.getElementById('btn-admin-manage-students').addEventListener('click', a
     try {
         const usersRef = window.firebaseRef(db, 'users');
         const snapshot = await window.firebaseGet(usersRef);
-        listContainer.innerHTML = '';
-        
-        if (!snapshot.exists()) {
-            listContainer.innerHTML = '<div class="admin-row-empty">학생 계정이 없습니다.</div>';
-            return;
-        }
-        
-        const users = snapshot.val();
-        let hasStudents = false;
-        
-        for (const [id, data] of Object.entries(users)) {
-            hasStudents = true;
-            const row = document.createElement('div');
-            row.className = 'admin-row';
-            
-            const titleSpan = document.createElement('span');
-            titleSpan.className = 'admin-row-name';
-            titleSpan.textContent = id;
-            
-            const delBtn = document.createElement('button');
-            delBtn.className = 'dex-settings-action-btn dex-danger dex-danger-sm';
-            delBtn.textContent = '삭제';
-            
-            delBtn.onclick = async () => {
-                if (confirm(`'${id}' 학생 계정을 삭제하시겠습니까?`)) {
-                    await window.firebaseRemove(window.firebaseRef(db, `users/${id}`));
-                    row.remove();
-                }
-            };
-            
-            row.appendChild(titleSpan);
-            row.appendChild(delBtn);
-            listContainer.appendChild(row);
-        }
-        
-        if (!hasStudents) {
-            listContainer.innerHTML = '<div class="admin-row-empty">학생 계정이 없습니다.</div>';
-        }
-        
+        const entries = snapshot.exists()
+            ? Object.entries(snapshot.val()).map(([id, data]) => ({ id, data }))
+            : [];
+        renderAdminList(listContainer, entries, '학생 계정이 없습니다.', ({ id }) =>
+            renderAdminRow(id, {
+                deleteConfirmMessage: `'${id}' 학생 계정을 삭제하시겠습니까?`,
+                onDelete: () => window.firebaseRemove(window.firebaseRef(db, `users/${id}`))
+            })
+        );
     } catch (e) {
         console.error(e);
         listContainer.innerHTML = '<div class="admin-row-empty">오류 발생</div>';

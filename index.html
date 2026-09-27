@@ -151,6 +151,9 @@
             <button id="mp-create-btn" class="menu-item">초대 코드 생성하기</button>
             <button id="mp-join-btn" class="menu-item">초대 코드 입력</button>
             <button id="battle-together-back-btn" class="menu-item">뒤로가기</button>
+            <!-- alert() 팝업 대신, 나머지 화면들과 같은 방식(.field-feedback)으로 인라인 표시 —
+                 데이터베이스가 아직 준비 안 됐을 때만 씀(아주 드문 경우) -->
+            <div id="mp-together-feedback" class="field-feedback"></div>
         </div>
 
         <!-- 함께하기 대기실: 초대 코드를 만든 쪽(호스트)이 상대가 들어올 때까지 보는 창 — 퀴즈창과 같은 디자인.
