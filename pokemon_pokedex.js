@@ -54,9 +54,14 @@ let ownedDexShinyForms = new Set();
 
 // Firebase에서 도감 데이터를 불러와서 메모리에 적용
 window.loadPokedexFromFirebase = function(pokedexData) {
-    ownedDexSpecies = new Set(pokedexData.species || []);
-    ownedDexForms = new Set(pokedexData.forms || []);
-    ownedDexShinyForms = new Set(pokedexData.shinyForms || []);
+    const toArray = (data) => {
+        if (!data) return [];
+        if (Array.isArray(data)) return data;
+        return Object.values(data);
+    };
+    ownedDexSpecies = new Set(toArray(pokedexData.species));
+    ownedDexForms = new Set(toArray(pokedexData.forms));
+    ownedDexShinyForms = new Set(toArray(pokedexData.shinyForms));
 };
 
 // 로그아웃 시 메모리 도감 비우기
@@ -67,15 +72,13 @@ window.resetPokedexLocal = function() {
 };
 
 function saveToFirebaseIfLoggedIn() {
-    if (window.currentStudentId && window.firebaseDb) {
-        import("https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js").then(({ ref, update }) => {
-            const userRef = ref(window.firebaseDb, `users/${window.currentStudentId}/pokedex`);
-            update(userRef, {
-                species: Array.from(ownedDexSpecies),
-                forms: Array.from(ownedDexForms),
-                shinyForms: Array.from(ownedDexShinyForms)
-            }).catch(e => console.error("Firebase 도감 저장 실패", e));
-        });
+    if (window.currentStudentId && window.firebaseDb && window.firebaseUpdate) {
+        const userRef = window.firebaseRef(window.firebaseDb, `users/${window.currentStudentId}/pokedex`);
+        window.firebaseUpdate(userRef, {
+            species: Array.from(ownedDexSpecies),
+            forms: Array.from(ownedDexForms),
+            shinyForms: Array.from(ownedDexShinyForms)
+        }).catch(e => console.error("Firebase 도감 저장 실패", e));
     }
 }
 
