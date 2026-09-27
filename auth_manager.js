@@ -127,14 +127,15 @@ function loadLearningDataForAdmin() {
             const data = childSnapshot.val();
             
             const div = document.createElement('div');
-            div.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: white; padding: 5px 10px; margin-bottom: 5px; border-radius: 4px;";
+            div.style.cssText = "display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc; padding: 8px 0; color: #000; font-size: 14px;";
             
             const titleSpan = document.createElement('span');
             titleSpan.textContent = data.title + ` (${data.questions.length}문항)`;
             
             const delBtn = document.createElement('button');
             delBtn.textContent = '삭제';
-            delBtn.style.cssText = "background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;";
+            delBtn.className = 'dex-settings-action-btn dex-danger';
+            delBtn.style.cssText = "padding: 2px 8px; width: auto; min-width: 40px; border-radius: 4px; border: none; font-size: 12px;";
             delBtn.onclick = async () => {
                 if(confirm(`'${data.title}' 데이터를 삭제하시겠습니까?`)) {
                     await remove(ref(db, `learningData/${dataId}`));
@@ -219,20 +220,18 @@ document.getElementById('btn-select-learning-data').addEventListener('click', ()
             const data = childSnapshot.val();
             
             const div = document.createElement('div');
-            div.style.cssText = "background: white; padding: 10px; margin-bottom: 5px; border-radius: 4px; cursor: pointer; text-align: center; border: 2px solid transparent;";
+            div.style.cssText = "padding: 10px; margin-bottom: 8px; border-radius: 4px; cursor: pointer; text-align: center; border: 2px solid #ccc; font-size: 16px; color: #000; font-family: 'NeoDunggeunmo';";
             div.textContent = data.title + ` (${data.questions.length}문항)`;
             
-            div.onmouseover = () => div.style.borderColor = "#3f51b5";
-            div.onmouseout = () => div.style.borderColor = "transparent";
+            div.onmouseover = () => div.style.borderColor = "#000";
+            div.onmouseout = () => div.style.borderColor = "#ccc";
             
             div.onclick = () => {
-                // Apply data to game
                 if (window.applyLearningData) {
                     window.applyLearningData(data.questions, data.title);
                 }
                 hideModal(studentDataSelectModal);
                 alert(`'${data.title}' 데이터를 선택했습니다!`);
-                // 버튼 텍스트 변경
                 document.getElementById('btn-select-learning-data').textContent = data.title + " (변경)";
             };
             
