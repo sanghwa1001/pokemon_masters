@@ -120,7 +120,7 @@ html, body {
     left: 0;
     right: 0;
     bottom: 0;
-    background-image: url('images/grass_bg.png');
+    background-image: url('images/pokemon/layout/grass_bg.png');
     background-size: cover;
     background-position: center;
     opacity: 0.5;
