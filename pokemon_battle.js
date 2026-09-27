@@ -410,6 +410,10 @@ let battleMode = 'ai';
 let mpTurn = 0;              // 함께하기 턴 번호 — 양쪽이 같은 턴의 행동끼리 짝지어졌는지 확인용
 let mpMissStreak = 0;        // 상대가 연속으로 배틀 액션을 제한시간 안에 못 낸(패스로 처리된) 횟수 —
                               // 응답하면 0으로 리셋, 2번 연속이면 즉시 끊김 처리(mpForceDisconnect)
+let mpSelfPassStreak = 0;    // 내가 연속으로 제한시간을 못 지켜 자동 패스한 횟수 — 상대가
+                              // mpMissStreak로 감지해 방을 지우는 걸 기다리면 그 사이 이쪽 화면에
+                              // 상대의 공격 멘트가 먼저 뜨는 것처럼 보이므로, 이쪽에서도 직접 세서
+                              // 2번째 패스가 되는 순간 그 턴을 시작하지 않고 곧바로 끊김 처리
 // 함께하기 대기 제한시간(ms) — 배틀 액션 선택은 개인 제한시간을 놓치면 그 턴을 패스로 흘려보내고
 // (1차), 상대가 연속 2번째도 패스면 그 순간 끊김 처리. 강제교체/파티선택/불러오기는 단일
 // 제한시간을 넘기면 곧바로 끊김 처리(둘 다 아직 배틀이 실제로 진행 중이 아니라 봐줄 이유가 없음)
@@ -1275,6 +1279,8 @@ function startMyActionDeadline() {
     if (battleMode !== 'pvp' || !battlePreviewActive || battleEnded) return;
     window.mpStartDeadline(battleTurnTimerEl, MP_ACTION_TIMEOUT_MS, () => {
         if (battleMode !== 'pvp' || battleEnded || battleTurnBusy) return;
+        mpSelfPassStreak++;
+        if (mpSelfPassStreak >= 2) { window.mpForceDisconnect(); return; }
         startPlayerTurn('pass');
     });
 }
@@ -1291,6 +1297,7 @@ function finishTurn() {
 // 교체를 선택했으면 어느 쪽이 먼저인지는 기술이 나갈 때와 동일하게 랜덤으로 정함
 function startPlayerTurn(playerAction) {
     window.mpClearDeadlineTimer();
+    if (playerAction !== 'pass') mpSelfPassStreak = 0;
     battleTurnBusy = true;
     battleMoveMenuEl.classList.add('hidden');
     battleSwitchInlineMenuEl.classList.add('hidden');
@@ -1821,6 +1828,7 @@ function beginBattle(opponentParty) {
     mpPartyLocked = false;
     mpTurn = 0;
     mpMissStreak = 0;
+    mpSelfPassStreak = 0;
     window.mpClearDeadlineTimer();
     battleParty.forEach(p => { p.hp = BATTLE_MON_MAX_HP; p.fainted = false; });
     aiParty = opponentParty;
