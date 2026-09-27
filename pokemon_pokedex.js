@@ -62,6 +62,10 @@ window.loadPokedexFromFirebase = function(pokedexData) {
     ownedDexSpecies = new Set(toArray(pokedexData.species));
     ownedDexForms = new Set(toArray(pokedexData.forms));
     ownedDexShinyForms = new Set(toArray(pokedexData.shinyForms));
+    // 치트 코드 상태도 도감 데이터와 같은 계정 경로(users/{id}/pokedex)에서 불러와서,
+    // 어떤 기기로 로그인해도 이전에 켜둔 치트 상태가 그대로 유지됨(기기별 localStorage가 아님)
+    dexCheatDexAll = !!pokedexData.cheatDexAll;
+    dexCheatCaughtAll = !!pokedexData.cheatCaughtAll;
 };
 
 // 로그아웃 시 메모리 도감 비우기
@@ -69,6 +73,8 @@ window.resetPokedexLocal = function() {
     ownedDexSpecies = new Set();
     ownedDexForms = new Set();
     ownedDexShinyForms = new Set();
+    dexCheatDexAll = false;
+    dexCheatCaughtAll = false;
 };
 
 function saveToFirebaseIfLoggedIn() {
@@ -77,7 +83,9 @@ function saveToFirebaseIfLoggedIn() {
         window.firebaseUpdate(userRef, {
             species: Array.from(ownedDexSpecies),
             forms: Array.from(ownedDexForms),
-            shinyForms: Array.from(ownedDexShinyForms)
+            shinyForms: Array.from(ownedDexShinyForms),
+            cheatDexAll: dexCheatDexAll,
+            cheatCaughtAll: dexCheatCaughtAll
         }).catch(e => console.error("Firebase 도감 저장 실패", e));
     }
 }
@@ -100,18 +108,11 @@ function saveOwnedDexShinyForms(ownedSet) {
 // 구현함 — 그래야 "도감 초기화"를 누르면 치트 흔적 없이 완전히 원래 상태로 돌아갈 수 있음.
 //   DexAll    : 모든 종/폼이 "언락"(이름 공개) 상태가 되지만, 실제로 잡지 않은 건 흑백(grayed)으로 표시
 //   CaughtAll : 모든 종/폼이 실제로 잡은 것처럼 컬러(owned)로 표시
-const DEX_CHEAT_ALL_KEY        = 'pokemonCatchGame_cheatDexAll_v1';
-const DEX_CHEAT_CAUGHT_ALL_KEY = 'pokemonCatchGame_cheatCaughtAll_v1';
-
-function loadBoolFlag(key) {
-    try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }
-}
-function saveBoolFlag(key, value) {
-    try { localStorage.setItem(key, value ? '1' : '0'); } catch (e) { /* 무시 */ }
-}
-
-let dexCheatDexAll    = loadBoolFlag(DEX_CHEAT_ALL_KEY);
-let dexCheatCaughtAll = loadBoolFlag(DEX_CHEAT_CAUGHT_ALL_KEY);
+// 치트 코드 상태(DexAll/CaughtAll)는 기기별 localStorage가 아니라 도감 데이터와 같은
+// 계정 경로(users/{id}/pokedex)에 저장됨 — loadPokedexFromFirebase/saveToFirebaseIfLoggedIn 참고.
+// 로그인 전에는 도감 화면 자체에 진입할 수 없으므로 기본값은 항상 false로 시작함
+let dexCheatDexAll    = false;
+let dexCheatCaughtAll = false;
 
 // 종/폼 단위로 "언락 여부"(이름 공개)와 "컬러 표시 여부"(실제로 잡은 것처럼 보임)를 계산하는
 // 헬퍼. 도감 목록/정보/폼 그리드 렌더링이 전부 이 함수들을 통해서만 ownedDex* Set을 조회하므로,
@@ -630,8 +631,7 @@ function resetDexData() {
 
     dexCheatDexAll = false;
     dexCheatCaughtAll = false;
-    saveBoolFlag(DEX_CHEAT_ALL_KEY, false);
-    saveBoolFlag(DEX_CHEAT_CAUGHT_ALL_KEY, false);
+    saveToFirebaseIfLoggedIn();
 
     renderDexList(); // 화면 전환은 하지 않고 목록 데이터만 배경에서 최신화(치트 코드 적용 방식과 동일)
 }
@@ -688,12 +688,12 @@ function applyDexCheatCode() {
 
     if (code === 'DexAll') {
         dexCheatDexAll = true;
-        saveBoolFlag(DEX_CHEAT_ALL_KEY, true);
+        saveToFirebaseIfLoggedIn();
         dexCheatFeedbackEl.textContent = '도감이 공개되었습니다';
         dexCheatFeedbackEl.className = 'success';
     } else if (code === 'CaughtAll') {
         dexCheatCaughtAll = true;
-        saveBoolFlag(DEX_CHEAT_CAUGHT_ALL_KEY, true);
+        saveToFirebaseIfLoggedIn();
         dexCheatFeedbackEl.textContent = '도감이 완성되었습니다';
         dexCheatFeedbackEl.className = 'success';
     } else if (code) {
