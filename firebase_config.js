@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 import { getDatabase, ref, set, get, update, push, remove, child, onValue, onChildAdded, onDisconnect, runTransaction, serverTimestamp, query, orderByChild, endAt, limitToFirst } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
 
 // DB 보안 규칙은 firebase_database_rules.json 참고 (Firebase 콘솔 > Realtime Database > 규칙 탭에 붙여넣어야 적용됨)
@@ -21,10 +21,11 @@ export const db = getDatabase(app);
 // 구글 로그인(학생·관리자 공통) — 역할은 이메일로 판단함(auth_manager.js)
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-// 공용 기기에서 브라우저에 로그인돼 있는 앞 사람 구글 계정이 자동으로 선택되지 않도록 매번 계정 선택 창을 띄움
+// 로그인할 때마다 계정 선택 창을 띄움 — 개인 계정과 학교 계정을 둘 다 가진 학생이 학교 계정을 고를 수
+// 있고, 가끔 기기를 빌려 쓸 때 브라우저에 남아 있는 다른 사람 구글 계정으로 자동 로그인되는 것도 막음
 googleProvider.setCustomParameters({ prompt: 'select_account' });
-// 로그인 유지는 탭 단위 — 새로고침하면 유지되고, 탭을 닫으면 로그아웃됨(공용 기기 대비)
-export const authPersistenceReady = setPersistence(auth, browserSessionPersistence)
+// 1인 1기기 기준 — 브라우저를 껐다 켜도 로그인이 유지되고, 로그아웃 버튼을 눌러야만 풀림
+export const authPersistenceReady = setPersistence(auth, browserLocalPersistence)
   .catch(e => console.error('로그인 유지 방식 설정 실패', e));
 
 // 전역 객체 노출 (모듈 외부에서 접근용)

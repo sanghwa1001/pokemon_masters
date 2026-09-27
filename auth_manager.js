@@ -173,7 +173,7 @@ googleLoginBtn.addEventListener('click', async () => {
     }
 });
 
-// 로그아웃 후 로그인 화면에 띄울 안내(공용 기기에서 구글 계정 자체는 브라우저에 남아 있으므로)
+// 로그인 화면으로 돌아갈 때 띄울 안내(등록되지 않은 계정 등 — 직접 로그아웃한 경우엔 안내 없음)
 let pendingLoginNotice = null;
 // 역할 판단이 비동기라, 그 사이 다시 로그인/로그아웃되면 이전 판단 결과는 버림
 let authRouteToken = 0;
@@ -264,8 +264,15 @@ async function enterStudent(user, key, entry, token) {
     }
 }
 
-// 학생·관리자 공용 로그아웃 — 로그인 기록(탭 단위)을 지우고, 공용 기기 안내를 띄움
+// 학생·관리자 공용 로그아웃 — 로그아웃이 된 뒤에만 화면 상태를 비움(실패하면 지금 화면 그대로 둠).
+// 로그인 화면 전환은 onAuthStateChanged가 함
 async function logout() {
+    try {
+        await signOut(auth);
+    } catch (e) {
+        console.error('로그아웃 실패', e);
+        return;
+    }
     stopAdminLearningDataListener();
     [adminStudentCreateModal, adminStudentManageModal, adminDataUploadModal, adminDataManageModal, studentDataSelectModal].forEach(hideModal);
     if (window.resetPokedexLocal) window.resetPokedexLocal();
@@ -274,14 +281,6 @@ async function logout() {
     if (window.resetLearningDataLocal) window.resetLearningDataLocal();
     document.getElementById('btn-select-learning-data').textContent = "학습 데이터 선택";
     window.currentStudentId = null;
-    pendingLoginNotice = { text: '로그아웃했습니다. 공용 기기라면 구글 계정에서도 로그아웃해 주세요.', type: null };
-    try {
-        await signOut(auth);
-    } catch (e) {
-        console.error('로그아웃 실패', e);
-        showLoginScreen(pendingLoginNotice.text);
-        pendingLoginNotice = null;
-    }
 }
 
 document.getElementById('btn-student-logout').addEventListener('click', logout);
