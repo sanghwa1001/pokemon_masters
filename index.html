@@ -59,8 +59,17 @@
         <!-- 관리자 대시보드 화면 -->
         <div id="admin-dashboard-screen" class="start-submenu hidden">
             <button id="btn-admin-create-student" class="menu-item">학생 계정 생성</button>
+            <button id="btn-admin-manage-students" class="menu-item">학생 계정 관리</button>
             <button id="btn-admin-manage-data" class="menu-item">학습 데이터 관리</button>
             <button id="btn-admin-logout" class="menu-item">로그아웃</button>
+        </div>
+
+        <!-- 학생 계정 관리 화면 (관리자용) -->
+        <div id="admin-student-manage-screen" class="start-submenu hidden">
+            <div id="student-list-container" style="width: 280px; max-height: 150px; overflow-y: auto; background: #fff; border: 2px solid #000; border-radius: 4px; padding: 10px; flex-direction: column; gap: 5px; display: flex;">
+                <!-- 학생 계정 목록이 동적으로 추가됨 -->
+            </div>
+            <button id="btn-student-manage-back" class="menu-item" style="margin-top: 10px;">뒤로가기</button>
         </div>
 
         <!-- 학생 계정 생성 모달 (관리자용) -->
@@ -85,10 +94,10 @@
                     <button id="upload-btn" class="dex-settings-action-btn dex-cheat-apply-btn">업로드</button>
                 </div>
             </div>
-            <div id="data-list-container" style="width: 280px; max-height: 150px; overflow-y: auto; background: #fff; border: 2px solid #000; border-radius: 4px; padding: 10px;">
+            <div id="data-list-container" style="width: 280px; max-height: 150px; overflow-y: auto; background: #fff; border: 2px solid #000; border-radius: 4px; padding: 10px; display: flex; flex-direction: column; gap: 5px;">
                 <!-- 데이터 목록이 동적으로 추가됨 -->
             </div>
-            <button id="btn-data-manage-back" class="menu-item">뒤로가기</button>
+            <button id="btn-data-manage-back" class="menu-item" style="margin-top: 10px;">뒤로가기</button>
         </div>
 
         <!-- 학습 데이터 선택 모달 (학생용) -->
