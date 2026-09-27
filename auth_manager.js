@@ -39,6 +39,7 @@ document.getElementById('btn-admin-login').addEventListener('click', () => {
     if (pw === ADMIN_PW) {
         hideModal(adminLoginModal);
         document.getElementById('admin-pw-input').value = '';
+        loginScreen.classList.add('hidden');
         switchScreen(adminDashboard);
     } else {
         alert("비밀번호가 틀렸습니다.");
@@ -180,6 +181,7 @@ document.getElementById('btn-student-login').addEventListener('click', async () 
         // Login Success
         window.currentStudentId = id;
         hideModal(studentLoginModal);
+        loginScreen.classList.add('hidden'); // 로그인 창 명시적으로 숨김
         switchScreen(startScreen);
         
         // Load Pokedex Data
@@ -189,7 +191,6 @@ document.getElementById('btn-student-login').addEventListener('click', async () 
             }
         }
         
-        alert(`${id} 학생, 환영합니다!`);
     } catch (e) {
         console.error(e);
         alert("로그인 실패: " + e.message);
