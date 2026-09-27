@@ -52,20 +52,47 @@ let ownedDexSpecies = new Set();
 let ownedDexForms = new Set();
 let ownedDexShinyForms = new Set();
 
-// Firebase에서 도감 데이터를 불러와서 메모리에 적용
+// 도감 저장 형식: users/{id}/pokedex/{species|forms|shinyForms}/{id} = true (키 단위).
+// 예전엔 배열 전체를 매번 덮어써서, 탭 두 개나 기기 두 대로 동시에 잡으면 나중에 저장한 쪽이
+// 이겨 포획 기록이 사라졌음 — 이제는 새로 잡은 항목 하나만 추가로 씀
+//
+// 불러올 때는 세 가지 모양을 다 읽음: ① 예전 배열 형식(["6","25"]), ② 새 형식 객체({"6":true}),
+// ③ 새 형식인데 키가 촘촘한 숫자라 RTDB가 배열로 돌려준 경우([null, true, ...] — 인덱스가 id)
+function readDexIdSet(data) {
+    if (!data) return { ids: [], legacy: false };
+    const entries = Array.isArray(data) ? data.map((v, i) => [String(i), v]) : Object.entries(data);
+    const present = entries.filter(([, v]) => v !== null && v !== undefined);
+    if (present.length && present.every(([, v]) => v === true)) {
+        return { ids: present.map(([k]) => k), legacy: false };
+    }
+    return { ids: present.map(([, v]) => String(v)), legacy: present.length > 0 };
+}
+
+// Firebase에서 도감 데이터를 불러와서 메모리에 적용 — 예전 배열 형식이면 한 번 새 형식으로 옮겨 저장
 window.loadPokedexFromFirebase = function(pokedexData) {
-    const toArray = (data) => {
-        if (!data) return [];
-        if (Array.isArray(data)) return data;
-        return Object.values(data);
-    };
-    ownedDexSpecies = new Set(toArray(pokedexData.species));
-    ownedDexForms = new Set(toArray(pokedexData.forms));
-    ownedDexShinyForms = new Set(toArray(pokedexData.shinyForms));
+    const species = readDexIdSet(pokedexData.species);
+    const forms = readDexIdSet(pokedexData.forms);
+    const shinyForms = readDexIdSet(pokedexData.shinyForms);
+    ownedDexSpecies = new Set(species.ids);
+    ownedDexForms = new Set(forms.ids);
+    ownedDexShinyForms = new Set(shinyForms.ids);
     // 치트 코드 상태도 도감 데이터와 같은 계정 경로(users/{id}/pokedex)에서 불러와서,
     // 어떤 기기로 로그인해도 이전에 켜둔 치트 상태가 그대로 유지됨(기기별 localStorage가 아님)
     dexCheatDexAll = !!pokedexData.cheatDexAll;
     dexCheatCaughtAll = !!pokedexData.cheatCaughtAll;
+
+    if (species.legacy || forms.legacy || shinyForms.legacy) {
+        const toMap = (set) => {
+            const m = {};
+            set.forEach(id => { m[id] = true; });
+            return Object.keys(m).length ? m : null;
+        };
+        writeDexToFirebase({
+            species: toMap(ownedDexSpecies),
+            forms: toMap(ownedDexForms),
+            shinyForms: toMap(ownedDexShinyForms)
+        });
+    }
 };
 
 // 로그아웃 시 메모리 도감 비우기
@@ -77,30 +104,16 @@ window.resetPokedexLocal = function() {
     dexCheatCaughtAll = false;
 };
 
-function saveToFirebaseIfLoggedIn() {
-    if (window.currentStudentId && window.firebaseDb && window.firebaseUpdate) {
-        const userRef = window.firebaseRef(window.firebaseDb, `users/${window.currentStudentId}/pokedex`);
-        window.firebaseUpdate(userRef, {
-            species: Array.from(ownedDexSpecies),
-            forms: Array.from(ownedDexForms),
-            shinyForms: Array.from(ownedDexShinyForms),
-            cheatDexAll: dexCheatDexAll,
-            cheatCaughtAll: dexCheatCaughtAll
-        }).catch(e => console.error("Firebase 도감 저장 실패", e));
-    }
+function dexFirebaseRef() {
+    if (!window.currentStudentId || !window.firebaseDb) return null;
+    return window.firebaseRef(window.firebaseDb, `users/${window.currentStudentId}/pokedex`);
 }
 
-function saveOwnedDex(ownedSet) {
-    ownedDexSpecies = ownedSet;
-    saveToFirebaseIfLoggedIn();
-}
-function saveOwnedDexForms(ownedSet) {
-    ownedDexForms = ownedSet;
-    saveToFirebaseIfLoggedIn();
-}
-function saveOwnedDexShinyForms(ownedSet) {
-    ownedDexShinyForms = ownedSet;
-    saveToFirebaseIfLoggedIn();
+// 도감 경로 아래 여러 칸을 한 번에 갱신(update) — 로그인 전이면 아무것도 안 함
+function writeDexToFirebase(changes) {
+    const ref = dexFirebaseRef();
+    if (!ref || !window.firebaseUpdate) return;
+    window.firebaseUpdate(ref, changes).catch(e => console.error("Firebase 도감 저장 실패", e));
 }
 
 // ===================== 도감 치트 코드 (설정 화면에서 입력) =====================
@@ -109,7 +122,7 @@ function saveOwnedDexShinyForms(ownedSet) {
 //   DexAll    : 모든 종/폼이 "언락"(이름 공개) 상태가 되지만, 실제로 잡지 않은 건 흑백(grayed)으로 표시
 //   CaughtAll : 모든 종/폼이 실제로 잡은 것처럼 컬러(owned)로 표시
 // 치트 코드 상태(DexAll/CaughtAll)는 기기별 localStorage가 아니라 도감 데이터와 같은
-// 계정 경로(users/{id}/pokedex)에 저장됨 — loadPokedexFromFirebase/saveToFirebaseIfLoggedIn 참고.
+// 계정 경로(users/{id}/pokedex)에 저장됨 — loadPokedexFromFirebase/writeDexToFirebase 참고.
 // 로그인 전에는 도감 화면 자체에 진입할 수 없으므로 기본값은 항상 false로 시작함
 let dexCheatDexAll    = false;
 let dexCheatCaughtAll = false;
@@ -144,18 +157,20 @@ function registerDexCatch(monsterId, isShiny) {
     const species = info && info.species;
     if (!species || !NORMAL_BY_SPECIES[species]) return; // 알 수 없는 species는 안전하게 무시
 
+    const changes = {};
     if (!ownedDexSpecies.has(species)) {
         ownedDexSpecies.add(species);
-        saveOwnedDex(ownedDexSpecies);
+        changes[`species/${species}`] = true;
     }
     if (!isShiny && !ownedDexForms.has(monsterId)) {
         ownedDexForms.add(monsterId);
-        saveOwnedDexForms(ownedDexForms);
+        changes[`forms/${monsterId}`] = true;
     }
     if (isShiny && !ownedDexShinyForms.has(monsterId)) {
         ownedDexShinyForms.add(monsterId);
-        saveOwnedDexShinyForms(ownedDexShinyForms);
+        changes[`shinyForms/${monsterId}`] = true;
     }
+    if (Object.keys(changes).length) writeDexToFirebase(changes);
 }
 
 // 도감 헤더 검색창 상태: 빈 문자열이면 전체 표시. 숫자만 입력하면 도감번호(3자리, 0패딩)
@@ -625,13 +640,9 @@ function resetDexData() {
     ownedDexSpecies = new Set();
     ownedDexForms = new Set();
     ownedDexShinyForms = new Set();
-    saveOwnedDex(ownedDexSpecies);
-    saveOwnedDexForms(ownedDexForms);
-    saveOwnedDexShinyForms(ownedDexShinyForms);
-
     dexCheatDexAll = false;
     dexCheatCaughtAll = false;
-    saveToFirebaseIfLoggedIn();
+    writeDexToFirebase({ species: null, forms: null, shinyForms: null, cheatDexAll: false, cheatCaughtAll: false });
 
     renderDexList(); // 화면 전환은 하지 않고 목록 데이터만 배경에서 최신화(치트 코드 적용 방식과 동일)
 }
@@ -688,12 +699,12 @@ function applyDexCheatCode() {
 
     if (code === 'DexAll') {
         dexCheatDexAll = true;
-        saveToFirebaseIfLoggedIn();
+        writeDexToFirebase({ cheatDexAll: true });
         dexCheatFeedbackEl.textContent = '도감이 공개되었습니다';
         dexCheatFeedbackEl.className = 'success';
     } else if (code === 'CaughtAll') {
         dexCheatCaughtAll = true;
-        saveToFirebaseIfLoggedIn();
+        writeDexToFirebase({ cheatCaughtAll: true });
         dexCheatFeedbackEl.textContent = '도감이 완성되었습니다';
         dexCheatFeedbackEl.className = 'success';
     } else if (code) {

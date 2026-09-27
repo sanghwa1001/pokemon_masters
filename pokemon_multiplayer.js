@@ -136,6 +136,20 @@ function mpInitConnectionWatch() {
 if (window.firebaseDb) mpInitConnectionWatch();
 else window.addEventListener('firebase-ready', mpInitConnectionWatch);
 
+// Firebase SDK는 gstatic.com에서 받아오는데, 학교망 방화벽 등으로 막히면 로그인 버튼이 아무
+// 반응 없이 멈춘 것처럼 보임 — 일정 시간 안에 준비되지 않으면 로그인 화면에 원인을 안내하고,
+// 늦게라도 준비되면 안내를 지움
+const MP_SDK_LOAD_TIMEOUT_MS = 10000;
+const firebaseLoadErrorEl = document.getElementById('firebase-load-error');
+setTimeout(() => {
+    if (!window.firebaseDb && firebaseLoadErrorEl) {
+        firebaseLoadErrorEl.textContent = '서버에 연결할 수 없습니다. 인터넷 연결 또는 학교망 방화벽(gstatic.com 차단)을 확인해주세요.';
+    }
+}, MP_SDK_LOAD_TIMEOUT_MS);
+window.addEventListener('firebase-ready', () => {
+    if (firebaseLoadErrorEl) firebaseLoadErrorEl.textContent = '';
+});
+
 // 백그라운드에서 돌아오면 밀려 있던 setTimeout이 한꺼번에 실행되는데, 그때 소켓은 아직 다시
 // 연결되기 전일 수 있음 — 복귀 직후엔 판정을 보류. visibilitychange보다 타이머가 먼저 실행되는
 // 경우도 있어서 1초 틱이 밀렸는지로도 한 번 더 감지함(mpCanJudgePeer)
