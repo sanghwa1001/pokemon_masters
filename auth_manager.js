@@ -17,7 +17,9 @@ const studentDataSelectModal = document.getElementById('student-data-select-moda
 function showModal(modal) { modal.classList.remove('hidden'); }
 function hideModal(modal) { modal.classList.add('hidden'); }
 function switchScreen(screen) {
-    [loginScreen, startScreen, adminDashboard, adminDataManageScreen].forEach(s => s.classList.add('hidden'));
+    [loginScreen, startScreen, adminDashboard, adminDataManageScreen, adminStudentManageScreen].forEach(s => {
+        if (s) s.classList.add('hidden');
+    });
     screen.classList.remove('hidden');
 }
 
@@ -233,7 +235,7 @@ document.getElementById('btn-select-learning-data').addEventListener('click', ()
                 }
                 hideModal(studentDataSelectModal);
                 alert(`'${data.title}' 데이터를 선택했습니다!`);
-                document.getElementById('btn-select-learning-data').textContent = data.title + " (변경)";
+                document.getElementById('btn-select-learning-data').textContent = "학습 데이터 변경";
             };
             
             listContainer.appendChild(div);
@@ -242,4 +244,73 @@ document.getElementById('btn-select-learning-data').addEventListener('click', ()
         listContainer.innerHTML = '데이터 로딩 실패';
         console.error(e);
     });
+});
+
+// --- 학생 계정 관리 ---
+
+document.getElementById('btn-admin-manage-students').addEventListener('click', async () => {
+    switchScreen(adminStudentManageScreen);
+    const listContainer = document.getElementById('student-list-container');
+    listContainer.innerHTML = '로딩 중...';
+    
+    try {
+        const usersRef = window.firebaseRef(db, 'users');
+        const snapshot = await window.firebaseGet(usersRef);
+        listContainer.innerHTML = '';
+        
+        if (!snapshot.exists()) {
+            listContainer.innerHTML = '<div style="color:#000;">학생 계정이 없습니다.</div>';
+            return;
+        }
+        
+        const users = snapshot.val();
+        let hasStudents = false;
+        
+        for (const [id, data] of Object.entries(users)) {
+            if (data.role === 'student') {
+                hasStudents = true;
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.alignItems = 'center';
+                row.style.borderBottom = '1px solid #ccc';
+                row.style.paddingBottom = '4px';
+                
+                const titleSpan = document.createElement('span');
+                titleSpan.textContent = `${id}`;
+                titleSpan.style.color = '#000';
+                titleSpan.style.fontSize = '14px';
+                
+                const delBtn = document.createElement('button');
+                delBtn.className = 'dex-settings-action-btn dex-danger';
+                delBtn.textContent = '삭제';
+                delBtn.style.padding = '0 8px';
+                delBtn.style.height = '24px';
+                delBtn.style.fontSize = '12px';
+                
+                delBtn.onclick = async () => {
+                    if (confirm(`'${id}' 학생 계정을 삭제하시겠습니까?`)) {
+                        await window.firebaseRemove(window.firebaseRef(db, `users/${id}`));
+                        row.remove();
+                    }
+                };
+                
+                row.appendChild(titleSpan);
+                row.appendChild(delBtn);
+                listContainer.appendChild(row);
+            }
+        }
+        
+        if (!hasStudents) {
+            listContainer.innerHTML = '<div style="color:#000;">학생 계정이 없습니다.</div>';
+        }
+        
+    } catch (e) {
+        console.error(e);
+        listContainer.innerHTML = '<div style="color:#000;">오류 발생</div>';
+    }
+});
+
+document.getElementById('btn-student-manage-back').addEventListener('click', () => {
+    switchScreen(adminDashboard);
 });
