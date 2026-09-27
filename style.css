@@ -2263,6 +2263,13 @@ html, body {
     box-sizing: border-box;
 }
 
+/* 목록 바로 아래 버튼(학생 관리 "삭제하기") — 목록(.admin-list)의 좌우 여백 4px만큼 똑같이 들여서
+   목록 칸(.admin-row)과 가로 폭·좌우 끝이 정확히 맞게 함 */
+.dex-settings-action-btn.admin-list-action {
+    width: calc(100% - 8px);
+    align-self: center;
+}
+
 .admin-count-text {
     flex-shrink: 0;
     font-size: 12px;
