@@ -409,36 +409,43 @@ let pendingForcedSwitchCallback = null; // 강제 교체가 끝나면 이어서 
 let battleMode = 'ai';
 let mpTurn = 0;              // 함께하기 턴 번호 — 양쪽이 같은 턴의 행동끼리 짝지어졌는지 확인용
 let mpMissStreak = 0;        // 상대가 연속으로 배틀 액션을 제한시간 안에 못 낸(패스로 처리된) 횟수 —
-                              // 응답하면 0으로 리셋, 2번 연속이면 즉시 끊김 처리(mpForceDisconnect)
-let mpSelfPassStreak = 0;    // 내가 연속으로 제한시간을 못 지켜 자동 패스한 횟수 — 상대가
-                              // mpMissStreak로 감지해 방을 지우는 걸 기다리면 그 사이 이쪽 화면에
-                              // 상대의 공격 멘트가 먼저 뜨는 것처럼 보이므로, 이쪽에서도 직접 세서
-                              // 2번째 패스가 되는 순간 그 턴을 시작하지 않고 곧바로 끊김 처리
+                              // 응답하면 0으로 리셋, 2번 연속이면 상대의 기권으로 처리(안전장치)
+let mpSelfPassStreak = 0;    // 내가 연속으로 제한시간을 못 지켜 자동 패스한 횟수 — 2번째가 되는
+                              // 순간 그 턴을 시작하지 않고 곧바로 기권(mpForfeit). 상대의 감지를
+                              // 기다리면 그 사이 상대 화면에 턴이 진행되는 것처럼 보이기 때문
 let mpAwaitingOpponentAction = false; // 내가 이번 턴 행동(자동 패스 포함)을 이미 보내고 상대의
                                        // 메시지를 기다리는 중인지 — true인 채로 개인 제한시간이
-                                       // (그 뒤 마련된 네트워크 여유까지) 다시 다 되면 상대가
-                                       // 사라진 것으로 보고 끊김 처리(메시지가 와서 mpResolveTurn이
+                                       // 다 되면 여유(MP_PEER_SLACK_MS)를 더 준 뒤 생존 여부를
+                                       // 판정(메시지가 와서 mpResolveTurn이
                                        // 실행되면 false로 되돌아감 — 애니메이션 재생 중엔 이미
                                        // false라서 오탐 없음)
 // 함께하기 대기 제한시간(ms) — 넷 다 "내 일이 시작되는 순간부터 도는 개인 시간" 모델로 통일함
 // (상대를 기다리는 쪽이 아니라, 그 순간 할 일이 있는 쪽 화면에도 똑같이 보이고 스스로 처리함):
 //  - 배틀 액션 선택: 내 메인 메뉴가 뜨는 순간부터. 놓치면 그 턴을 패스로 흘려보내고(1차),
-//    상대가 연속 2번째도 패스면 그 순간 끊김 처리
-//  - 강제 교체: 내 포켓몬이 기절해서 교체 메뉴가 뜨는 순간부터. 놓치면 곧바로 끊김 처리
-//    (교체는 "안 함"이 없는 선택이라 배틀 액션처럼 봐줄 수 없음). 상대(기다리는 쪽)도 별도로
-//    같은 값의 타이머를 가지고 있어 둘 중 먼저 시간이 다 되는 쪽이 처리함(안전망)
+//    연속 2번째면 그 순간 기권
+//  - 강제 교체: 내 포켓몬이 기절해서 교체 메뉴가 뜨는 순간부터. 놓치면 곧바로 기권
+//    (교체는 "안 함"이 없는 선택이라 배틀 액션처럼 봐줄 수 없음)
 //  - 파티 선택: 선택 화면에 들어오는 순간부터. 도감을 살펴보며 고르는 시간과 고른 뒤 상대를
-//    기다리는 시간을 하나의 연속된 시계로 봄 — 다 골랐다고 리셋되지 않고 계속 흘러감
+//    기다리는 시간을 하나의 연속된 시계로 봄 — 다 골랐다고 리셋되지 않고 계속 흘러감.
+//    선택 완료 전에 다 되면 기권
 //  - 불러오기 신호 대기: 내 쪽 에셋을 불러오기 시작하는 순간부터(끝난 뒤가 아니라)
+// 상대를 기다리는 쪽은 상대 시간을 직접 판정하지 않고, 같은 시간 + 여유(MP_PEER_SLACK_MS)가
+// 지나도 응답이 없을 때만 "상대가 사라짐(끊김)"으로 판정함(pokemon_multiplayer.js)
 const MP_ACTION_TIMEOUT_MS = 60000;
 const MP_FORCED_SWITCH_TIMEOUT_MS = 60000;
 const MP_PARTY_TIMEOUT_MS = 100000;
 const MP_LOADED_TIMEOUT_MS = 100000;
+const MP_REMATCH_TIMEOUT_MS = 60000; // 다시하기를 누르고 상대를 기다리는 최대 시간
 let mpPartyLocked = false;   // 함께하기 선택창에서 "선택 완료"를 누르고 상대를 기다리는 중(파티 수정 불가)
 let mpMyLoadSent = false;    // 내 배틀 에셋 로딩을 끝내고 'loaded' 신호를 이미 보냈는지(상대
-                              // 신호를 기다리는 중인지) — 이것도 켜져 있으면 네트워크 여유를 줌
+                              // 신호를 기다리는 중인지) — 켜져 있으면 여유를 더 준 뒤 판정
 let mpRematchWaiting = false; // 함께하기 결과 화면에서 "다시하기"를 누르고 상대를 기다리는 중
-let mpPickerDisconnected = false; // 함께하기 선택창에서 상대가 나가 끊김 안내를 보여주는 중(잠시 뒤 시작화면으로)
+let mpPickerEndText = null;  // 함께하기 선택창에서 대전이 끝나(항복/끊김) 안내를 보여주는 중이면 그 문구(잠시 뒤 시작화면으로)
+// 함께하기 종료(항복/끊김) 멘트는 "안전 지점"에서만 띄움 — 양쪽 행동이 이미 모여 시작된 턴 연출
+// (첫 등장 연출 포함)은 끝까지 재생하고, 그다음 메인 메뉴/강제 교체 메뉴를 여는 대신 종료 멘트를
+// 띄움. 메뉴 선택 중·상대 응답 대기 중이면 즉시 띄움(mpOnTerminal 참고)
+let mpBattleAnimating = false; // 지금 턴/등장 연출이 재생 중인지(= 안전 지점이 아님)
+let mpPendingTerminal = null;  // 연출 중에 도착해 안전 지점까지 미뤄 둔 종료 정보
 // 선택창 끊김 안내(버튼 글자라 즉시 다 보임)를 보여준 뒤 시작화면으로 넘어가기까지의 시간(ms) — 사용자 지정으로
 // 승패·배틀 중 끊김 멘트의 머무는 시간(BATTLE_SCREEN_TRANSITION_HOLD, 1초)과 별개로 1.5초
 const MP_PICKER_DISCONNECT_HOLD_MS = 1500;
@@ -1039,6 +1046,7 @@ function autoSwitchAiNext(onDone) {
 // renderBattleSwitchInlineMenu)을 그대로 씀. 다만 취소는 불가능해야 하므로 뒤로가기(‹) 버튼은
 // 숨기고, 이름 버튼을 누르면 별도 확인 없이 "가랏! ~!" 멘트 후 적용되어 onDone이 실행되며 턴 진행이 이어짐.
 function openForcedSwitch(onDone) {
+    if (mpReachSafePoint()) return;
     battleSwitchForced = true;
     pendingForcedSwitchCallback = onDone;
     renderBattleSwitchInlineMenu();
@@ -1046,13 +1054,16 @@ function openForcedSwitch(onDone) {
     battleMessageBoxEl.textContent = '';
     battleMainMenuEl.classList.add('hidden');
     battleSwitchInlineMenuEl.classList.remove('hidden');
-    // 상대(기다리는 쪽)의 mpWaitForcedSwitch와 같은 값의 별도 타이머 — 고르는 쪽도 시간 제한을
-    // 직접 보고, 못 고르면 상대의 감지를 기다리지 않고 스스로 끊김 처리
+    // 고르는 쪽의 개인 제한시간 — 못 고르면(교체는 "안 함"이 없는 선택이라) 스스로 기권
     if (battleMode === 'pvp') {
         window.mpStartDeadline(battleTurnTimerEl, MP_FORCED_SWITCH_TIMEOUT_MS, () => {
-            window.mpForceDisconnect();
+            window.mpForfeit();
         });
     }
+}
+
+function battleResultText(didWin) {
+    return didWin ? '상대와의 승부에서 이겼다!' : '상대와의 승부에서 졌다!';
 }
 
 // 승패 결정 시 다른 배틀 이벤트들과 동일하게 액션박스 멘트로 먼저 알린 뒤(showBattleMessage)
@@ -1061,7 +1072,11 @@ function openForcedSwitch(onDone) {
 // 비워둠(포획 게임처럼 통계 기능이 추가되면 채울 예정). 승패는 액션박스 멘트로 충분히 전달됨.
 function endBattleWithResult(didWin) {
     battleTurnBusy = false;
-    const resultText = didWin ? '상대와의 승부에서 이겼다!' : '상대와의 승부에서 졌다!';
+    // 연출 도중 정상적으로 승패가 났으면 정상 결과가 우선 — 미뤄 둔 종료 멘트는 버림(방은 이미
+    // 닫혔으므로 다시하기만 막음)
+    mpBattleAnimating = false;
+    if (mpPendingTerminal) { mpPendingTerminal = null; battleResultRetryBtn.disabled = true; }
+    const resultText = battleResultText(didWin);
     showBattleMessage(resultText, () => {
         battleMessageBoxEl.classList.add('hidden');
         battleMessageBoxEl.textContent = '';
@@ -1301,18 +1316,18 @@ function startMyActionDeadline() {
     if (battleMode !== 'pvp' || !battlePreviewActive || battleEnded) return;
     window.mpStartDeadline(battleTurnTimerEl, MP_ACTION_TIMEOUT_MS, () => {
         if (battleMode !== 'pvp' || battleEnded) return;
-        // 내가 이미 행동을 보내고 상대 메시지를 기다리는 중(mpAwaitingOpponentAction)인데
-        // 여기까지 왔다는 건, 상대가 자기 제한시간을 넘겼는데도(그래서 상대 쪽에서 자동
-        // 패스/끊김 처리가 됐어야 함) 그 메시지조차 이쪽에 안 왔다는 뜻 — 상대가 사라진
-        // 것으로 보고 곧바로 끊김 처리
-        if (mpAwaitingOpponentAction) { window.mpGraceThenDisconnect(); return; }
+        // 내가 이미 행동을 보내고 상대 메시지를 기다리는 중(mpAwaitingOpponentAction)이면, 상대
+        // 시계는 연출 길이 차이만큼 늦게 시작했을 수 있으므로 여유를 더 준 뒤 생존 여부를 판정
+        if (mpAwaitingOpponentAction) { window.mpPeerSlackThenJudge(); return; }
+        // 연속 2번째 시간 초과면 그 턴을 시작하지 않고 곧바로 기권(상대 화면에 턴이 진행되지 않음)
         mpSelfPassStreak++;
-        if (mpSelfPassStreak >= 2) { window.mpForceDisconnect(); return; }
+        if (mpSelfPassStreak >= 2) { window.mpForfeit(); return; }
         startPlayerTurn('pass');
     });
 }
 
 function finishTurn() {
+    if (mpReachSafePoint()) return;
     battleTurnBusy = false;
     showBattleMainMenuUI();
     startMyActionDeadline();
@@ -1369,11 +1384,58 @@ function showBattleWaiting(text) {
     battleMessageBoxEl.textContent = text;
 }
 
-// 이번 턴의 랜덤 판정을 호스트가 미리 굴림 — first: 선공(교체끼리/싸우기끼리일 때만 씀),
-// host/guest: 각자 공격했을 때의 명중/치명타. 행동을 고르기 전에 굴려도 확률은 똑같음
-function mpRollTurn() {
-    const rollAttack = () => ({ hit: Math.random() < BATTLE_ACCURACY, crit: Math.random() < BATTLE_CRIT_CHANCE });
-    return { first: Math.random() < 0.5 ? 'host' : 'guest', host: rollAttack(), guest: rollAttack() };
+// 이번 턴의 랜덤 판정 — 양쪽이 reveal로 공개한 난수를 합쳐서 정하므로 두 화면에서 결과가 같고,
+// 어느 한쪽도 미리 알거나 조작할 수 없음. first: 선공(교체끼리/싸우기끼리일 때만 씀),
+// host/guest: 각자 공격했을 때의 명중/치명타
+function mpRollTurn(hostNonce, guestNonce, turn) {
+    const u = window.mpSeededUniforms(`${hostNonce}|${guestNonce}|${turn}`);
+    return {
+        first: u[0] < 0.5 ? 'host' : 'guest',
+        host: { hit: u[1] < BATTLE_ACCURACY, crit: u[2] < BATTLE_CRIT_CHANCE },
+        guest: { hit: u[3] < BATTLE_ACCURACY, crit: u[4] < BATTLE_CRIT_CHANCE }
+    };
+}
+
+// 턴 시작 시점의 배틀 상태를 호스트 기준(host/guest 순서)의 짧은 문자열로 — 양쪽이 commit에 실어
+// 보내 서로 비교함(같은 계산을 각자 돌리는 구조라 어긋나면 이후 결과가 계속 달라지므로 바로 잡아야 함)
+function mpSideState(party, activeIdx, rank) {
+    return `${activeIdx}:${rank}:` + party.map(p => `${p.hp}${p.fainted ? 'x' : ''}`).join(',');
+}
+function mpStateString() {
+    const mine = mpSideState(battleParty, activePartyIndex, playerRank);
+    const theirs = mpSideState(aiParty, activeAiIndex, aiRank);
+    return mp.isHost ? `${mine}/${theirs}` : `${theirs}/${mine}`;
+}
+
+// 상태가 어긋났을 때 — 호스트 상태를 정답으로 보고 게스트가 hp·기절·랭크를 맞춤(hp바도 즉시 갱신).
+// 출전 중인 포켓몬 자체가 다르면 화면 연출까지 달라진 것이라 맞출 수 없음 → false
+function mpApplyHostState(hostState) {
+    if (mp.isHost) return true; // 호스트는 자기 상태가 정답
+    const parse = (side) => {
+        const [active, rank, list] = side.split(':');
+        return { active: Number(active), rank: Number(rank), mons: list.split(',').map(t => ({ hp: parseFloat(t), fainted: t.endsWith('x') })) };
+    };
+    const [hostSide, guestSide] = String(hostState || '').split('/').map(parse);
+    if (!hostSide || !guestSide) return false;
+    const apply = (party, side) => {
+        if (side.mons.length !== party.length || side.mons.some(m => Number.isNaN(m.hp))) return false;
+        party.forEach((p, i) => { p.hp = side.mons[i].hp; p.fainted = side.mons[i].fainted; });
+        return true;
+    };
+    if (hostSide.active !== activeAiIndex || guestSide.active !== activePartyIndex) return false;
+    if (!apply(aiParty, hostSide) || !apply(battleParty, guestSide)) return false;
+    aiRank = hostSide.rank;
+    playerRank = guestSide.rank;
+    aiHpBar.reset(aiParty[activeAiIndex].hp);
+    playerHpBar.reset(battleParty[activePartyIndex].hp);
+    updateBattleSwitchBtnState();
+    return true;
+}
+
+// 맞출 수 없는 동기화 오류 — 더 진행하면 양쪽 화면이 계속 달라지므로 끊김으로 정리
+function mpDesync(reason) {
+    console.error('함께하기 동기화 오류:', reason);
+    window.mpForceDisconnect();
 }
 
 // 상대가 보낸 행동이 지금 상태에서 말이 되는지 확인 — 이상하면 공격으로 대체(양쪽 상태가 같으면
@@ -1384,6 +1446,7 @@ function mpSanitizeAction(action) {
         const target = aiParty[action.switch];
         if (target && !target.fainted && action.switch !== activeAiIndex) return { switch: action.switch };
     }
+    console.warn('함께하기: 상대 행동이 현재 상태와 맞지 않아 공격으로 대체함', action);
     return 'attack';
 }
 
@@ -1399,19 +1462,35 @@ function mpSanitizeParty(list) {
         .map(p => ({ id: p.id, isShiny: !!p.isShiny, hp: BATTLE_MON_MAX_HP, fainted: false, known: false }));
 }
 
-// 내 행동을 상대에게 보내고, 상대 행동이 오면(이미 와 있으면 즉시) 이번 턴을 판정·진행함.
-// 호스트는 자기 행동 메시지에 이번 턴 랜덤 판정(mpRollTurn)을 실어 보냄 — 그래서 어느 쪽이든
-// "양쪽 행동이 다 모인 순간" 곧바로 같은 결과로 진행할 수 있음(게스트가 판정을 따로 기다리지 않음)
+// 내 행동을 commit-reveal로 교환하고 이번 턴을 판정·진행함:
+//  1) commit: 행동+난수의 해시와 턴 시작 상태(mpStateString)를 보냄 — 이 단계에선 행동이 안 보임
+//  2) 상대 commit이 오면: 턴 번호·상태를 비교(어긋나면 호스트 상태로 맞춤) → reveal(행동+난수) 공개
+//  3) 상대 reveal이 오면: 해시가 commit과 맞는지 확인 → 양쪽 난수로 판정값을 정해 진행
+// 상대 메시지가 이미 와 있으면 mpWaitFor가 즉시 불려 곧바로 이어짐
 function mpSubmitTurnAction(playerAction) {
     const turn = mpTurn;
-    const myMsg = { turn, action: playerAction };
-    if (mp.isHost) myMsg.rolls = mpRollTurn();
-    mpSend('action', myMsg);
+    const nonce = window.mpRandomNonce();
+    const commitOf = (action, n) => window.mpSha256Hex(`${turn}|${JSON.stringify(action)}|${n}`);
+    const myState = mpStateString();
+    mpSend('commit', { turn, c: commitOf(playerAction, nonce), st: myState });
     showBattleWaiting('통신 대기 중...');
-    mpWaitFor('action', battleCallback((oppMsg) => {
-        mpTurn = turn + 1;
-        const rolls = mp.isHost ? myMsg.rolls : oppMsg.rolls;
-        mpResolveTurn(playerAction, mpSanitizeAction(oppMsg.action), rolls);
+    mpWaitFor('commit', battleCallback((oppCommit) => {
+        if (!oppCommit || oppCommit.turn !== turn) { mpDesync(`턴 번호 불일치(${turn} vs ${oppCommit && oppCommit.turn})`); return; }
+        if (oppCommit.st !== myState) {
+            console.warn('함께하기: 턴 시작 상태가 달라 호스트 기준으로 맞춤', myState, oppCommit.st);
+            if (!mpApplyHostState(mp.isHost ? myState : oppCommit.st)) { mpDesync('상태를 맞출 수 없음'); return; }
+        }
+        mpSend('reveal', { turn, action: playerAction, nonce });
+        mpWaitFor('reveal', battleCallback((oppReveal) => {
+            if (!oppReveal || oppReveal.turn !== turn || typeof oppReveal.nonce !== 'string' ||
+                commitOf(oppReveal.action, oppReveal.nonce) !== oppCommit.c) {
+                mpDesync('reveal이 commit과 다름');
+                return;
+            }
+            mpTurn = turn + 1;
+            const rolls = mp.isHost ? mpRollTurn(nonce, oppReveal.nonce, turn) : mpRollTurn(oppReveal.nonce, nonce, turn);
+            mpResolveTurn(playerAction, mpSanitizeAction(oppReveal.action), rolls);
+        }));
     }));
 }
 
@@ -1423,11 +1502,12 @@ function mpResolveTurn(myAction, oppAction, rolls) {
     // 타이머가 시작될 때(finishTurn) 자연히 덮어써지긴 하지만, 그 사이(애니메이션 재생 등)에
     // 남아있던 타이머가 먼저 만료되어 이미 끝난 턴에 대해 잘못 동작하는 걸 막기 위해 즉시 지움
     window.mpClearDeadlineTimer();
-    // 상대가 이번 턴도 패스(제한시간 초과)면 연속 카운트 증가 — 2번 연속이면 더 기다리지 않고
-    // 곧바로 끊김 처리(기존 mpOnDisconnect 흐름 재사용). 응답했으면(패스가 아니면) 카운트 리셋
+    // 상대가 이번 턴도 패스(제한시간 초과)면 연속 카운트 증가, 응답했으면(패스가 아니면) 리셋
+    // (정상 클라이언트는 2번째 시간 초과 때 패스 대신 기권(end)을 보내므로 이건 안전장치 — 이 경우도
+    // 끊김이 아니라 상대의 기권으로 처리하고, 턴은 진행하지 않음)
     if (oppAction === 'pass') {
         mpMissStreak++;
-        if (mpMissStreak >= 2) { window.mpForceDisconnect(); return; }
+        if (mpMissStreak >= 2) { window.mpDeclarePeerForfeit(); return; }
     } else {
         mpMissStreak = 0;
     }
@@ -1442,18 +1522,21 @@ function mpResolveTurn(myAction, oppAction, rolls) {
     if (myIsSwitch === oppIsSwitch) order = rolls.first === me ? ['player', 'ai'] : ['ai', 'player'];
     else order = myIsSwitch ? ['player', 'ai'] : ['ai', 'player'];
 
+    mpBattleAnimating = true;
     runTurnSequence(order, { player: myAction, ai: oppAction }, { player: rolls[me], ai: rolls[opp] });
 }
 
 // 상대 포켓몬이 기절했을 때 — 상대가 강제 교체 메뉴에서 고른 포켓몬이 올 때까지 기다렸다가 내보냄
 function mpWaitForcedSwitch(onDone) {
+    if (mpReachSafePoint()) return;
     showBattleWaiting('통신 대기 중...');
-    // 이 쪽은 항상 "상대의 선택을 기다리는" 상황이라 그레이스를 바로 적용
+    // 이 쪽은 항상 "상대의 선택을 기다리는" 상황이라 제한시간이 다 되면 여유를 더 준 뒤 판정
     window.mpStartDeadline(battleTurnTimerEl, MP_FORCED_SWITCH_TIMEOUT_MS, () => {
-        window.mpGraceThenDisconnect();
+        window.mpPeerSlackThenJudge();
     });
     mpWaitFor('forcedSwitch', battleCallback((data) => {
         window.mpClearDeadlineTimer();
+        mpBattleAnimating = true;
         let idx = data && data.idx;
         const target = aiParty[idx];
         if (!target || target.fainted) idx = aiParty.findIndex(p => !p.fainted);
@@ -1488,51 +1571,79 @@ function mpPreloadBattleAssets() {
     return Promise.all(jobs);
 }
 
-// 상대와 연결이 끊겼을 때(pokemon_multiplayer.js가 부름) — 지금 화면(배틀·결과 화면 / 선택창)에 맞게
-// 버튼·액션박스 문구로 안내함. 별도 알림창은 없음
-mpOnDisconnect = () => {
+// 함께하기 대전 종료 멘트 — 항복: "항복으로 대전이 중지되었습니다" → 이겼다/졌다, 끊김: 끊김 멘트 하나.
+// 진행 중인 연출·대기 콜백을 전부 끊고(세션 교체) 멘트 후 결과 화면으로. 별도 알림창은 없음
+function mpTerminalText(info) {
+    return info.reason === 'forfeit' ? '항복으로 대전이 중지되었습니다' : '상대와의 통신이 끊어졌습니다';
+}
+
+function mpShowBattleTerminal(info) {
+    battleSessionId++;
+    closeBattleStatus();
+    cancelAttackAnimations();
+    stopBattleEffect();
+    aiHpBar.cancel();
+    playerHpBar.cancel();
+    mpBattleAnimating = false;
+    mpPendingTerminal = null;
+    battleEnded = true;
+    battleTurnBusy = true;
+    battleSwitchForced = false;
+    pendingForcedSwitchCallback = null;
+    const showResult = () => {
+        battleMessageBoxEl.classList.add('hidden');
+        battleMessageBoxEl.textContent = '';
+        battleResultOverlayEl.classList.remove('hidden');
+    };
+    if (info.reason === 'forfeit') {
+        showBattleMessage(mpTerminalText(info), () => {
+            showBattleMessage(battleResultText(!info.iLost), showResult, BATTLE_SCREEN_TRANSITION_HOLD);
+        });
+    } else {
+        showBattleMessage(mpTerminalText(info), showResult, BATTLE_SCREEN_TRANSITION_HOLD);
+    }
+}
+
+// 안전 지점(finishTurn/openForcedSwitch/mpWaitForcedSwitch/첫 등장 연출 끝)에 도착했을 때 부름 —
+// 미뤄 둔 종료가 있으면 메뉴를 여는 대신 종료 멘트를 띄우고 true를 돌려줌(호출한 쪽은 그대로 멈춤)
+function mpReachSafePoint() {
+    mpBattleAnimating = false;
+    if (battleMode !== 'pvp' || !mpPendingTerminal) return false;
+    mpShowBattleTerminal(mpPendingTerminal);
+    return true;
+}
+
+// 대전이 더 이어질 수 없게 됐을 때(pokemon_multiplayer.js가 부름) — 지금 화면(배틀·결과 화면 /
+// 선택창)에 맞게 안내함
+mpOnTerminal = (info) => {
     window.mpClearDeadlineTimer();
     if (battleMode === 'pvp' && battlePreviewActive) {
         // 상대가 없으니 재대결 불가 — 다시하기는 회색 비활성화(처음으로만 가능). 다시하기를 눌러
-        // 상대를 기다리던 중이었다면 버튼의 "대기 중"을 끊김 안내로 바꿈. 별도 알림창은 띄우지 않음
+        // 상대를 기다리던 중이었다면 버튼의 "대기 중"을 종료 안내로 바꿈
         battleResultRetryBtn.disabled = true;
-        if (mpRematchWaiting) battleResultRetryBtn.textContent = '상대와의 통신이 끊어졌습니다';
+        if (mpRematchWaiting) battleResultRetryBtn.textContent = mpTerminalText(info);
         mpRematchWaiting = false;
         if (battleEnded) return; // 이미 승패가 났으면(결과 화면) 버튼만 바꾸고 끝
-
-        // 진행 중인 연출·대기 콜백을 전부 끊고(세션 교체) 끊김 멘트 후 결과 화면으로
-        battleSessionId++;
-        closeBattleStatus();
-        cancelAttackAnimations();
-        stopBattleEffect();
-        aiHpBar.cancel();
-        playerHpBar.cancel();
-        battleEnded = true;
-        battleTurnBusy = true;
-        battleSwitchForced = false;
-        pendingForcedSwitchCallback = null;
-        showBattleMessage('상대와의 통신이 끊어졌습니다', () => {
-            battleMessageBoxEl.classList.add('hidden');
-            battleMessageBoxEl.textContent = '';
-            battleResultOverlayEl.classList.remove('hidden');
-        }, BATTLE_SCREEN_TRANSITION_HOLD);
+        // 턴 연출 중이면 연출이 끝나는 안전 지점까지 미룸(그 사이 다음 턴은 절대 시작되지 않음 —
+        // 구독이 이미 끊겼으므로). 메뉴 선택 중·응답 대기 중이면 즉시
+        if (mpBattleAnimating) { mpPendingTerminal = info; return; }
+        mpShowBattleTerminal(info);
         return;
     }
-    // 선택창(도감 선택 모드)에서 끊기면 — 배틀 중 끊김(액션박스 멘트 → 결과 화면)과 같은 흐름으로,
-    // 선택 완료(또는 대기 중) 자리에 끊김 안내를 띄우고(랜덤 선택은 숨김) 잠시 후 시작화면으로.
-    // 별도 알림창은 띄우지 않음
+    // 선택창(도감 선택 모드)에서 끝나면 — 선택 완료(또는 대기 중) 자리에 종료 안내를 띄우고
+    // (랜덤 선택은 숨김) 잠시 후 시작화면으로. 아직 대전 전이라 승패 멘트는 없음
     if (dexPickerMode) {
         mpPartyLocked = true;
-        mpPickerDisconnected = true;
+        mpPickerEndText = mpTerminalText(info);
         renderBattleSlots();
         setTimeout(() => {
-            if (!mpPickerDisconnected || !dexPickerMode) return; // 그 사이 직접 ×로 닫았으면 무시
+            if (!mpPickerEndText || !dexPickerMode) return; // 그 사이 직접 ×로 닫았으면 무시
             stopDexInfoSpriteAnimation();
             dexModal.classList.add('hidden');
             dexPickerMode = false;
             battleParty = [];
             mpPartyLocked = false;
-            mpPickerDisconnected = false;
+            mpPickerEndText = null;
             dexBattleRandomBtn.classList.remove('hidden');
             battleSlotController.stopAll();
         }, MP_PICKER_DISCONNECT_HOLD_MS);
@@ -1593,6 +1704,7 @@ function renderBattleSwitchInlineMenu() {
                 if (battleMode === 'pvp') {
                     window.mpClearDeadlineTimer();
                     mpSend('forcedSwitch', { idx });
+                    mpBattleAnimating = true; // 이미 보낸 선택의 연출은 끝까지 재생
                 }
                 // 배틀 시작 등장과 같은 "가랏! ~!" 멘트 후 등장 — 상대 쪽은 같은 시점에 "상대가 ~을(를)
                 // 내보냈다!" 멘트 후 등장하므로(switchAiToIndex) 함께하기에서 양쪽 타이밍이 맞음
@@ -1768,12 +1880,12 @@ function renderBattleSlots() {
     // 함께하기에서 선택 완료를 누른 뒤 상대가 아직 고르는 중이면 "대기 중"으로 바뀌고 회색 비활성화
     // (3마리를 덜 골랐을 때와 같은 :disabled 스타일)
     // 상대가 나가면 같은 자리에 끊김 안내를 보여주고 두 버튼 모두 비활성화(잠시 뒤 시작화면으로)
-    dexBattleDecideBtn.textContent = mpPickerDisconnected ? '상대와의 통신이 끊어졌습니다'
+    dexBattleDecideBtn.textContent = mpPickerEndText ? mpPickerEndText
         : mpPartyLocked ? '대기 중' : '선택 완료';
     dexBattleDecideBtn.disabled = mpPartyLocked || battleParty.length < 3;
     dexBattleRandomBtn.disabled = mpPartyLocked;
     // 끊김 안내 문구가 길어 랜덤 선택과 한 줄에 안 들어가므로(버튼 줄 폭 초과) 그동안만 랜덤 선택을 숨김
-    dexBattleRandomBtn.classList.toggle('hidden', mpPickerDisconnected);
+    dexBattleRandomBtn.classList.toggle('hidden', !!mpPickerEndText);
     markDexFormGridPartyCells();
 }
 
@@ -1868,7 +1980,11 @@ function beginBattle(opponentParty) {
     mpSelfPassStreak = 0;
     mpAwaitingOpponentAction = false;
     mpMyLoadSent = false;
+    mpBattleAnimating = false;
+    mpPendingTerminal = null;
     window.mpClearDeadlineTimer();
+    // 배틀(결과 화면 포함) 중에는 상대 presence가 끊긴 채 유예를 넘기면 끊김 판정
+    if (battleMode === 'pvp') window.mpSetPresenceGrace(true);
     battleParty.forEach(p => { p.hp = BATTLE_MON_MAX_HP; p.fainted = false; });
     aiParty = opponentParty;
     activeAiIndex = 0;
@@ -1932,9 +2048,9 @@ function beginBattle(opponentParty) {
     if (battleMode === 'pvp') {
         showBattleWaiting('불러오는 중...');
         window.mpStartDeadline(battleTurnTimerEl, MP_LOADED_TIMEOUT_MS, () => {
-            // 신호를 이미 보내서(mpMyLoadSent) 상대 신호를 기다리는 중이면 네트워크 여유를
-            // 주고, 아직 내 로딩 자체가 안 끝난 거면 여유 없이 곧바로 끊김 처리
-            if (mpMyLoadSent) { window.mpGraceThenDisconnect(); return; }
+            // 신호를 이미 보내서(mpMyLoadSent) 상대 신호를 기다리는 중이면 여유를 더 준 뒤 판정하고,
+            // 아직 내 로딩 자체가 안 끝난 거면(이미지마다 8초 제한이 있어 사실상 없음) 곧바로 끊김 처리
+            if (mpMyLoadSent) { window.mpPeerSlackThenJudge(); return; }
             window.mpForceDisconnect();
         });
         mpPreloadBattleAssets().then(battleCallback(() => {
@@ -1954,12 +2070,14 @@ function beginBattle(opponentParty) {
 // 배틀 중 교체할 때 쓰는 switchAiToIndex()를 그대로 재사용해서 "상대가 ~ 내보냈다!" 메시지가
 // 먼저 뜨고 그 다음에 포켓몬이 나타나도록 함(교체 연출과 완전히 동일)
 function playBattleIntro() {
+    if (battleMode === 'pvp') mpBattleAnimating = true;
     switchAiToIndex(0, () => {
         // 이어서 내 포켓몬 등장 — "가랏! ~!" 멘트 후 applyPlayerSwitch()로 뒷모습을 페이드인시킴
         // (applyPlayerSwitch가 뒷모습/이름/타입/hp바까지 전부 알아서 채워줌)
         const playerInfo = POKEMON_DATA[selectedBattleId] || { name: '???' };
         showBattleMessage(`가랏! ${playerInfo.name}!`, () => {
             applyPlayerSwitch(0, () => {
+                if (mpReachSafePoint()) return;
                 battleMessageBoxEl.classList.add('hidden');
                 battleMessageBoxEl.textContent = '';
                 battleMainMenuEl.classList.remove('hidden');
@@ -2109,12 +2227,13 @@ function resetBattlePreview() {
     battleTurnBusy = false;
     battleSwitchForced = false;
     pendingForcedSwitchCallback = null;
-    // 함께하기면 연결은 그대로 두고(다시하기 재대결용) 지난 배틀의 남은 메시지만 비움
-    if (battleMode === 'pvp') mpClearInbox();
+    // 함께하기 재대결은 연결을 그대로 두고 메시지 채널만 새로 씀(다시하기 핸들러의 mpNextMatch)
     battleMode = 'ai';
     mpTurn = 0;
     mpPartyLocked = false;
     mpRematchWaiting = false;
+    mpBattleAnimating = false;
+    mpPendingTerminal = null;
     battleResultRetryBtn.disabled = false;
     battleResultRetryBtn.textContent = '다시하기';
     aiParty = [];
@@ -2215,7 +2334,17 @@ battleResultRetryBtn.addEventListener('click', () => {
         battleResultRetryBtn.textContent = '대기 중';
         battleResultRetryBtn.disabled = true;
         mpSend('rematch');
+        // 상대가 결과 화면에 머문 채 응답하지 않으면 무한히 기다리지 않고 방을 나감
+        window.mpStartDeadline(battleTurnTimerEl, MP_REMATCH_TIMEOUT_MS, () => {
+            if (!mpRematchWaiting) return;
+            mpRematchWaiting = false;
+            battleResultRetryBtn.textContent = '상대가 응답하지 않습니다';
+            mpLeave();
+        });
         mpWaitFor('rematch', battleCallback(() => {
+            window.mpClearDeadlineTimer();
+            // 양쪽 다 동의 — 다음 대전용 새 메시지 채널로 옮긴 뒤 선택창으로
+            window.mpNextMatch();
             resetBattlePreview();
             openBattlePartyPicker();
         }));
@@ -2231,18 +2360,21 @@ function openBattlePartyPicker() {
     dexPickerMode = true;
     battleParty = [];
     mpPartyLocked = false;
-    mpPickerDisconnected = false;
+    mpPickerEndText = null;
     openDexModal(); // 검색창 초기화 + 목록 화면부터 시작 + 모달 표시(기존 도감 진입 로직 그대로)
     renderBattleSlots(); // 슬롯 3칸을 빈 상태로 되돌리고 결정 버튼도 같이 초기화
     updateDexPickerBarVisibility();
     // 화면에 들어오는 이 순간부터 개인 제한시간 시작 — 도감을 보며 고르는 시간과 고른 뒤
     // 상대를 기다리는 시간을 하나로 이어서 셈(선택 완료를 눌러도 리셋되지 않음)
     if (mp.active) {
+        // 파티 선택 단계는 presence 유예 대신 이 제한시간이 상한(로비에서 코드를 공유하느라 앱을
+        // 오가는 경우가 많음)
+        window.mpSetPresenceGrace(false);
         window.mpStartDeadline(dexWaitTimerEl, MP_PARTY_TIMEOUT_MS, () => {
-            // 선택 완료를 이미 눌러서(mpPartyLocked) 상대 파티를 기다리는 중이면 네트워크
-            // 여유를 주고, 아직 고르지도 못한 거면(내 로컬 얘기) 여유 없이 곧바로 끊김 처리
-            if (mpPartyLocked) { window.mpGraceThenDisconnect(); return; }
-            window.mpForceDisconnect();
+            // 선택 완료를 이미 눌러서(mpPartyLocked) 상대 파티를 기다리는 중이면 여유를 더 준 뒤
+            // 판정하고, 아직 고르지도 못한 거면(내 로컬 얘기) 곧바로 기권
+            if (mpPartyLocked) { window.mpPeerSlackThenJudge(); return; }
+            window.mpForfeit();
         });
     }
 }

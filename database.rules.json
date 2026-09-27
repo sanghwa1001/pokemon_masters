@@ -1,0 +1,54 @@
+{
+  "rules": {
+    "users": {
+      ".read": true,
+      ".write": true
+    },
+    "learningData": {
+      ".read": true,
+      ".write": true
+    },
+    "rooms": {
+      ".read": true,
+      ".indexOn": ["createdAt"],
+      "$code": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['host', 'status', 'createdAt'])",
+        "host": { ".validate": "newData.isString() && newData.val().length <= 64" },
+        "guest": { ".validate": "newData.isString() && newData.val().length <= 64" },
+        "status": { ".validate": "newData.val() === 'waiting' || newData.val() === 'playing'" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "presence": {
+          "$role": {
+            ".validate": "($role === 'host' || $role === 'guest') && newData.hasChildren(['online', 'lastSeen'])",
+            "online": { ".validate": "newData.isBoolean()" },
+            "lastSeen": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+        "end": {
+          ".validate": "newData.hasChildren(['reason', 'loser'])",
+          "reason": { ".validate": "newData.val() === 'forfeit'" },
+          "loser": { ".validate": "newData.val() === 'host' || newData.val() === 'guest'" },
+          "$other": { ".validate": false }
+        },
+        "match": {
+          "$n": {
+            "messages": {
+              "$msg": {
+                ".validate": "newData.hasChildren(['type', 'from', 'timestamp'])",
+                "type": { ".validate": "newData.isString() && newData.val().matches(/^(action|forcedSwitch|party|loaded|rematch|leave|commit|reveal|state)$/)" },
+                "from": { ".validate": "newData.isString() && newData.val().length <= 64" },
+                "timestamp": { ".validate": "newData.isNumber()" },
+                "data": { ".validate": true },
+                "$other": { ".validate": false }
+              }
+            },
+            "$other": { ".validate": false }
+          }
+        },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}

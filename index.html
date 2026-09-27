@@ -30,6 +30,8 @@
             <img id="game-login-logo" src="images/pokemon/layout/logo.png" alt="Pokemon Masters">
             <button id="btn-show-student-login" class="menu-item">학생 로그인</button>
             <button id="btn-show-admin-login" class="menu-item">관리자 로그인</button>
+            <!-- Firebase SDK(gstatic)를 제시간에 못 불러왔을 때 안내 — 평소엔 빈 줄(pokemon_multiplayer.js) -->
+            <div id="firebase-load-error" class="field-feedback error"></div>
         </div>
 
         <!-- 관리자 로그인 모달 -->
@@ -206,6 +208,9 @@
                  대칭 위치·여백. 혼자하기에서는 항상 hidden, 대기 중일 때만 pokemon_multiplayer.js/
                  pokemon_battle.js가 표시함(캐치 게임 #game-timer와 같은 MM:SS 스타일) -->
             <div id="battle-turn-timer" class="hidden"></div>
+            <!-- 함께하기 연결 상태 아이콘 — 닫기(×) 버튼 바로 왼쪽. 매칭 중에만 보이고, 내 연결 또는
+                 상대 presence가 끊기면 끊김 신호로 바뀜(pokemon_multiplayer.js mpUpdateSignalIcon) -->
+            <div class="mp-signal-icon hidden"></div>
             <div id="battle-back-sprite-box"><div id="battle-back-sprite"></div></div>
             <div id="battle-back-shiny-effect" class="hidden"></div>
             <!-- 내 포켓몬 쪽 랭크업(칼춤)/회복(HP회복) 이펙트 — 이로치 이펙트와 같은 방식. 내 hp바/이름표
@@ -308,6 +313,7 @@
             <div id="dex-box">
                 <!-- 함께하기 파티 선택 대기 제한시간 — dex-close-btn(×)과 대칭 위치·여백 -->
                 <div id="dex-wait-timer" class="hidden"></div>
+                <div class="mp-signal-icon hidden"></div>
                 <!-- 도감 본문 전체(헤더~치트 페이지)를 감싸는 래퍼 — 일반 도감 모드일 때의 #dex-box
                      콘텐츠 영역과 정확히 같은 고정 높이를 가져서, 배틀 선택 모드에서 슬롯 바가 이
                      영역을 줄이지 않고 #dex-box 자체가 그만큼 더 길어지게 함(style.css #dex-core 참고) -->
