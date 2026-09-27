@@ -417,18 +417,43 @@ studentRegisterFileEl.addEventListener('change', (e) => {
 
 
 // ===================== 관리자: 학생 관리 =====================
-// 위는 등록된 학생 목록(보기 전용), 아래는 도감 초기화 페이지와 같은 모양의 삭제 줄
+// 도감 목록과 같은 구성 — 위쪽 줄 "전체 선택"(도감의 "잡음"과 같은 체크박스) + 인원수, 각 줄 왼쪽
+// 체크박스로 골라 아래 "삭제하기"로 삭제
 
 const studentListContainer = document.getElementById('student-list-container');
 const studentCountEl = document.getElementById('student-count');
-const studentDeleteInputEl = document.getElementById('student-delete-input');
-const studentDeleteBtn = document.getElementById('btn-delete-student');
+const studentSelectAllEl = document.getElementById('student-select-all');
+const studentDeleteBtn = document.getElementById('btn-delete-students');
 const studentDeleteFeedbackEl = document.getElementById('student-delete-feedback');
 
-// 한 줄: 이름(없으면 "이름 없음") · 아직 로그인 전이면 "미접속" / 둘째 줄 아이디(이메일)
-function renderStudentRow({ data }) {
-    const row = document.createElement('div');
+function studentCheckboxes() {
+    return Array.from(studentListContainer.querySelectorAll('.admin-row-check'));
+}
+
+// "전체 선택" 상태와 삭제하기 버튼(한 명 이상 골랐을 때만 누를 수 있음)을 목록에 맞춤
+function updateStudentSelectionUI() {
+    const boxes = studentCheckboxes();
+    const checked = boxes.filter(b => b.checked).length;
+    studentSelectAllEl.checked = boxes.length > 0 && checked === boxes.length;
+    studentSelectAllEl.indeterminate = checked > 0 && checked < boxes.length;
+    studentSelectAllEl.disabled = boxes.length === 0;
+    studentDeleteBtn.disabled = checked === 0;
+}
+
+// 한 줄: [체크박스] 이름(없으면 "이름 없음") · 아직 로그인 전이면 "미접속" / 둘째 줄 아이디(이메일).
+// 줄 전체가 label이라 줄 아무 곳이나 눌러도 선택됨
+function renderStudentRow({ key, data }) {
+    const row = document.createElement('label');
     row.className = 'admin-row admin-student-row';
+
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'admin-row-check';
+    box.dataset.key = key;
+    box.dataset.email = data.email;
+    if (data.uid) box.dataset.uid = data.uid;
+    box.addEventListener('change', updateStudentSelectionUI);
+    row.appendChild(box);
 
     const text = document.createElement('span');
     text.className = 'admin-row-name';
@@ -452,72 +477,60 @@ function renderStudentRow({ data }) {
 
 async function loadStudentList() {
     studentListContainer.innerHTML = '로딩 중...';
-    studentCountEl.textContent = '';
+    updateStudentSelectionUI();
     try {
         const snapshot = await get(ref(db, 'allowedStudents'));
         const entries = Object.entries(snapshot.val() || {})
             .map(([key, data]) => ({ key, data }))
             .sort((a, b) => (a.data.name || a.data.email).localeCompare(b.data.name || b.data.email, 'ko'));
-        studentCountEl.textContent = `등록된 학생 ${entries.length}명`;
-        renderAdminList(studentListContainer, entries, '등록된 학생이 없습니다.', renderStudentRow);
+        studentCountEl.textContent = `${entries.length}명`;
+        renderAdminList(studentListContainer, entries, '등록된 학생이 없습니다', renderStudentRow);
     } catch (e) {
         console.error(e);
-        studentListContainer.innerHTML = '<div class="admin-row-empty">학생 목록을 불러오지 못했습니다.</div>';
+        studentCountEl.textContent = '0명';
+        studentListContainer.innerHTML = '<div class="admin-row-empty">학생 목록을 불러올 수 없습니다</div>';
     }
+    updateStudentSelectionUI();
 }
 
 document.getElementById('btn-admin-manage-students').addEventListener('click', () => {
     setFieldFeedback(studentDeleteFeedbackEl, '');
-    studentDeleteInputEl.value = '';
     showModal(adminStudentManageModal);
     loadStudentList();
 });
 
-// 입력한 이메일의 학생을 명단(allowedStudents)과 학생 데이터(students/{uid} — 도감·선택한 학습
-// 데이터)에서 한 번에 삭제. 학생 데이터는 명단에 기록된 uid뿐 아니라 이메일로도 찾아서, uid 기록이
-// 빠져 있어도 데이터가 남지 않게 함. 구글 로그인 기록(Authentication 사용자 목록)은 브라우저에서
-// 지울 수 없어 남지만, 명단에서 빠졌으므로 더 이상 로그인할 수 없음
-async function deleteStudentByEmail() {
-    const email = studentDeleteInputEl.value.trim().toLowerCase();
-    if (!email) {
-        setFieldFeedback(studentDeleteFeedbackEl, '이메일을 입력해주세요', 'error');
-        return;
-    }
-    if (!EMAIL_RE.test(email)) {
-        setFieldFeedback(studentDeleteFeedbackEl, '올바르지 않은 이메일입니다', 'error');
-        return;
-    }
+studentSelectAllEl.addEventListener('change', () => {
+    studentCheckboxes().forEach(b => { b.checked = studentSelectAllEl.checked; });
+    updateStudentSelectionUI();
+});
+
+// 고른 학생들을 명단(allowedStudents)과 학생 데이터(students/{uid} — 도감·선택한 학습 데이터)에서
+// 한 번에 삭제. 학생 데이터는 명단에 기록된 uid뿐 아니라 이메일로도 찾아서, uid 기록이 빠져 있어도
+// 데이터가 남지 않게 함. 구글 로그인 기록(Authentication 사용자 목록)은 브라우저에서 지울 수 없어
+// 남지만, 명단에서 빠졌으므로 더 이상 로그인할 수 없음
+studentDeleteBtn.addEventListener('click', async () => {
+    const selected = studentCheckboxes().filter(b => b.checked);
+    if (!selected.length) return;
+    if (!confirm(`${selected.length}명을 삭제하시겠습니까?\n도감 기록도 함께 삭제되며 되돌릴 수 없습니다`)) return;
+
     studentDeleteBtn.disabled = true;
     setFieldFeedback(studentDeleteFeedbackEl, '삭제 중...');
     try {
-        const key = emailKeyOf(email);
-        const entry = (await get(ref(db, `allowedStudents/${key}`))).val();
-        const uids = new Set();
-        if (entry && entry.uid) uids.add(entry.uid);
-        const byEmail = await get(query(ref(db, 'students'), orderByChild('email'), equalTo(email)));
-        byEmail.forEach(child => { uids.add(child.key); });
-
-        if (!entry && !uids.size) {
-            setFieldFeedback(studentDeleteFeedbackEl, '등록되지 않은 이메일입니다', 'error');
-        } else {
-            // 여러 경로를 한 번에 지우는 다중 경로 update — 중간에 실패해도 일부만 지워지지 않음
-            const updates = { [`allowedStudents/${key}`]: null };
-            uids.forEach(uid => { updates[`students/${uid}`] = null; });
-            await update(ref(db), updates);
-            setFieldFeedback(studentDeleteFeedbackEl, '학생이 삭제되었습니다', 'success');
-            studentDeleteInputEl.value = '';
-            loadStudentList();
-        }
+        const updates = {};
+        await Promise.all(selected.map(async (b) => {
+            updates[`allowedStudents/${b.dataset.key}`] = null;
+            if (b.dataset.uid) updates[`students/${b.dataset.uid}`] = null;
+            const byEmail = await get(query(ref(db, 'students'), orderByChild('email'), equalTo(b.dataset.email)));
+            byEmail.forEach(child => { updates[`students/${child.key}`] = null; });
+        }));
+        // 여러 경로를 한 번에 지우는 다중 경로 update — 중간에 실패해도 일부만 지워지지 않음
+        await update(ref(db), updates);
+        setFieldFeedback(studentDeleteFeedbackEl, `${selected.length}명이 삭제되었습니다`, 'success');
     } catch (e) {
         console.error(e);
         setFieldFeedback(studentDeleteFeedbackEl, '삭제하지 못했습니다', 'error');
     }
-    studentDeleteBtn.disabled = false;
-}
-
-studentDeleteBtn.addEventListener('click', deleteStudentByEmail);
-studentDeleteInputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); deleteStudentByEmail(); }
+    loadStudentList();
 });
 
 

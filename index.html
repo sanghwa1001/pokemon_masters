@@ -50,22 +50,24 @@
             <button id="btn-admin-logout" class="menu-item">로그아웃</button>
         </div>
 
-        <!-- 학생 관리 창 (관리자용) — 위: 등록된 학생 목록(이름·아이디 두 줄, 보기 전용).
-             아래: 도감 초기화 페이지와 같은 모양의 삭제 줄 — 학생 이메일을 직접 입력하고 삭제를 누르면
-             명단과 학생 데이터(도감 등)가 함께 지워짐(입력 자체가 확인 역할이라 별도 확인 창 없음) -->
+        <!-- 학생 관리 창 (관리자용) — 도감 목록과 같은 구성: 위쪽 줄 왼쪽에 "전체 선택" 체크박스(도감의
+             "잡음"과 같은 모양), 오른쪽에 인원수. 각 학생 줄(이름·아이디 두 줄) 왼쪽 체크박스로 고르고
+             아래 "삭제하기"를 누르면 명단과 학생 데이터(도감 등)가 함께 지워짐 -->
         <div id="admin-student-manage-modal" class="mp-modal hidden">
             <div class="mp-box">
                 <button id="admin-student-manage-close-btn" class="quiz-close-btn">×</button>
                 <div class="mp-title">학생 관리</div>
-                <div id="student-count" class="admin-count"></div>
+                <div class="admin-count-bar">
+                    <label class="dex-owned-only-label">
+                        <input type="checkbox" id="student-select-all">
+                        <span>전체 선택</span>
+                    </label>
+                    <div id="student-count" class="admin-count-text">0명</div>
+                </div>
                 <div id="student-list-container" class="admin-list">
                     <!-- 학생 목록이 동적으로 추가됨 -->
                 </div>
-                <div class="admin-delete-title">학생 삭제</div>
-                <div class="admin-delete-row">
-                    <input type="email" id="student-delete-input" class="dex-cheat-input" placeholder="삭제할 학생 이메일 입력" autocomplete="off" autocapitalize="off" spellcheck="false">
-                    <button id="btn-delete-student" class="dex-settings-action-btn dex-cheat-apply-btn dex-danger">삭제</button>
-                </div>
+                <button id="btn-delete-students" class="dex-settings-action-btn dex-danger" disabled>삭제하기</button>
                 <div id="student-delete-feedback" class="admin-delete-feedback"></div>
             </div>
         </div>

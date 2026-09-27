@@ -1335,8 +1335,7 @@ html, body {
 
 #dex-settings-title,
 #dex-reset-page-title,
-#dex-cheat-page-title,
-.admin-delete-title {
+#dex-cheat-page-title {
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 0.5px;
@@ -1372,7 +1371,13 @@ html, body {
     color: #fff;
 }
 
-.dex-settings-action-btn.dex-danger:hover {
+.dex-settings-action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.dex-settings-action-btn.dex-danger:hover:not(:disabled) {
     background-color: #ff6b81;
 }
 
@@ -1381,8 +1386,7 @@ html, body {
    입력 후 버튼 클릭, 전용 취소 버튼 없이 뒤로가기로 복귀)을 쓰므로 레이아웃도 하나의 규칙으로
    공유함 */
 #dex-cheat-row,
-#dex-reset-row,
-.admin-delete-row {
+#dex-reset-row {
     display: flex;
     gap: 8px;
     align-items: center;
@@ -2225,13 +2229,42 @@ html, body {
     word-break: keep-all;
 }
 
-.admin-count {
-    font-size: 12px;
-    letter-spacing: 0.3px;
-    color: #666;
+/* 학생 관리 목록 위 "전체 선택 / N명" 줄 — 도감의 "잡음 / 1025/1025" 줄(#dex-count-bar,
+   #dex-count-text)과 같은 크기·여백. 체크박스와 글자는 .dex-owned-only-label을 그대로 씀 */
+.admin-count-bar {
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 4px;
+    box-sizing: border-box;
 }
 
-/* 학생 한 줄 — 이름 / 아이디(이메일) 두 줄(보기 전용). 칸 모양은 학습 데이터 관리 목록(.admin-row)과 같음 */
+.admin-count-text {
+    flex-shrink: 0;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: #666;
+    text-align: right;
+}
+
+/* 학생 한 줄 — [체크박스] 이름 / 아이디(이메일) 두 줄. 칸 모양은 학습 데이터 관리 목록(.admin-row)과
+   같고, 체크박스는 도감 "잡음" 체크박스(.dex-owned-only-label input)와 같은 크기·색 */
+.admin-student-row {
+    cursor: pointer;
+    user-select: none;
+}
+
+.admin-row-check {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    margin: 0 10px 0 0;
+    accent-color: #1a1a1a;
+    cursor: pointer;
+}
+
 .admin-student-row .admin-row-name {
     display: flex;
     flex-direction: column;
