@@ -435,6 +435,8 @@ const MP_FORCED_SWITCH_TIMEOUT_MS = 60000;
 const MP_PARTY_TIMEOUT_MS = 100000;
 const MP_LOADED_TIMEOUT_MS = 100000;
 let mpPartyLocked = false;   // 함께하기 선택창에서 "선택 완료"를 누르고 상대를 기다리는 중(파티 수정 불가)
+let mpMyLoadSent = false;    // 내 배틀 에셋 로딩을 끝내고 'loaded' 신호를 이미 보냈는지(상대
+                              // 신호를 기다리는 중인지) — 이것도 켜져 있으면 네트워크 여유를 줌
 let mpRematchWaiting = false; // 함께하기 결과 화면에서 "다시하기"를 누르고 상대를 기다리는 중
 let mpPickerDisconnected = false; // 함께하기 선택창에서 상대가 나가 끊김 안내를 보여주는 중(잠시 뒤 시작화면으로)
 // 선택창 끊김 안내(버튼 글자라 즉시 다 보임)를 보여준 뒤 시작화면으로 넘어가기까지의 시간(ms) — 사용자 지정으로
@@ -1303,7 +1305,7 @@ function startMyActionDeadline() {
         // 여기까지 왔다는 건, 상대가 자기 제한시간을 넘겼는데도(그래서 상대 쪽에서 자동
         // 패스/끊김 처리가 됐어야 함) 그 메시지조차 이쪽에 안 왔다는 뜻 — 상대가 사라진
         // 것으로 보고 곧바로 끊김 처리
-        if (mpAwaitingOpponentAction) { window.mpForceDisconnect(); return; }
+        if (mpAwaitingOpponentAction) { window.mpGraceThenDisconnect(); return; }
         mpSelfPassStreak++;
         if (mpSelfPassStreak >= 2) { window.mpForceDisconnect(); return; }
         startPlayerTurn('pass');
@@ -1446,8 +1448,9 @@ function mpResolveTurn(myAction, oppAction, rolls) {
 // 상대 포켓몬이 기절했을 때 — 상대가 강제 교체 메뉴에서 고른 포켓몬이 올 때까지 기다렸다가 내보냄
 function mpWaitForcedSwitch(onDone) {
     showBattleWaiting('통신 대기 중...');
+    // 이 쪽은 항상 "상대의 선택을 기다리는" 상황이라 그레이스를 바로 적용
     window.mpStartDeadline(battleTurnTimerEl, MP_FORCED_SWITCH_TIMEOUT_MS, () => {
-        window.mpForceDisconnect();
+        window.mpGraceThenDisconnect();
     });
     mpWaitFor('forcedSwitch', battleCallback((data) => {
         window.mpClearDeadlineTimer();
@@ -1864,6 +1867,7 @@ function beginBattle(opponentParty) {
     mpMissStreak = 0;
     mpSelfPassStreak = 0;
     mpAwaitingOpponentAction = false;
+    mpMyLoadSent = false;
     window.mpClearDeadlineTimer();
     battleParty.forEach(p => { p.hp = BATTLE_MON_MAX_HP; p.fainted = false; });
     aiParty = opponentParty;
@@ -1928,9 +1932,13 @@ function beginBattle(opponentParty) {
     if (battleMode === 'pvp') {
         showBattleWaiting('불러오는 중...');
         window.mpStartDeadline(battleTurnTimerEl, MP_LOADED_TIMEOUT_MS, () => {
+            // 신호를 이미 보내서(mpMyLoadSent) 상대 신호를 기다리는 중이면 네트워크 여유를
+            // 주고, 아직 내 로딩 자체가 안 끝난 거면 여유 없이 곧바로 끊김 처리
+            if (mpMyLoadSent) { window.mpGraceThenDisconnect(); return; }
             window.mpForceDisconnect();
         });
         mpPreloadBattleAssets().then(battleCallback(() => {
+            mpMyLoadSent = true;
             mpSend('loaded');
             mpWaitFor('loaded', battleCallback(() => {
                 window.mpClearDeadlineTimer();
@@ -2231,6 +2239,9 @@ function openBattlePartyPicker() {
     // 상대를 기다리는 시간을 하나로 이어서 셈(선택 완료를 눌러도 리셋되지 않음)
     if (mp.active) {
         window.mpStartDeadline(dexWaitTimerEl, MP_PARTY_TIMEOUT_MS, () => {
+            // 선택 완료를 이미 눌러서(mpPartyLocked) 상대 파티를 기다리는 중이면 네트워크
+            // 여유를 주고, 아직 고르지도 못한 거면(내 로컬 얘기) 여유 없이 곧바로 끊김 처리
+            if (mpPartyLocked) { window.mpGraceThenDisconnect(); return; }
             window.mpForceDisconnect();
         });
     }

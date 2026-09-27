@@ -106,14 +106,16 @@ function mpGenerateCode() {
 // 배틀 액션 선택/강제 교체/파티 선택/불러오기 신호 대기, 4곳 전부 이 하나의 타이머로 처리함
 // (동시에 두 곳이 겹칠 일이 없으므로 공유해도 안전). 카운트다운 표시는 캐치 게임의
 // #game-timer와 같은 MM:SS 스타일이고, 위치는 각 화면의 닫기(×) 버튼과 대칭.
-// 서버 없이 각자 클라이언트가 자기 로컬 시계로 판정하는 구조라, 상대가 자기 제한시간이 끝나는
-// "그 순간" 보낸 메시지가 아직 네트워크로 오는 중인데 내 쪽이 먼저 다 돼서 억울하게 끊기는
-// 경우가 생길 수 있음 — 그걸 흡수하기 위한 여유(grace). 화면에 보이는 카운트다운은 그대로
-// durationMs 기준으로 00:00까지 가고, 실제 처리(onTimeout)만 이만큼 더 늦게 실행함
+//
+// "내가 아직 결정 못 함"(자동 패스 등)은 네트워크와 무관한 내 로컬 얘기라 여유 없이 정확히
+// durationMs에 처리함. 반대로 "상대의 메시지를 기다리는 중"(이미 내 몫은 끝냄)일 때는, 상대가
+// 자기 제한시간이 끝나는 "그 순간" 보낸 메시지가 아직 네트워크로 오는 중일 수 있어서, 곧바로
+// 끊지 않고 아래 mpGraceThenDisconnect()로 한 번 더 짧게 기다려줌 — 호출하는 쪽(pokemon_battle.js)
+// 이 지금이 "내 결정" 상황인지 "상대 대기" 상황인지 구분해서 둘 중 하나를 씀
 // ※ 나중에 서버 로직(예: Cloud Functions 등)이 생겨서 "누구 시계가 먼저 끝나느냐" 경쟁 없이
-// 서버 시계로 최종 판정하게 되면 이 여유값은 존재 이유가 없어짐 — 그때는 지우고 서버 판정을
+// 서버 시계로 최종 판정하게 되면 이 여유(grace) 자체가 필요 없어짐 — 그때는 지우고 서버 판정을
 // 그대로 따르는 구조로 바꿔야 함
-const MP_NETWORK_GRACE_MS = 3000;
+const MP_NETWORK_GRACE_MS = 1500;
 let mpDeadlineTimeout = null;
 let mpDeadlineInterval = null;
 let mpDeadlineEl = null;
@@ -148,7 +150,15 @@ window.mpStartDeadline = function(el, durationMs, onTimeout) {
         mpDeadlineTimeout = null;
         window.mpClearDeadlineTimer();
         onTimeout();
-    }, durationMs + MP_NETWORK_GRACE_MS);
+    }, durationMs);
+}
+
+// "상대의 메시지를 기다리는 중" 상황에서만 씀 — 화면엔 아무것도 안 보이는 채로 네트워크 여유
+// (MP_NETWORK_GRACE_MS)만큼 한 번 더 기다렸다가, 그래도 메시지가 안 오면 끊김 처리. 그 사이
+// 메시지가 오면 기존과 동일하게 mpClearDeadlineTimer()로 취소됨(mpStartDeadline을 그대로
+// 재사용해서 같은 취소 경로를 씀)
+window.mpGraceThenDisconnect = function() {
+    window.mpStartDeadline(null, MP_NETWORK_GRACE_MS, () => { window.mpForceDisconnect(); });
 }
 
 function mpTeardown() {
@@ -368,7 +378,3 @@ function setupMessageListener(code) {
 }
 
 
-
-window.addEventListener('pagehide', () => {
-    if (window.mp.active) window.mpLeave();
-});
