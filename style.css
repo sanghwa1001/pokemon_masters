@@ -110,8 +110,7 @@ html, body {
     transform-origin: center center; /* 반응형 스케일링(JS) 시 중앙 기준으로 확대/축소 */
 }
 
-/* 시작 화면 / 결과 화면 / 일시정지 화면 (공통 오버레이 레이아웃) */
-#start-screen,
+/* 결과 화면 / 일시정지 화면 (공통 오버레이 레이아웃) — 시작 화면은 .home-screen 참고 */
 #result-screen,
 #pause-modal {
     position: absolute;
@@ -1995,15 +1994,20 @@ html, body {
 }
 
 /* ===================== 함께하기(1:1 대전) — pokemon_multiplayer.js ===================== */
-/* "포켓몬 배틀" 하위 메뉴(혼자하기/함께하기, 초대 코드 생성/입력) — 시작화면(#start-screen)과
-   완전히 같은 레이아웃(흰 반투명 배경 위 세로로 나열된 글자 버튼)이라 그 자리를 그대로 대신함 */
-.start-submenu {
+/* 홈 계열 화면 공통 — 로그인 / 학생 시작화면 / 관리자 대시보드 / 배틀 하위 메뉴(혼자하기·함께하기,
+   초대 코드). 화면마다 메뉴 개수·안내 문구가 달라도 로고와 첫 버튼이 항상 같은 자리에 오도록,
+   가운데 정렬 대신 위에서부터 고정 여백(--home-top)으로 쌓음. 여백 값은 기존 학생 시작화면의
+   로고 위치(111px)에 맞춤 */
+.home-screen {
+    --home-top: 111px;
     position: absolute;
     width: 100%;
     height: 100%;
+    box-sizing: border-box;
+    padding-top: var(--home-top);
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     gap: 20px;
     background-color: rgba(255, 255, 255, 0.9);
@@ -2108,12 +2112,14 @@ html, body {
     touch-action: pan-y !important;
 }
 
-/* 게임 메인 로고 (시작 화면 및 로그인 화면) */
-#game-main-logo,
-#game-login-logo {
+/* 게임 로고 — 홈 계열 화면(.home-screen) 전부 같은 크기·같은 자리. 원본 비율(3404×1552)을 미리
+   잡아 둬서, 이미지가 늦게 불러와져도 아래 버튼들이 밀려 내려가며 흔들리지 않음 */
+.home-logo {
     width: 85%;
     max-width: 320px;
     height: auto;
+    aspect-ratio: 3404 / 1552;
+    flex-shrink: 0;
     margin-bottom: 30px; /* 로고와 버튼들 사이의 간격을 좀 더 넓게 */
 }
 

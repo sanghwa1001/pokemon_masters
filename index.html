@@ -27,8 +27,8 @@
     <div id="game-container">
         <!-- 메인 로그인 화면 — 학생·관리자 모두 구글 계정 하나로 로그인하고, 역할은 이메일로 자동
              판단함(auth_manager.js). 로그인 상태를 확인하는 동안엔 버튼 대신 안내 문구만 보임 -->
-        <div id="login-screen" class="start-submenu">
-            <img id="game-login-logo" src="images/pokemon/layout/logo.png" alt="Pokemon Masters">
+        <div id="login-screen" class="home-screen">
+            <img class="home-logo" src="images/pokemon/layout/logo.png" alt="Pokemon Masters">
             <button id="btn-google-login" class="menu-item hidden">Google로 로그인</button>
             <!-- 카카오톡 등 앱 안의 브라우저에서는 구글이 로그인을 막으므로 외부 브라우저로 안내 -->
             <div id="inapp-browser-notice" class="login-notice hidden">
@@ -41,7 +41,8 @@
         </div>
 
         <!-- 관리자 대시보드 화면 -->
-        <div id="admin-dashboard-screen" class="start-submenu hidden">
+        <div id="admin-dashboard-screen" class="home-screen hidden">
+            <img class="home-logo" src="images/pokemon/layout/logo.png" alt="Pokemon Masters">
             <button id="btn-admin-create-student" class="menu-item">학생 등록</button>
             <button id="btn-admin-manage-students" class="menu-item">학생 관리</button>
             <button id="btn-admin-upload-data" class="menu-item">학습 데이터 업로드</button>
@@ -121,8 +122,8 @@
             </div>
         </div>
 
-        <div id="start-screen" class="hidden">
-            <img id="game-main-logo" src="images/pokemon/layout/logo.png" alt="Pokemon Masters">
+        <div id="start-screen" class="home-screen hidden">
+            <img class="home-logo" src="images/pokemon/layout/logo.png" alt="Pokemon Masters">
             <button id="btn-select-learning-data" class="menu-item">학습 데이터 선택</button>
             <button id="start-btn" class="menu-item" disabled>포켓몬 포획</button>
             <button id="battle-btn" class="menu-item">포켓몬 배틀</button>
@@ -132,12 +133,14 @@
 
         <!-- "포켓몬 배틀"을 누르면 시작화면 대신 뜨는 하위 메뉴(시작화면과 같은 레이아웃) —
              혼자하기(AI 트레이너) / 함께하기(초대 코드로 1:1 대전, pokemon_multiplayer.js) -->
-        <div id="battle-mode-menu" class="start-submenu hidden">
+        <div id="battle-mode-menu" class="home-screen hidden">
+            <img class="home-logo" src="images/pokemon/layout/logo.png" alt="Pokemon Masters">
             <button id="battle-solo-btn" class="menu-item">혼자하기</button>
             <button id="battle-together-btn" class="menu-item">함께하기</button>
             <button id="battle-mode-back-btn" class="menu-item">뒤로가기</button>
         </div>
-        <div id="battle-together-menu" class="start-submenu hidden">
+        <div id="battle-together-menu" class="home-screen hidden">
+            <img class="home-logo" src="images/pokemon/layout/logo.png" alt="Pokemon Masters">
             <button id="mp-create-btn" class="menu-item">초대 코드 생성하기</button>
             <button id="mp-join-btn" class="menu-item">초대 코드 입력</button>
             <button id="battle-together-back-btn" class="menu-item">뒤로가기</button>
