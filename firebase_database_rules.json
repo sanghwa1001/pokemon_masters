@@ -102,10 +102,10 @@
               "$msg": {
                 ".validate": "newData.hasChildren(['type', 'from', 'timestamp'])",
                 "type": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(action|forcedSwitch|party|loaded|rematch|leave|commit|reveal|state)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(action|forcedSwitch|party|loaded|rematch|leave|commit|reveal|state|snapshot)$/)"
                 },
                 "from": {
-                  ".validate": "newData.isString() && newData.val().length <= 64"
+                  ".validate": "newData.val() === 'host' || newData.val() === 'guest'"
                 },
                 "timestamp": {
                   ".validate": "newData.isNumber()"
@@ -117,6 +117,42 @@
                   ".validate": false
                 }
               }
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "sid": {
+          "$role": {
+            ".validate": "($role === 'host' || $role === 'guest') && newData.isString() && newData.val().length <= 64"
+          }
+        },
+        "rejoin": {
+          "$role": {
+            ".validate": "($role === 'host' || $role === 'guest') && newData.hasChildren(['sid', 'at'])",
+            "sid": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "resync": {
+          "$role": {
+            ".validate": "($role === 'host' || $role === 'guest') && newData.hasChildren(['sid', 'n', 'at'])",
+            "sid": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "n": {
+              ".validate": "newData.isNumber()"
+            },
+            "at": {
+              ".validate": "newData.isNumber()"
             },
             "$other": {
               ".validate": false

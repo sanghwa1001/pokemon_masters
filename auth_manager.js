@@ -206,6 +206,15 @@ async function routeSignedInUser(user, token) {
         const adminSnap = await get(ref(db, `admins/${key}`));
         if (token !== authRouteToken) return;
         if (adminSnap.val() === true) {
+            // 관리자가 학생 모드로 대전하다 새로고침했으면 대시보드 대신 학생 모드로 바로 복귀
+            const activeRoom = (await get(ref(db, `students/${user.uid}/activeRoom`)).catch(() => null));
+            if (token !== authRouteToken) return;
+            if (activeRoom && activeRoom.val()) {
+                adminStudentMode = true;
+                studentLogoutBtn.textContent = '관리자 메뉴';
+                await startStudentSession(user, user.displayName || '', token);
+                return;
+            }
             enterAdmin();
             return;
         }
@@ -266,10 +275,22 @@ async function startStudentSession(user, name, token) {
     }
 
     window.currentStudentId = uid;
-    setFieldFeedback(loginFeedbackEl, '');
-    switchScreen(startScreen);
-
     if (data.pokedex && window.loadPokedexFromFirebase) window.loadPokedexFromFirebase(data.pokedex);
+
+    // 진행 중이던 함께하기 대전이 있으면(새로고침·탭 닫힘) 자동으로 복귀 — 그동안은 지금 화면
+    // ("계정 확인 중...")을 그대로 두고, 복귀에 성공하면 복원된 배틀/선택 화면이 바로 보이게 함.
+    // 복귀할 수 없으면(시간 초과·방 없음) 문구 없이 평소처럼 시작화면
+    let rejoined = false;
+    if (data.activeRoom && window.mpTryRejoin) {
+        rejoined = await window.mpTryRejoin(data.activeRoom);
+        if (token !== authRouteToken) return;
+    }
+    setFieldFeedback(loginFeedbackEl, '');
+    if (rejoined) {
+        [loginScreen, startScreen, adminDashboard].forEach(el => el && el.classList.add('hidden'));
+    } else {
+        switchScreen(startScreen);
+    }
 
     // 이전에 선택해둔 학습 데이터가 있으면 다시 고르지 않아도 자동으로 적용
     // (선택을 바꾸기 전까지는 계정에 남아있어 다음 로그인에도 계속 유지됨)
