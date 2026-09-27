@@ -1900,7 +1900,7 @@ function attackEffPreview(mult) {
 
 // 아직 전장에 나오지 않아 플레이어가 모르는 상대 포켓몬인지(내 파티 엔트리엔 known 필드가 없어 해당 없음)
 const isStatusUnknown = (entry) => !!entry && entry.known === false;
-const STATUS_UNKNOWN_SPRITE_SRC = 'images/pokemon/layout/16b594c1fd07.png';
+const STATUS_UNKNOWN_SPRITE_SRC = 'images/pokemon/layout/random.png';
 const STATUS_TYPE_BADGE_HEIGHT = 13; // px, .battle-status-types .type-badge(style.css)와 반드시 일치
 
 function renderBattleStatusSlots(slotEls, controller, party) {
