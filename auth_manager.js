@@ -237,6 +237,21 @@ document.getElementById('btn-student-login').addEventListener('click', async () 
             }
         }
         
+        // 이전에 선택해둔 학습 데이터가 있으면 다시 고르지 않아도 자동으로 적용
+        // (선택을 바꾸기 전까지는 계정에 남아있어 다음 로그인에도 계속 유지됨)
+        if (userData.selectedDataId) {
+            try {
+                const dataSnapshot = await get(ref(db, `learningData/${userData.selectedDataId}`));
+                if (dataSnapshot.exists() && window.applyLearningData) {
+                    const data = dataSnapshot.val();
+                    window.applyLearningData(data.questions, data.title);
+                    document.getElementById('btn-select-learning-data').textContent = "학습 데이터 변경";
+                }
+            } catch (e) {
+                console.error('저장된 학습 데이터 불러오기 실패', e);
+            }
+        }
+        
     } catch (e) {
         console.error(e);
         setFieldFeedback(feedbackEl, '로그인 실패: ' + e.message, 'error');
@@ -247,6 +262,10 @@ document.getElementById('btn-student-logout').addEventListener('click', () => {
     window.currentStudentId = null;
     // Pokedex 초기화 (로그아웃 시 로컬 도감을 비워야 함)
     if (window.resetPokedexLocal) window.resetPokedexLocal();
+    // 학습 데이터 선택 화면 표시도 초기화 — 실제 선택 기록(selectedDataId)은 계정에 남아있으므로
+    // 다음에 같은 계정으로 로그인하면 다시 자동으로 적용됨
+    if (window.resetLearningDataLocal) window.resetLearningDataLocal();
+    document.getElementById('btn-select-learning-data').textContent = "학습 데이터 선택";
     switchScreen(loginScreen);
 });
 
@@ -264,6 +283,7 @@ document.getElementById('btn-select-learning-data').addEventListener('click', ()
         }
         
         snapshot.forEach((childSnapshot) => {
+            const dataId = childSnapshot.key;
             const data = childSnapshot.val();
             
             const row = document.createElement('div');
@@ -277,6 +297,12 @@ document.getElementById('btn-select-learning-data').addEventListener('click', ()
             row.onclick = () => {
                 if (window.applyLearningData) {
                     window.applyLearningData(data.questions, data.title);
+                }
+                // 선택한 데이터를 계정에 저장 — 다음에 로그인해도 다시 고르지 않아도 됨
+                if (window.currentStudentId && window.firebaseDb && window.firebaseUpdate) {
+                    window.firebaseUpdate(window.firebaseRef(window.firebaseDb, `users/${window.currentStudentId}`), {
+                        selectedDataId: dataId
+                    }).catch(e => console.error('학습 데이터 선택 저장 실패', e));
                 }
                 hideModal(studentDataSelectModal);
                 document.getElementById('btn-select-learning-data').textContent = "학습 데이터 변경";

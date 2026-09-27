@@ -74,6 +74,14 @@ window.applyLearningData = function(questions, title) {
     if(startBtn) startBtn.disabled = false;
 };
 
+// 로그아웃 시 화면 표시용 학습 데이터 선택 상태를 비움(계정에 저장된 선택 기록 자체는
+// 그대로 남아있어서, 다음에 로그인하면 auth_manager.js가 다시 자동으로 applyLearningData를 불러줌)
+window.resetLearningDataLocal = function() {
+    wordList = [];
+    const startBtn = document.getElementById('start-btn');
+    if (startBtn) startBtn.disabled = true;
+};
+
 // ===================== 4지선다 퀴즈 =====================
 
 let currentQuiz = null; // { en, correctKr, options }
