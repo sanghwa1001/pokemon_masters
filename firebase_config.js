@@ -3,13 +3,13 @@ import { getDatabase, ref, set, get, update, push, remove, child, onValue, onChi
 
 // TODO: Firebase Console에서 앱 등록 후 아래 값을 자신의 프로젝트 설정으로 교체하세요.
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDqR0eWQ1CYnPlJVDKLV7Qho4BwvuVx-VE",
+  authDomain: "pokemon-masters-af173.firebaseapp.com",
+  projectId: "pokemon-masters-af173",
+  storageBucket: "pokemon-masters-af173.firebasestorage.app",
+  messagingSenderId: "18548511403",
+  appId: "1:18548511403:web:661cda5cc566260c9c1dee",
+  measurementId: "G-J28P6D8554"
 };
 
 const app = initializeApp(firebaseConfig);
