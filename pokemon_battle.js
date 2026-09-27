@@ -2162,8 +2162,7 @@ function resetBattlePreview() {
     battleTurnBusy = false;
     battleSwitchForced = false;
     pendingForcedSwitchCallback = null;
-    // 함께하기면 연결은 그대로 두고(다시하기 재대결용) 지난 배틀의 남은 메시지만 비움
-    if (battleMode === 'pvp') mpClearInbox();
+    // 함께하기 재대결은 연결을 그대로 두고 메시지 채널만 새로 씀(다시하기 핸들러의 mpNextMatch)
     battleMode = 'ai';
     mpTurn = 0;
     mpPartyLocked = false;
@@ -2271,6 +2270,8 @@ battleResultRetryBtn.addEventListener('click', () => {
         battleResultRetryBtn.disabled = true;
         mpSend('rematch');
         mpWaitFor('rematch', battleCallback(() => {
+            // 양쪽 다 동의 — 다음 대전용 새 메시지 채널로 옮긴 뒤 선택창으로
+            window.mpNextMatch();
             resetBattlePreview();
             openBattlePartyPicker();
         }));

@@ -13,7 +13,7 @@
 // 방 구조: rooms/{code} = { host, guest, status, createdAt,
 //                           presence/{host|guest} = { online, lastSeen },
 //                           end = { reason: 'forfeit', loser: 'host'|'guest' },
-//                           messages/... }
+//                           match/{n}/messages/... }   ← 대전(재대결)마다 채널을 새로 씀
 
 const MP_CODE_LENGTH = 6;
 const MP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -26,6 +26,10 @@ const MP_RESUME_SETTLE_MS = 2000;        // 내가 재연결하거나 화면에 
 const MP_LOBBY_TTL_MS = 10 * 60 * 1000;  // 대기 방 유효 시간 — 넘으면 참가 시 만료로 처리
 const MP_PING_TIMEOUT_MS = 5000;         // 판정 직전 서버 왕복 확인 제한시간
 const MP_FREEZE_DETECT_MS = 3000;        // 1초 틱이 이만큼 밀리면 탭이 멈춰 있었던 것(백그라운드)으로 봄
+const MP_NET_TIMEOUT_MS = 8000;          // 방 만들기·참가 확인 등 일회성 요청 제한시간
+const MP_CREATE_RETRIES = 5;             // 방 코드가 겹칠 때 새 코드로 다시 시도하는 횟수
+const MP_STALE_ROOM_MS = 24 * 60 * 60 * 1000; // 이보다 오래된 방은 방을 만들 때 함께 청소
+const MP_STALE_ROOM_SWEEP = 20;          // 한 번에 청소하는 최대 개수
 
 const battleModeMenuEl     = document.getElementById('battle-mode-menu');
 const battleTogetherMenuEl = document.getElementById('battle-together-menu');
@@ -75,6 +79,9 @@ let peerOfflineGen = 0;
 let presenceGraceEnabled = false; // 배틀(결과 화면 포함) 중에만 켬 — 파티 선택은 파티 제한시간이 상한 역할
 let mpPendingJudges = [];       // 판정 보류 중인 시도들
 let mpJudgeRecheckTimer = null;
+let mpServerTimeOffset = 0;     // 서버 시각 - 내 기기 시각(.info/serverTimeOffset) — 기기 시계가 틀려도 방 만료 판정이 맞도록
+let mpMatchNo = 0;              // 지금 쓰는 메시지 채널 번호(match/{n}) — 재대결마다 1씩 증가
+let mpBusy = false;             // 방 만들기/참가 처리 중(연타 방지)
 
 const MP_CLIENT_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -84,6 +91,16 @@ function getFirebaseRef(path) {
 }
 
 function mpPeerRole() { return myRole === 'host' ? 'guest' : 'host'; }
+
+function mpServerNow() { return Date.now() + mpServerTimeOffset; }
+
+// 일회성 요청이 네트워크 문제로 끝없이 매달리지 않도록 제한시간을 걺
+function mpWithTimeout(promise, ms) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+    ]);
+}
 
 // ---------------- 연결 상태 표시(신호 아이콘) ----------------
 function mpUpdateSignalIcon() {
@@ -111,6 +128,9 @@ function mpInitConnectionWatch() {
         }
         mpConnected = nowConnected;
         mpUpdateSignalIcon();
+    });
+    window.firebaseOnValue(getFirebaseRef('.info/serverTimeOffset'), (snap) => {
+        mpServerTimeOffset = snap.val() || 0;
     });
 }
 if (window.firebaseDb) mpInitConnectionWatch();
@@ -250,7 +270,11 @@ window.mpSend = function(type, data) {
     if (!window.mp.active || !messagesRef) return;
     const msg = { type, from: MP_CLIENT_ID, timestamp: Date.now() };
     if (data !== undefined) msg.data = data;
-    window.firebasePush(messagesRef, msg).catch(e => console.error("Firebase send error", e));
+    window.firebasePush(messagesRef, msg).catch(e => {
+        console.error("Firebase send error", e);
+        // 보안 규칙이 거부함 = 방이 이미 없어짐(상대가 나갔거나 끊김 판정) — 기다리지 않고 바로 처리
+        if (e && /permission/i.test(e.code || e.message || '')) mpHandleRemoteGone();
+    });
 }
 
 window.mpOn = function(type, handler) { window.mpHandlers[type] = handler; }
@@ -265,10 +289,6 @@ window.mpWaitFor = function(type, cb) {
     window.mpWaiters.push({ type, cb });
 }
 
-window.mpClearInbox = function() {
-    window.mpInbox = window.mpInbox.filter(m => m.type === 'party');
-    window.mpWaiters = [];
-}
 
 function mpHandleMessage(msg) {
     if (msg.from === MP_CLIENT_ID) return; // 내가 보낸 건 무시
@@ -435,12 +455,34 @@ window.mpDeclarePeerForfeit = function() {
 }
 
 // ---------------- 매칭 후 공통 구독 ----------------
-function mpStartMatchListeners(code) {
-    messagesRef = getFirebaseRef(`rooms/${code}/messages`);
+// match/{n}/messages 채널을 구독 — 대전마다 새 채널을 써서 지난 대전의 메시지가 섞이거나
+// 계속 쌓이지 않게 함
+function mpSubscribeMatchChannel(code) {
+    if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
+    messagesRef = getFirebaseRef(`rooms/${code}/match/${mpMatchNo}/messages`);
     unsubscribeMessages = window.firebaseOnChildAdded(messagesRef, (snapshot) => {
         const msg = snapshot.val();
         if (msg) mpHandleMessage(msg);
     });
+}
+
+// 재대결에 양쪽이 동의했을 때(pokemon_battle.js) — 다음 채널로 옮기고 지난 대전의 대기열을 비움.
+// 정리는 한 단계 늦게(2개 전 채널) 함: 상대가 아직 직전 채널의 마지막 메시지를 읽는 중일 수 있음
+window.mpNextMatch = function() {
+    if (!window.mp.active) return;
+    const code = window.mp.roomCode;
+    mpMatchNo++;
+    window.mpInbox = [];
+    window.mpWaiters = [];
+    mpSubscribeMatchChannel(code);
+    if (window.mp.isHost && mpMatchNo >= 2) {
+        window.firebaseRemove(getFirebaseRef(`rooms/${code}/match/${mpMatchNo - 2}`)).catch(() => {});
+    }
+}
+
+function mpStartMatchListeners(code) {
+    mpMatchNo = 0;
+    mpSubscribeMatchChannel(code);
     mpWatchPeerPresence(code);
     unsubscribeEnd = window.firebaseOnValue(getFirebaseRef(`rooms/${code}/end`), (snap) => {
         const v = snap.val();
@@ -471,29 +513,85 @@ battleModeBackBtn.addEventListener('click', () => showStartSubmenu(null));
 battleTogetherBackBtn.addEventListener('click', () => showStartSubmenu('mode'));
 document.getElementById('battle-btn').addEventListener('click', () => showStartSubmenu('mode'));
 
+// 비어 있거나(또는 만료된 대기 방/찌꺼기) 쓸 수 있는 코드를 트랜잭션으로 차지함 — 진행 중인
+// 남의 방을 덮어쓰지 않음. 코드가 겹치면 새 코드로 다시 시도
+async function mpClaimRoomCode() {
+    for (let i = 0; i < MP_CREATE_RETRIES; i++) {
+        const code = mpGenerateCode();
+        const now = mpServerNow();
+        const result = await mpWithTimeout(window.firebaseRunTransaction(getFirebaseRef(`rooms/${code}`), (room) => {
+            if (room && room.host && (room.status === 'playing' || (room.createdAt && now - room.createdAt < MP_LOBBY_TTL_MS))) {
+                return; // 사용 중인 방 → 중단
+            }
+            return { host: MP_CLIENT_ID, status: 'waiting', createdAt: now };
+        }), MP_NET_TIMEOUT_MS);
+        if (result.committed && result.snapshot.val() && result.snapshot.val().host === MP_CLIENT_ID) return code;
+    }
+    throw new Error('no free room code');
+}
+
+// 서버(Cloud Functions) 없이 하는 가벼운 청소 — 만든 지 24시간이 넘은 방(비정상 종료로 남은 방,
+// createdAt 없는 찌꺼기 포함)을 몇 개씩 지움. 실패해도 게임 진행과 무관하므로 조용히 넘어감
+function mpSweepStaleRooms() {
+    const q = window.firebaseQuery(getFirebaseRef('rooms'),
+        window.firebaseOrderByChild('createdAt'),
+        window.firebaseEndAt(mpServerNow() - MP_STALE_ROOM_MS),
+        window.firebaseLimitToFirst(MP_STALE_ROOM_SWEEP));
+    window.firebaseGet(q).then((snap) => {
+        snap.forEach((child) => {
+            if (child.key === myRoomCode) return;
+            window.firebaseRemove(child.ref).catch(() => {});
+        });
+    }).catch(() => {});
+}
+
+let mpCreateToken = 0; // 코드 생성 도중 로비 창을 닫았는지 확인용
+
 mpCreateBtn.addEventListener('click', async () => {
+    if (mpBusy || currentRoomRef) return;
     if (!window.firebaseDb) {
         if (mpTogetherFeedbackEl) mpTogetherFeedbackEl.textContent = '데이터베이스 초기화 중입니다. 잠시 후 다시 시도해주세요.';
         return;
     }
+    if (!mpConnected) {
+        if (mpTogetherFeedbackEl) mpTogetherFeedbackEl.textContent = '인터넷 연결을 확인해주세요.';
+        return;
+    }
     if (mpTogetherFeedbackEl) mpTogetherFeedbackEl.textContent = '';
 
-    const code = mpGenerateCode();
-    mpLobbyCodeEl.textContent = code;
-    mpLobbyStatusEl.innerHTML = '상대를 기다리는 중<span class="mp-dots"></span>';
+    mpBusy = true;
+    const token = ++mpCreateToken;
+    mpLobbyCodeEl.textContent = '------';
+    mpLobbyStatusEl.innerHTML = '코드를 생성하는 중<span class="mp-dots"></span>';
     mpLobbyModalEl.classList.remove('hidden');
+
+    let code;
+    try {
+        code = await mpClaimRoomCode();
+    } catch (e) {
+        console.error('방 만들기 실패', e);
+        mpBusy = false;
+        if (token !== mpCreateToken) return;
+        mpLobbyModalEl.classList.add('hidden');
+        if (mpTogetherFeedbackEl) mpTogetherFeedbackEl.textContent = '방을 만들지 못했습니다. 잠시 후 다시 시도해주세요.';
+        return;
+    }
+    mpBusy = false;
+    // 만드는 도중 로비 창을 닫았으면 방금 차지한 방을 돌려놓음
+    if (token !== mpCreateToken) {
+        window.firebaseRemove(getFirebaseRef(`rooms/${code}`)).catch(() => {});
+        return;
+    }
 
     currentRoomRef = getFirebaseRef(`rooms/${code}`);
     myRoomCode = code;
     myRole = 'host';
-    await window.firebaseSet(currentRoomRef, {
-        host: MP_CLIENT_ID,
-        status: 'waiting',
-        createdAt: Date.now()
-    });
+    mpLobbyCodeEl.textContent = code;
+    mpLobbyStatusEl.innerHTML = '상대를 기다리는 중<span class="mp-dots"></span>';
 
     // 방장이 잠깐 앱을 전환해도(초대 코드를 메신저로 보내는 등) 방은 유지 — presence만 offline이 됨
     mpRegisterPresence();
+    mpSweepStaleRooms();
 
     // 방 전체가 아니라 guest 값만 감시 — 방 전체를 감시하면 messages가 추가될 때마다
     // 콜백이 다시 불리고 메시지 전체를 매번 다시 내려받음
@@ -520,54 +618,67 @@ mpCreateBtn.addEventListener('click', async () => {
 });
 
 mpJoinSubmitBtn.addEventListener('click', async () => {
+    if (mpBusy || currentRoomRef) return;
     if (!window.firebaseDb) { mpJoinFeedbackEl.textContent = '데이터베이스 초기화 중입니다. 잠시 후 다시 시도해주세요.'; return; }
     const code = mpJoinInputEl.value.toUpperCase().trim();
     if (code.length !== MP_CODE_LENGTH) return;
+    if (!mpConnected) { mpJoinFeedbackEl.textContent = '인터넷 연결을 확인해주세요.'; return; }
 
+    mpBusy = true;
+    mpJoinSubmitBtn.disabled = true;
     mpJoinFeedbackEl.textContent = '확인 중...';
     const roomRef = getFirebaseRef(`rooms/${code}`);
+    const fail = (text) => {
+        mpBusy = false;
+        mpJoinSubmitBtn.disabled = false;
+        mpJoinFeedbackEl.textContent = text;
+    };
 
-    const snapshot = await window.firebaseGet(roomRef);
-    if (!snapshot.exists()) {
-        mpJoinFeedbackEl.textContent = '유효하지 않은 코드입니다.';
-        return;
-    }
-
-    const val = snapshot.val();
-    if (!val.host || val.status !== 'waiting') {
-        mpJoinFeedbackEl.textContent = '이미 게임이 시작되었거나 닫힌 방입니다.';
-        return;
-    }
-    if (!val.createdAt || Date.now() - val.createdAt > MP_LOBBY_TTL_MS) {
-        window.firebaseRemove(roomRef).catch(() => {}); // 오래 방치된 방은 정리
-        mpJoinFeedbackEl.textContent = '만료된 코드입니다. 새 코드를 받아주세요.';
-        return;
-    }
-
-    // 입장! — 트랜잭션으로 처리해서 두 명이 동시에 같은 코드로 들어와도 한 명만 성공
-    let joined = false;
+    // 입장 — 존재·상태·만료 확인과 자리 차지를 트랜잭션 하나로 처리해서, 두 명이 동시에 같은
+    // 코드로 들어와도 한 명만 성공하고 확인과 입장 사이에 방 상태가 바뀌는 틈도 없음
+    let outcome = 'invalid';
+    let hostId = null;
     try {
-        const result = await window.firebaseRunTransaction(roomRef, (room) => {
+        const now = mpServerNow();
+        const result = await mpWithTimeout(window.firebaseRunTransaction(roomRef, (room) => {
             // 로컬 캐시가 비어 첫 호출이 null로 올 수 있음 → null을 돌려주면 서버 값으로 재시도됨
-            if (room === null) return null;
-            if (room.status !== 'waiting' || room.guest) return; // 이미 찬 방 → 중단
+            if (room === null) { outcome = 'invalid'; return null; }
+            if (!room.host) { outcome = 'invalid'; return; }
+            if (room.status !== 'waiting' || room.guest) { outcome = 'full'; return; }
+            if (!room.createdAt || now - room.createdAt > MP_LOBBY_TTL_MS) { outcome = 'expired'; return; }
+            outcome = 'joined';
             room.status = 'playing';
             room.guest = MP_CLIENT_ID;
             return room;
-        });
+        }), MP_NET_TIMEOUT_MS);
         const after = result.snapshot.val();
-        joined = result.committed && after && after.guest === MP_CLIENT_ID;
+        if (!(result.committed && after && after.guest === MP_CLIENT_ID)) {
+            if (outcome === 'joined') outcome = 'full';
+        } else {
+            hostId = after.host;
+        }
     } catch (e) {
         console.error('Firebase join error', e);
+        fail(e && e.message === 'timeout' ? '응답이 없습니다. 인터넷 연결을 확인해주세요.' : '입장하지 못했습니다. 잠시 후 다시 시도해주세요.');
+        return;
     }
-    if (!joined) {
-        mpJoinFeedbackEl.textContent = '이미 게임이 시작되었거나 닫힌 방입니다.';
+    if (outcome === 'expired') {
+        window.firebaseRemove(roomRef).catch(() => {}); // 오래 방치된 방은 정리
+        fail('만료된 코드입니다. 새 코드를 받아주세요.');
+        return;
+    }
+    if (outcome === 'full') { fail('이미 게임이 시작되었거나 닫힌 방입니다.'); return; }
+    if (outcome !== 'joined') {
+        // 트랜잭션이 null로 끝나면 커밋된 null이 방을 만들지는 않지만, 혹시 남은 찌꺼기는 무시
+        fail('유효하지 않은 코드입니다.');
         return;
     }
 
+    mpBusy = false;
+    mpJoinSubmitBtn.disabled = false;
     window.mp.active = true;
     window.mp.isHost = false;
-    window.mp.partnerId = val.host;
+    window.mp.partnerId = hostId;
     window.mp.roomCode = code;
 
     currentRoomRef = roomRef;
@@ -591,6 +702,7 @@ mpJoinSubmitBtn.addEventListener('click', async () => {
 
 mpLobbyCloseBtn.addEventListener('click', () => {
     mpLobbyModalEl.classList.add('hidden');
+    mpCreateToken++; // 아직 코드를 만드는 중이었다면 결과를 버리게 함
     const roomRef = currentRoomRef;
     mpTeardown();
     if (roomRef) window.firebaseRemove(roomRef).catch(() => {});
