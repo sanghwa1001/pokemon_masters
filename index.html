@@ -50,22 +50,23 @@
             <button id="btn-admin-logout" class="menu-item">로그아웃</button>
         </div>
 
-        <!-- 학생 관리 창 (관리자용) — 학습 데이터 관리 창과 같은 구성(제목 + 목록, 각 줄 오른쪽에 삭제
-             버튼). 각 줄에 이름과 아이디(구글 이메일)를 두 줄로 표시. 여러 명을 지울 땐 줄 왼쪽
-             체크박스로 고르면 아래에 "선택 삭제" 버튼이 나타남 -->
+        <!-- 학생 관리 창 (관리자용) — 위: 등록된 학생 목록(이름·아이디 두 줄, 보기 전용).
+             아래: 도감 초기화 페이지와 같은 모양의 삭제 줄 — 학생 이메일을 직접 입력하고 삭제를 누르면
+             명단과 학생 데이터(도감 등)가 함께 지워짐(입력 자체가 확인 역할이라 별도 확인 창 없음) -->
         <div id="admin-student-manage-modal" class="mp-modal hidden">
             <div class="mp-box">
                 <button id="admin-student-manage-close-btn" class="quiz-close-btn">×</button>
                 <div class="mp-title">학생 관리</div>
-                <div class="admin-bulk-bar">
-                    <label class="admin-check-label"><input type="checkbox" id="student-select-all"> 전체 선택</label>
-                    <span id="student-count" class="admin-count"></span>
-                </div>
+                <div id="student-count" class="admin-count"></div>
                 <div id="student-list-container" class="admin-list">
                     <!-- 학생 목록이 동적으로 추가됨 -->
                 </div>
-                <button id="btn-delete-selected-students" class="dex-settings-action-btn dex-danger hidden">선택 삭제</button>
-                <div id="admin-student-manage-feedback" class="field-feedback"></div>
+                <div class="admin-delete-title">학생 삭제</div>
+                <div class="admin-delete-row">
+                    <input type="email" id="student-delete-input" class="dex-cheat-input" placeholder="삭제할 학생 이메일 입력" autocomplete="off" autocapitalize="off" spellcheck="false">
+                    <button id="btn-delete-student" class="dex-settings-action-btn dex-cheat-apply-btn dex-danger">삭제</button>
+                </div>
+                <div id="student-delete-feedback" class="admin-delete-feedback"></div>
             </div>
         </div>
 

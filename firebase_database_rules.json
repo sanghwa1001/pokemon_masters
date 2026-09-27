@@ -32,6 +32,9 @@
     "students": {
       ".read": "auth != null && auth.token.email_verified == true && root.child('admins').child(auth.token.email.toLowerCase().replace('.', ',')).val() == true",
       ".write": "auth != null && auth.token.email_verified == true && root.child('admins').child(auth.token.email.toLowerCase().replace('.', ',')).val() == true",
+      ".indexOn": [
+        "email"
+      ],
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
         ".write": "auth != null && auth.uid == $uid && auth != null && auth.token.email_verified == true && root.child('allowedStudents').child(auth.token.email.toLowerCase().replace('.', ',')).exists()"
