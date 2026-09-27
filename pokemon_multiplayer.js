@@ -127,8 +127,7 @@ function mpHandleRemoteGone() {
 // ---------------- UI 연결 및 이벤트 ----------------
 function showStartSubmenu(which) {
     const startScreen = document.getElementById('start-screen');
-    // startScreen 안의 버튼들만 숨기기 위해 컨테이너의 특정 자식들을 조정하거나 덮어야 함
-    // 원본처럼 하위메뉴를 띄움
+    startScreen.classList.toggle('hidden', which !== null);
     battleModeMenuEl.classList.toggle('hidden', which !== 'mode');
     battleTogetherMenuEl.classList.toggle('hidden', which !== 'together');
 }

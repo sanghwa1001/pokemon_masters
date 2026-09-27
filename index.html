@@ -36,9 +36,9 @@
             <div class="mp-box">
                 <button id="admin-login-close-btn" class="quiz-close-btn">×</button>
                 <div class="mp-title">관리자 로그인</div>
-                <div class="mp-join-row">
-                    <input type="password" id="admin-pw-input" class="dex-cheat-input" placeholder="비밀번호 입력">
-                    <button id="btn-admin-login" class="dex-settings-action-btn dex-cheat-apply-btn">확인</button>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="password" id="admin-pw-input" class="dex-cheat-input" placeholder="비밀번호 입력" style="flex: none; width: 100%;">
+                    <button id="btn-admin-login" class="dex-settings-action-btn" style="width: 100%;">확인</button>
                 </div>
             </div>
         </div>
@@ -48,12 +48,10 @@
             <div class="mp-box">
                 <button id="student-login-close-btn" class="quiz-close-btn">×</button>
                 <div class="mp-title">학생 로그인</div>
-                <div class="mp-join-row" style="margin-bottom: 8px;">
-                    <input type="text" id="student-id-input" class="dex-cheat-input" placeholder="아이디" autocomplete="off">
-                </div>
-                <div class="mp-join-row">
-                    <input type="password" id="student-pw-input" class="dex-cheat-input" placeholder="비밀번호">
-                    <button id="btn-student-login" class="dex-settings-action-btn dex-cheat-apply-btn">로그인</button>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="text" id="student-id-input" class="dex-cheat-input" placeholder="아이디" autocomplete="off" style="flex: none; width: 100%;">
+                    <input type="password" id="student-pw-input" class="dex-cheat-input" placeholder="비밀번호" style="flex: none; width: 100%;">
+                    <button id="btn-student-login" class="dex-settings-action-btn" style="width: 100%;">로그인</button>
                 </div>
             </div>
         </div>
@@ -70,12 +68,10 @@
             <div class="mp-box">
                 <button id="admin-student-create-close-btn" class="quiz-close-btn">×</button>
                 <div class="mp-title">학생 계정 생성</div>
-                <div class="mp-join-row" style="margin-bottom: 8px;">
-                    <input type="text" id="new-student-id" class="dex-cheat-input" placeholder="새 학생 아이디" autocomplete="off">
-                </div>
-                <div class="mp-join-row">
-                    <input type="password" id="new-student-pw" class="dex-cheat-input" placeholder="새 학생 비밀번호">
-                    <button id="btn-create-student-submit" class="dex-settings-action-btn dex-cheat-apply-btn">생성하기</button>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="text" id="new-student-id" class="dex-cheat-input" placeholder="새 학생 아이디" autocomplete="off" style="flex: none; width: 100%;">
+                    <input type="password" id="new-student-pw" class="dex-cheat-input" placeholder="새 학생 비밀번호" style="flex: none; width: 100%;">
+                    <button id="btn-create-student-submit" class="dex-settings-action-btn" style="width: 100%;">생성하기</button>
                 </div>
             </div>
         </div>
@@ -107,13 +103,11 @@
         </div>
 
         <div id="start-screen" class="hidden">
-            <div style="position: absolute; top: 15px; right: 15px;">
-                <button id="btn-student-logout" class="dex-settings-action-btn">로그아웃</button>
-            </div>
             <button id="btn-select-learning-data" class="menu-item">학습 데이터 선택</button>
             <button id="start-btn" class="menu-item" disabled>포켓몬 포획</button>
             <button id="battle-btn" class="menu-item">포켓몬 배틀</button>
             <button id="dex-btn" class="menu-item">포켓몬 도감</button>
+            <button id="btn-student-logout" class="menu-item">로그아웃</button>
         </div>
 
         <!-- "포켓몬 배틀"을 누르면 시작화면 대신 뜨는 하위 메뉴(시작화면과 같은 레이아웃) —
