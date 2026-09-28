@@ -299,6 +299,19 @@ function renderTypeBadges(container, types, badgeHeight = TYPE_BADGE_HEIGHT) {
     });
 }
 
+// 대결 화면 이름표 전용 — 긴 뱃지(types.png) 대신 짧은 타입 아이콘(types_short.png, 정사각형)을 이름 옆에
+// 붙임(긴 이름 + 두 타입이어도 타이머·신호 아이콘과 겹치지 않게). 크기는 .type-icon-short(CSS)와 반드시 일치
+const TYPE_ICON_SHORT_SIZE = 18;
+function renderShortTypeIcons(container, types) {
+    container.innerHTML = '';
+    (types || []).forEach(t => {
+        const icon = document.createElement('span');
+        icon.className = 'type-icon-short';
+        icon.style.backgroundPosition = `0 -${(TYPE_ICON_INDEX[t] || 0) * TYPE_ICON_SHORT_SIZE}px`;
+        container.appendChild(icon);
+    });
+}
+
 function updateMonsterInfo(picked) {
     currentBst = picked.bst;
     currentEffectiveBst = picked.effectiveBst;
@@ -315,7 +328,7 @@ function updateMonsterInfo(picked) {
     if (battlePreviewActive) {
         monsterBstEl.classList.add('hidden');
         monsterTypesEl.classList.remove('hidden');
-        renderTypeBadges(monsterTypesEl, (POKEMON_DATA[picked.id] || {}).types);
+        renderShortTypeIcons(monsterTypesEl, (POKEMON_DATA[picked.id] || {}).types);
     } else {
         monsterTypesEl.classList.add('hidden');
         monsterBstEl.classList.remove('hidden');

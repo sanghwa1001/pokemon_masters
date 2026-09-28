@@ -240,13 +240,12 @@ function displayBackSprite(boxEl, spriteEl, id, isShiny) {
 // images/pokemon/layout/types.png(64x560, 세로로 20칸)의 순서 — 원본 게임(species.dat의
 // GameData::Type#icon_position)에서 그대로 실측한 순서라 이미지와 정확히 일치함
 const WILD_INFO_TOP = 15; // px, #game-container 상단 기준 — 이름표 상단 여백(내 쪽 액션박스-hp바 15px 여백과 대응)
-const WILD_INFO_NAME_BLOCK_HEIGHT = 23; // px — 이름표 줄높이(20) + hp바와의 여백(3), 이름표 바로 아래에 hp바가 옴
+const WILD_INFO_NAME_BLOCK_HEIGHT = 21; // px — 이름표 줄높이(18, CSS --battle-name-line) + hp바와의 여백(3), 이름표 바로 아래에 hp바가 옴
 const WILD_INFO_GAP = 5; // px — 정보블록(이름표+hp바)을 스프라이트에서 위로 띄우는 간격
-// 이름표 줄의 실제 렌더링 높이는 타입 뱃지 이미지 높이(21px)를 따라가서 WILD_INFO_NAME_BLOCK_HEIGHT가
-// 가정한 텍스트 줄높이(20px)보다 1px 큼 — 그래서 이름표-hp바 여백이 의도한 3px보다 좁게(2px) 보이던
-// 것을 보정. hp바/스프라이트 위치(WILD_INFO_NAME_BLOCK_HEIGHT 기준 계산)는 이미 서로 잘 맞춰져
-// 있으므로 건드리지 않고, 이름표 줄 자신의 위치만 이 값만큼 위로 올려서 맞춤
-const WILD_INFO_TEXT_ROW_CORRECTION = 1;
+// 이름표 줄의 실제 렌더링 높이가 타입 아이콘 높이를 따라가서 WILD_INFO_NAME_BLOCK_HEIGHT가 가정한 줄높이보다
+// 크면 그만큼 이름표 줄만 위로 올려 hp바와의 여백 3px를 맞추는 보정값 — 짧은 타입 아이콘(18px)이 줄높이(18px)와
+// 같아져서 지금은 0(예전 긴 뱃지 21px + 줄높이 20px일 땐 1이었음)
+const WILD_INFO_TEXT_ROW_CORRECTION = 0;
 function alignWildMonsterTopToHpBar(picked) {
     // 이 콜백이 예약된 뒤(이미지 로딩 등으로 지연되는 사이) 배틀 프리뷰가 이미 닫혔으면, 지금은
     // #monster가 실제 포획 게임 용도로 쓰이고 있는 것이므로 절대 위치를 건드리면 안 됨
@@ -1064,12 +1063,8 @@ function openForcedSwitch(onDone, durationMs = MP_FORCED_SWITCH_TIMEOUT_MS) {
     battleMessageBoxEl.textContent = '';
     battleMainMenuEl.classList.add('hidden');
     battleSwitchInlineMenuEl.classList.remove('hidden');
-    // 고르는 쪽의 개인 제한시간 — 못 고르면(교체는 "안 함"이 없는 선택이라) 스스로 기권
-    if (battleMode === 'pvp') {
-        window.mpStartDeadline(battleTurnTimerEl, durationMs, () => {
-            window.mpForfeit();
-        });
-    }
+    // 고르는 쪽의 개인 제한시간(혼자하기·함께하기 같은 규칙) — 못 고르면(교체는 "안 함"이 없는 선택이라) 기권
+    window.mpStartDeadline(battleTurnTimerEl, durationMs, battleTimeoutForfeit);
 }
 
 function battleResultText(didWin) {
@@ -1129,7 +1124,7 @@ function applyPlayerSwitch(targetIndex, onDone) {
         displayBackSprite(battleBackSpriteBoxEl, battleBackSpriteEl, selectedBattleId, selectedBattleIsShiny);
         const backInfo = POKEMON_DATA[selectedBattleId] || { name: '???' };
         battleBackNameEl.textContent = backInfo.name;
-        renderTypeBadges(battleBackTypesEl, backInfo.types);
+        renderShortTypeIcons(battleBackTypesEl, backInfo.types);
         playerHpBar.reset(battleParty[activePartyIndex].hp);
 
         battleBackSpriteBoxEl.style.opacity = '1';
@@ -1322,21 +1317,32 @@ function runTurnSequence(order, actions, rolls) {
     }, rolls && rolls[first]);
 }
 
-// 함께하기 배틀 액션 선택 개인 제한시간 — 내 메인 메뉴가 뜬 시점부터 60초. 시간 안에 못
-// 고르면 자동으로 '패스'를 낸 것처럼 처리해(startPlayerTurn과 완전히 같은 경로) 그 턴만
-// 흘려보냄. 연속 여부 판단(끊김 처리)은 mpResolveTurn이 함
+// 배틀 액션 선택 개인 제한시간(혼자하기·함께하기 같은 규칙) — 내 메인 메뉴가 뜬 시점부터 60초.
+// 시간 안에 못 고르면 자동으로 '패스'를 낸 것처럼 처리해(startPlayerTurn과 완전히 같은 경로) 그 턴만
+// 흘려보내고, 연속 2번째면 기권. 함께하기의 상대 패스 연속 여부 판단(끊김 처리)은 mpResolveTurn이 함
 function startMyActionDeadline(durationMs = MP_ACTION_TIMEOUT_MS) {
-    if (battleMode !== 'pvp' || !battlePreviewActive || battleEnded) return;
+    if (!battlePreviewActive || battleEnded) return;
     window.mpStartDeadline(battleTurnTimerEl, durationMs, () => {
-        if (battleMode !== 'pvp' || battleEnded) return;
-        // 내가 이미 행동을 보내고 상대 메시지를 기다리는 중(mpAwaitingOpponentAction)이면, 상대
-        // 시계는 연출 길이 차이만큼 늦게 시작했을 수 있으므로 여유를 더 준 뒤 생존 여부를 판정
-        if (mpAwaitingOpponentAction) { window.mpPeerSlackThenJudge(); return; }
+        if (!battlePreviewActive || battleEnded) return;
+        // 함께하기에서 내가 이미 행동을 보내고 상대 메시지를 기다리는 중(mpAwaitingOpponentAction)이면,
+        // 상대 시계는 연출 길이 차이만큼 늦게 시작했을 수 있으므로 여유를 더 준 뒤 생존 여부를 판정
+        if (battleMode === 'pvp' && mpAwaitingOpponentAction) { window.mpPeerSlackThenJudge(); return; }
         // 연속 2번째 시간 초과면 그 턴을 시작하지 않고 곧바로 기권(상대 화면에 턴이 진행되지 않음)
         mpSelfPassStreak++;
-        if (mpSelfPassStreak >= 2) { window.mpForfeit(); return; }
+        if (mpSelfPassStreak >= 2) { battleTimeoutForfeit(); return; }
         startPlayerTurn('pass');
     });
+}
+
+// 내 제한시간 초과로 기권 — 함께하기는 방에 end를 기록(mpForfeit → 양쪽 종료 멘트), 혼자하기는 같은 종료
+// 멘트("항복으로 대전이 중지되었습니다" → 졌다)를 여기서 바로 띄움. 선택창(파티 선택)이면 선택창 종료 안내 후
+// 시작화면으로(mpOnTerminal의 선택창 처리와 같음). 파티 선택 단계는 아직 battleMode가 정해지기 전이라 mp.active로 구분
+function battleTimeoutForfeit() {
+    if (mp.active) { window.mpForfeit(); return; }
+    window.mpClearDeadlineTimer();
+    const info = { reason: 'forfeit', iLost: true };
+    if (battlePreviewActive) { if (!battleEnded) mpShowBattleTerminal(info); return; }
+    if (dexPickerMode) mpOnTerminal(info);
 }
 
 function finishTurn() {
@@ -1355,6 +1361,9 @@ function startPlayerTurn(playerAction) {
     // 같은 타이머가 흘러가게 둠(상대가 안 오면 startMyActionDeadline의 타임아웃이 대신
     // 감지해서 끊김 처리). 다음 턴이 시작되면 startMyActionDeadline이 새 타이머로 자연히 덮어씀
     if (playerAction !== 'pass') mpSelfPassStreak = 0;
+    // 혼자하기는 AI가 그 자리에서 응답하므로 기다릴 상대가 없음 — 턴 연출 중에 타이머가 만료되지 않게 바로 지움
+    // (다음 메뉴가 뜰 때 finishTurn이 새로 시작)
+    if (battleMode !== 'pvp') window.mpClearDeadlineTimer();
     battleTurnBusy = true;
     battleMoveMenuEl.classList.add('hidden');
     battleSwitchInlineMenuEl.classList.add('hidden');
@@ -1918,7 +1927,7 @@ function renderBattleActivesInstant() {
     displayBackSprite(battleBackSpriteBoxEl, battleBackSpriteEl, me.id, me.isShiny);
     const info = POKEMON_DATA[me.id] || { name: '???' };
     battleBackNameEl.textContent = info.name;
-    renderTypeBadges(battleBackTypesEl, info.types);
+    renderShortTypeIcons(battleBackTypesEl, info.types);
     playerHpBar.reset(me.hp);
     battleBackSpriteBoxEl.style.opacity = me.fainted ? '0' : '';
     battleBackInfoEl.style.opacity = '';
@@ -1993,8 +2002,8 @@ function renderBattleSwitchInlineMenu() {
             if (battleSwitchForced) {
                 battleSwitchForced = false;
                 battleSwitchInlineMenuEl.classList.add('hidden');
+                window.mpClearDeadlineTimer();
                 if (battleMode === 'pvp') {
-                    window.mpClearDeadlineTimer();
                     mpSend('forcedSwitch', { idx });
                     mpBattleAnimating = true; // 이미 보낸 선택의 연출은 끝까지 재생
                 }
@@ -2301,15 +2310,16 @@ function prepareBattleScreen() {
     monster.classList.add('battle-side-right');
 
     // 상대 hp바+이름표를 화면 우측 상단(내 쪽과 비례하는 자리)에 고정 배치
-    monsterInfoText.style.left = 'calc(50% + 40px + (var(--info-width) * 0.8 / 2))';
+    monsterInfoText.style.left = 'calc(50% + var(--battle-side-offset) + var(--battle-hp-width) / 2)';
     monsterInfoText.style.transform = 'translateX(-100%)';
     monsterInfoText.style.top = `${WILD_INFO_TOP - WILD_INFO_GAP - WILD_INFO_TEXT_ROW_CORRECTION}px`;
     monsterInfoText.style.bottom = 'auto';
-    monsterInfo.style.left = 'calc(50% + 40px)';
+    monsterInfo.style.left = 'calc(50% + var(--battle-side-offset))';
     monsterInfo.style.top = `${WILD_INFO_TOP - WILD_INFO_GAP + WILD_INFO_NAME_BLOCK_HEIGHT}px`;
 
     // hp바 디자인은 배틀 프리뷰에서만 overlay_hp_back/overlay_hp로 교체
     monsterInfo.classList.add('battle-hp-style');
+    monsterInfoText.classList.add('battle-info-style'); // 이름 14px·줄높이 18px(내 쪽 이름표와 같게)
     monsterHpFillEl.classList.remove('hidden');
 
     battlePreviewScreen.classList.remove('hidden');
@@ -2538,6 +2548,8 @@ function resetBattlePreview() {
     pendingForcedSwitchCallback = null;
     // 함께하기 재대결은 연결을 그대로 두고 메시지 채널만 새로 씀(다시하기 핸들러의 mpNextMatch)
     battleMode = 'ai';
+    // 혼자하기 타이머 정리(함께하기는 연결 정리 mpTeardown/재대결 흐름이 따로 관리 — 재대결 대기 타이머를 지우면 안 됨)
+    if (!mp.active) window.mpClearDeadlineTimer();
     mpTurn = 0;
     mpPartyLocked = false;
     mpRematchWaiting = false;
@@ -2592,6 +2604,7 @@ function resetBattlePreview() {
     // 배틀 프리뷰 전용 hp바 디자인(overlay_hp_back/overlay_hp)을 원래(hp_bar.png)로 복원 —
     // 그대로 두면 다음에 실제 포획 게임을 시작할 때도 이 디자인이 남아있게 됨
     monsterInfo.classList.remove('battle-hp-style');
+    monsterInfoText.classList.remove('battle-info-style');
     // hp가 깎이는 도중(애니메이션 진행 중)에 닫혔을 수도 있으니 타이머를 반드시 정리
     aiHpBar.cancel();
     playerHpBar.cancel();
@@ -2690,6 +2703,9 @@ function openBattlePartyPicker(partyDeadlineMs = MP_PARTY_TIMEOUT_MS) {
             if (mpPartyLocked) { window.mpPeerSlackThenJudge(); return; }
             window.mpForfeit();
         });
+    } else {
+        // 혼자하기도 같은 제한시간 — 선택 완료를 누르면 곧바로 배틀이 시작되며(beginBattle) 타이머가 지워짐
+        window.mpStartDeadline(dexWaitTimerEl, partyDeadlineMs, battleTimeoutForfeit);
     }
 }
 
