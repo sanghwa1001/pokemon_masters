@@ -49,7 +49,7 @@
             <button id="btn-admin-student-mode" class="menu-item">학생 모드</button>
             <button id="btn-admin-create-student" class="menu-item">학생 등록</button>
             <button id="btn-admin-manage-students" class="menu-item">학생 관리</button>
-            <button id="btn-admin-upload-data" class="menu-item">학습 데이터 업로드</button>
+            <button id="btn-admin-upload-data" class="menu-item">학습 데이터 등록</button>
             <button id="btn-admin-manage-data" class="menu-item">학습 데이터 관리</button>
             <button id="btn-admin-logout" class="menu-item">로그아웃</button>
         </div>
@@ -95,18 +95,20 @@
             </div>
         </div>
 
-        <!-- 학습 데이터 업로드 창 (관리자용) — 도감 치트 코드 페이지와 같은 입력 줄(입력칸 + 둥근 버튼)
-             로 데이터 이름을 적고 업로드를 누르면 엑셀 파일 선택 창이 열림 -->
+        <!-- 학습 데이터 등록 창 (관리자용) — 학생 등록 창과 같은 구성: 큰 입력 상자의 첫 줄은 데이터 이름,
+             둘째 줄부터 한 줄에 한 단어씩 "영어, 뜻"(탭, 없으면 첫 쉼표로 구분), 또는 엑셀(첫 열 영어, 둘째 열
+             뜻, 파일 이름이 데이터 이름)로 일괄 등록. 틀린 줄이 있으면 저장하지 않고 그 줄만 빨간 글자로 남김 -->
         <div id="admin-data-upload-modal" class="mp-modal hidden">
             <div class="mp-box">
                 <button id="admin-data-upload-close-btn" class="quiz-close-btn">×</button>
-                <div class="mp-title">학습 데이터 업로드</div>
-                <input type="file" id="excel-input" accept=".xlsx,.xls" class="hidden">
-                <div class="form-row">
-                    <input type="text" id="data-title-input" class="dex-cheat-input" placeholder="데이터 이름" autocomplete="off">
-                    <button id="upload-btn" class="dex-settings-action-btn dex-cheat-apply-btn">업로드</button>
+                <div class="mp-title">학습 데이터 등록</div>
+                <input type="file" id="data-register-file" accept=".xlsx,.xls,.csv" class="hidden">
+                <div class="form-stack">
+                    <textarea id="data-register-input" class="dex-cheat-input form-full form-textarea" rows="6" placeholder="데이터 이름&#10;영어 단어, 뜻&#10;예) delivery, 배달" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+                    <button id="btn-register-data" class="dex-settings-action-btn">등록하기</button>
+                    <button id="btn-register-data-excel" class="dex-settings-action-btn">엑셀로 일괄 등록</button>
                 </div>
-                <div id="data-upload-feedback" class="field-feedback"></div>
+                <div id="data-register-feedback" class="field-feedback"></div>
             </div>
         </div>
 

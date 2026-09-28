@@ -1,9 +1,6 @@
-// ===================== pokemon_learning.js (학습 데이터 업로드 + 퀴즈) =====================
+// ===================== pokemon_learning.js (퀴즈 — 학습 데이터 등록은 auth_manager.js) =====================
 // 정답/오답 처리는 콜백(setQuizAnswerHandlers)으로 위임해 다른 파일이 이 퀴즈를 재사용할 수
 // 있게 함(구조는 MODULARIZATION_PLAN.md 참고). 로드 순서: script.js 다음, pokemon_catch.js보다 먼저.
-
-const uploadBtn  = document.getElementById('upload-btn');
-const excelInput = document.getElementById('excel-input');
 
 const quizModal    = document.getElementById('quiz-modal');
 const quizCloseBtn = document.getElementById('quiz-close-btn');
@@ -13,61 +10,13 @@ const quizFeedback = document.getElementById('quiz-feedback');
 
 // 결과 화면 요소
 let wordList = [];
-const QUIZ_MIN_WORDS = 4; // 4지선다를 위해 최소 4개 단어 필요
+const QUIZ_MIN_WORDS = 4; // 4지선다를 위해 최소 4개 단어 필요 (학습 데이터 등록 검사도 이 값을 씀 — auth_manager.js)
 
 // 포켓볼 / 도망치기 보유 개수 (기본 1개씩 제공, 퀴즈 정답 시 각각 +1)
 let quizCorrectCount = 0;
 let quizWrongCount   = 0;
 
 // 포획한 포켓몬 목록 (포획한 순서대로 저장: { id, name, bst })
-uploadBtn.addEventListener('click', () => {
-    excelInput.click();
-});
-
-excelInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        try {
-            const data = new Uint8Array(evt.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-
-            let parsedList = rows
-                .filter(row => row && row[0] !== undefined && row[0] !== '' && row[1] !== undefined && row[1] !== '')
-                .map(row => ({ en: String(row[0]).trim(), kr: String(row[1]).trim() }));
-
-            const distinctMeanings = new Set(parsedList.map(w => w.kr)).size;
-            const uploadFeedbackEl = document.getElementById('data-upload-feedback');
-            if (distinctMeanings < QUIZ_MIN_WORDS) {
-                if (uploadFeedbackEl) {
-                    uploadFeedbackEl.textContent = `뜻이 다른 단어가 ${QUIZ_MIN_WORDS}개 이상 필요합니다 (현재 ${distinctMeanings}개)`;
-                    uploadFeedbackEl.classList.remove('success');
-                    uploadFeedbackEl.classList.add('error');
-                }
-                excelInput.value = '';
-                return;
-            }
-
-            if (window.uploadLearningDataToFirebase) {
-                window.uploadLearningDataToFirebase(parsedList);
-            }
-        } catch (err) {
-            const uploadFeedbackEl = document.getElementById('data-upload-feedback');
-            if (uploadFeedbackEl) {
-                uploadFeedbackEl.textContent = '파일을 읽을 수 없습니다. 다시 업로드해주세요';
-                uploadFeedbackEl.classList.remove('success');
-                uploadFeedbackEl.classList.add('error');
-            }
-            excelInput.value = '';
-        }
-    };
-    reader.readAsArrayBuffer(file);
-});
-
 window.applyLearningData = function(questions, title) {
     wordList = questions;
     const startBtn = document.getElementById('start-btn');

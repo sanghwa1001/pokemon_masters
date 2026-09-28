@@ -438,6 +438,70 @@ studentLogoutBtn.addEventListener('click', () => {
 document.getElementById('btn-admin-logout').addEventListener('click', logout);
 
 
+// ===================== 관리자: 등록 입력 상자 공용 (학생 등록·학습 데이터 등록) =====================
+// 두 창 모두 큰 입력 상자에 한 줄에 한 개씩 "첫 칸, 둘째 칸"을 적음 — 탭이 있으면 탭, 없으면 첫 쉼표에서만
+// 나눔(뜻에 쉼표가 자주 들어가서 "서비스, 근무, 봉사"가 잘리지 않게). 칸마다 앞뒤 공백 제거
+
+function splitRegisterLine(line) {
+    if (line.includes('\t')) return line.split('\t').map(c => c.trim());
+    const i = line.indexOf(',');
+    return (i < 0 ? [line] : [line.slice(0, i), line.slice(i + 1)]).map(c => c.trim());
+}
+
+// 빈 줄을 뺀 줄 목록(원문 그대로)
+function nonBlankLines(text) {
+    return text.split(/\r?\n/).filter(line => line.trim() !== '');
+}
+
+// 엑셀 첫 시트를 행 배열로 읽음(빈 행 제외) — 각 행은 { cells, raw("칸 [탭] 칸") }
+function readSheetRows(arrayBuffer) {
+    const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+    return rows.filter(Array.isArray)
+        .map(r => Array.from(r, c => String(c ?? '').trim()))
+        .filter(cells => cells.some(c => c !== ''))
+        .map(cells => ({ cells, raw: cells.join('\t').replace(/\t+$/, '') }));
+}
+
+// 상자 공통 동작 — Tab 키는 다음 버튼으로 넘어가는 대신 탭 문자 입력, 고치기 시작하면 빨간 글자 해제
+function setupRegisterInput(inputEl) {
+    inputEl.addEventListener('keydown', (e) => {
+        if (e.key !== 'Tab' || e.shiftKey || e.isComposing) return;
+        e.preventDefault();
+        inputEl.setRangeText('\t', inputEl.selectionStart, inputEl.selectionEnd, 'end');
+        inputEl.classList.remove('has-error');
+    });
+    inputEl.addEventListener('input', () => inputEl.classList.remove('has-error'));
+}
+
+function setRegisterInputText(inputEl, text, hasError) {
+    inputEl.value = text;
+    inputEl.classList.toggle('has-error', hasError);
+}
+
+// 엑셀 버튼 → 숨은 파일 입력을 열고, 고른 파일을 onFile(arrayBuffer, fileName)로 넘김
+function bindExcelPicker(buttonEl, fileEl, feedbackEl, onFile) {
+    buttonEl.addEventListener('click', () => {
+        fileEl.value = '';
+        fileEl.click();
+    });
+    fileEl.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                onFile(evt.target.result, file.name);
+            } catch (err) {
+                console.error(err);
+                setFieldFeedback(feedbackEl, '파일을 읽을 수 없습니다', 'error');
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+
 // ===================== 관리자: 학생 등록 =====================
 
 // 영문·숫자 이메일만 허용(구글 계정 이메일은 ASCII) — 한글·전각 쉼표(，) 등이 붙은 줄이 이메일로
@@ -448,15 +512,11 @@ const studentRegisterInputEl = document.getElementById('student-register-input')
 const studentRegisterBtn = document.getElementById('btn-register-students');
 const studentRegisterExcelBtn = document.getElementById('btn-register-students-excel');
 const studentRegisterFileEl = document.getElementById('student-register-file');
-
-function setRegisterInput(text, hasError) {
-    studentRegisterInputEl.value = text;
-    studentRegisterInputEl.classList.toggle('has-error', hasError);
-}
+setupRegisterInput(studentRegisterInputEl);
 
 document.getElementById('btn-admin-create-student').addEventListener('click', () => {
     setFieldFeedback(studentCreateFeedbackEl, '');
-    setRegisterInput('', false);
+    setRegisterInputText(studentRegisterInputEl, '', false);
     showModal(adminStudentCreateModal);
     studentRegisterInputEl.focus();
 });
@@ -483,14 +543,6 @@ async function addStudents(entries) {
     return { added, duplicate, invalidRaws };
 }
 
-// 한 줄(또는 엑셀 한 행)의 칸 배열 → { email, name, raw } — 첫 칸 이메일, 둘째 칸 이름(셋째 칸부터 무시),
-// 칸마다 앞뒤 공백 제거. 모든 칸이 비어 있으면 null(빈 줄은 무시)
-function toStudentEntry(cells, raw) {
-    const [email, name] = [String(cells[0] ?? '').trim(), String(cells[1] ?? '').trim()];
-    if (!cells.some(c => String(c ?? '').trim() !== '')) return null;
-    return { email, name, raw };
-}
-
 // 입력 상자와 엑셀 공용 — 결과를 "N명이 등록되었습니다 (중복 N, 오류 N)"으로 알리고, 형식이 틀린 줄만
 // 입력 상자에 빨간 글자로 남김(등록·중복 줄은 지움). 저장 실패 시 상자는 그대로 둬서 다시 누를 수 있게 함
 async function registerStudentEntries(entries) {
@@ -510,7 +562,7 @@ async function registerStudentEntries(entries) {
         } else {
             setFieldFeedback(studentCreateFeedbackEl, invalid ? `등록된 학생이 없습니다 (${skipped})` : '이미 등록된 이메일입니다', 'error');
         }
-        setRegisterInput(invalidRaws.join('\n'), invalid > 0);
+        setRegisterInputText(studentRegisterInputEl, invalidRaws.join('\n'), invalid > 0);
     } catch (e) {
         console.error(e);
         setFieldFeedback(studentCreateFeedbackEl, '등록하지 못했습니다', 'error');
@@ -518,50 +570,16 @@ async function registerStudentEntries(entries) {
     studentRegisterBtn.disabled = studentRegisterExcelBtn.disabled = false;
 }
 
-// 입력 상자 — 한 줄에 한 명, 쉼표·탭으로 칸 구분(엑셀 두 열을 복사해 붙여넣으면 탭으로 들어옴)
+const toStudentEntry = (cells, raw) => ({ email: cells[0] ?? '', name: cells[1] ?? '', raw });
+
 studentRegisterBtn.addEventListener('click', () => {
-    const entries = studentRegisterInputEl.value.split(/\r?\n/)
-        .map(line => toStudentEntry(line.split(/[,\t]/), line))
-        .filter(Boolean);
-    registerStudentEntries(entries);
+    registerStudentEntries(nonBlankLines(studentRegisterInputEl.value)
+        .map(line => toStudentEntry(splitRegisterLine(line), line)));
 });
 
-// 상자 안에서 Tab 키 → 다음 버튼으로 넘어가는 대신 탭 문자 입력(이메일 [Tab] 이름으로 직접 입력 가능)
-studentRegisterInputEl.addEventListener('keydown', (e) => {
-    if (e.key !== 'Tab' || e.shiftKey || e.isComposing) return;
-    e.preventDefault();
-    studentRegisterInputEl.setRangeText('\t', studentRegisterInputEl.selectionStart, studentRegisterInputEl.selectionEnd, 'end');
-    studentRegisterInputEl.classList.remove('has-error');
-});
-// 남은 오류 줄을 고치기 시작하면 빨간 글자 해제
-studentRegisterInputEl.addEventListener('input', () => studentRegisterInputEl.classList.remove('has-error'));
-
-// 엑셀 — 첫 번째 시트의 첫 열 이메일, 둘째 열 이름(학습 데이터 업로드와 같은 XLSX 라이브러리).
-// 형식이 틀린 행은 "이메일 [탭] 이름" 줄로 입력 상자에 채워짐
-studentRegisterExcelBtn.addEventListener('click', () => {
-    studentRegisterFileEl.value = '';
-    studentRegisterFileEl.click();
-});
-studentRegisterFileEl.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        let entries;
-        try {
-            const workbook = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
-            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
-            entries = rows.filter(Array.isArray)
-                .map(r => toStudentEntry(r, r.map(c => String(c ?? '').trim()).join('\t').replace(/\t+$/, '')))
-                .filter(Boolean);
-        } catch (err) {
-            console.error(err);
-            setFieldFeedback(studentCreateFeedbackEl, '파일을 읽을 수 없습니다', 'error');
-            return;
-        }
-        registerStudentEntries(entries);
-    };
-    reader.readAsArrayBuffer(file);
+// 엑셀 — 첫 번째 시트의 첫 열 이메일, 둘째 열 이름. 형식이 틀린 행은 "이메일 [탭] 이름" 줄로 입력 상자에 채워짐
+bindExcelPicker(studentRegisterExcelBtn, studentRegisterFileEl, studentCreateFeedbackEl, (buffer) => {
+    registerStudentEntries(readSheetRows(buffer).map(({ cells, raw }) => toStudentEntry(cells, raw)));
 });
 
 
@@ -671,8 +689,11 @@ studentDeleteBtn.addEventListener('click', async () => {
 // ===================== 관리자: 학습 데이터 =====================
 
 document.getElementById('btn-admin-upload-data').addEventListener('click', () => {
-    setFieldFeedback(document.getElementById('data-upload-feedback'), '');
+    setFieldFeedback(dataRegisterFeedbackEl, '');
+    setRegisterInputText(dataRegisterInputEl, '', false);
+    heldDataSlots = null;
     showModal(adminDataUploadModal);
+    dataRegisterInputEl.focus();
 });
 
 document.getElementById('btn-admin-manage-data').addEventListener('click', () => {
@@ -682,25 +703,109 @@ document.getElementById('btn-admin-manage-data').addEventListener('click', () =>
     loadLearningDataForAdmin();
 });
 
-// Excel Upload (Admin) -> 파싱은 pokemon_learning.js, 저장만 여기서
-window.uploadLearningDataToFirebase = async function(parsedQuestions) {
-    const title = document.getElementById('data-title-input').value.trim() || "제목 없음";
-    const feedbackEl = document.getElementById('data-upload-feedback');
-    try {
-        const newDataRef = push(ref(db, 'learningData'));
-        await set(newDataRef, {
-            title: title,
-            questions: parsedQuestions
+// 학습 데이터 등록 — 학생 등록과 같은 입력 상자. 첫 줄은 데이터 이름, 둘째 줄부터 "영어, 뜻".
+// 학생과 달리 한 묶음으로 저장되므로, 틀린 줄이 하나라도 있으면 저장하지 않고 정상 줄은 원래 자리와 함께
+// 보관(heldDataSlots)한 채 상자에는 이름 + 틀린 줄만 빨간 글자로 남김 → 고쳐서 다시 등록하면 보관한 줄과
+// 합쳐 한 묶음으로 저장. 보관은 창 안 임시 메모리라 창을 다시 열거나 새로고침하면 비워짐
+const dataRegisterInputEl = document.getElementById('data-register-input');
+const dataRegisterFeedbackEl = document.getElementById('data-register-feedback');
+const dataRegisterBtn = document.getElementById('btn-register-data');
+const dataRegisterExcelBtn = document.getElementById('btn-register-data-excel');
+const dataRegisterFileEl = document.getElementById('data-register-file');
+setupRegisterInput(dataRegisterInputEl);
+
+// 원래 순서대로의 칸 목록 — 정상 줄 { en, kr, raw } 또는 틀린 줄 { raw, error: true }
+let heldDataSlots = null;
+
+const HANGUL_RE = /[ㄱ-ㅎㅏ-ㅣ가-힣]/;
+// 영어 칸은 영문자가 있고 한글이 없어야, 뜻 칸은 한글이 있어야 정상 — 칸 빠짐, 순서 반대, 머리글("영어, 뜻",
+// "word, meaning") 등이 틀린 줄로 드러남
+function toWordSlot(cells, raw) {
+    const en = cells[0] ?? '', kr = cells[1] ?? '';
+    const ok = /[A-Za-z]/.test(en) && !HANGUL_RE.test(en) && HANGUL_RE.test(kr);
+    return ok ? { en, kr, raw } : { raw, error: true };
+}
+
+// 틀린 줄의 첫 칸(영어 자리) — 고친 줄을 원래 자리에 맞출 때 비교에 씀
+const slotKey = (raw) => (splitRegisterLine(raw)[0] || '').toLowerCase();
+
+// 보관한 칸 목록에 상자의 고친 줄들을 합침 — 고친 줄 수가 틀린 줄 수와 같으면 순서대로 원래 자리에 넣고,
+// 다르면(줄을 지우거나 추가함) 첫 칸이 같은 틀린 줄을 순서대로 찾아 그 자리에 넣음. 짝이 없는 틀린 줄의
+// 자리는 버리고, 짝이 없는 고친 줄은 맨 뒤에 붙임
+function mergeFixedLines(slots, fixedLines) {
+    const errorIdx = slots.map((s, i) => (s.error ? i : -1)).filter(i => i >= 0);
+    const fixedSlots = fixedLines.map(line => toWordSlot(splitRegisterLine(line), line));
+    const placed = new Map(); // 틀린 줄 자리 → 고친 칸
+    const appended = [];
+    if (fixedSlots.length === errorIdx.length) {
+        errorIdx.forEach((slotIdx, k) => placed.set(slotIdx, fixedSlots[k]));
+    } else {
+        let from = 0;
+        fixedSlots.forEach((fixed) => {
+            const key = slotKey(fixed.raw);
+            const k = errorIdx.findIndex((slotIdx, j) => j >= from && slotKey(slots[slotIdx].raw) === key);
+            if (k < 0) { appended.push(fixed); return; }
+            placed.set(errorIdx[k], fixed);
+            from = k + 1;
         });
-        setFieldFeedback(feedbackEl, '학습 데이터가 성공적으로 업로드되었습니다.', 'success');
-        document.getElementById('data-title-input').value = '';
-        document.getElementById('excel-input').value = ''; // reset file input
-        loadLearningDataForAdmin(); // refresh list
-    } catch (e) {
-        console.error(e);
-        setFieldFeedback(feedbackEl, '업로드 실패: ' + e.message, 'error');
     }
-};
+    return slots.flatMap((s, i) => (s.error ? (placed.has(i) ? [placed.get(i)] : []) : [s])).concat(appended);
+}
+
+async function registerLearningData(title, slots) {
+    const errors = slots.filter(s => s.error);
+    if (errors.length) {
+        heldDataSlots = slots;
+        setRegisterInputText(dataRegisterInputEl, [title, ...errors.map(s => s.raw)].join('\n'), true);
+        setFieldFeedback(dataRegisterFeedbackEl, `등록하지 못했습니다 (오류 ${errors.length})`, 'error');
+        return;
+    }
+    const distinctMeanings = new Set(slots.map(s => s.kr)).size;
+    if (distinctMeanings < QUIZ_MIN_WORDS) {
+        // 단어를 더 적을 수 있게 보관한 줄까지 전부 상자로 되돌림
+        heldDataSlots = null;
+        setRegisterInputText(dataRegisterInputEl, [title, ...slots.map(s => s.raw)].join('\n'), false);
+        setFieldFeedback(dataRegisterFeedbackEl, `뜻이 다른 단어가 ${QUIZ_MIN_WORDS}개 이상 필요합니다 (현재 ${distinctMeanings}개)`, 'error');
+        return;
+    }
+    dataRegisterBtn.disabled = dataRegisterExcelBtn.disabled = true;
+    setFieldFeedback(dataRegisterFeedbackEl, '등록 중...');
+    try {
+        await set(push(ref(db, 'learningData')), {
+            title: title.slice(0, 100),
+            questions: slots.map(({ en, kr }) => ({ en, kr }))
+        });
+        heldDataSlots = null;
+        setRegisterInputText(dataRegisterInputEl, '', false);
+        setFieldFeedback(dataRegisterFeedbackEl, `${slots.length}문항이 등록되었습니다`, 'success');
+    } catch (e) {
+        // 합친 전체를 상자로 되돌려 등록하기로 다시 시도할 수 있게 함(엑셀로 올린 경우도 상자에서 이어서)
+        console.error(e);
+        heldDataSlots = null;
+        setRegisterInputText(dataRegisterInputEl, [title, ...slots.map(s => s.raw)].join('\n'), false);
+        setFieldFeedback(dataRegisterFeedbackEl, '등록하지 못했습니다', 'error');
+    }
+    dataRegisterBtn.disabled = dataRegisterExcelBtn.disabled = false;
+}
+
+// 입력 상자 — 글자가 있는 첫 줄은 데이터 이름(쉼표가 있어도 통째로), 둘째 줄부터 단어
+dataRegisterBtn.addEventListener('click', () => {
+    const [titleLine = '', ...lines] = nonBlankLines(dataRegisterInputEl.value);
+    const title = titleLine.trim() || '제목 없음';
+    const slots = heldDataSlots
+        ? mergeFixedLines(heldDataSlots, lines)
+        : lines.map(line => toWordSlot(splitRegisterLine(line), line));
+    registerLearningData(title, slots);
+});
+
+// 엑셀 — 파일 이름(확장자 제외)이 데이터 이름, 첫 열 영어, 둘째 열 뜻(파일 안 쉼표는 칸 구분에 안 씀).
+// 새 파일은 새 등록이라 보관 중이던 줄은 버림
+bindExcelPicker(dataRegisterExcelBtn, dataRegisterFileEl, dataRegisterFeedbackEl, (buffer, fileName) => {
+    const title = fileName.replace(/\.[^.]+$/, '').trim() || '제목 없음';
+    const slots = readSheetRows(buffer).map(({ cells, raw }) => toWordSlot(cells, raw));
+    heldDataSlots = null;
+    registerLearningData(title, slots);
+});
 
 let unsubscribeAdminLearningData = null;
 function stopAdminLearningDataListener() {
