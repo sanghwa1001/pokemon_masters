@@ -422,58 +422,13 @@ function mpGenerateCode() {
     return code;
 }
 
-// ---------------- 대기 제한시간 타이머(UI 포함) ----------------
-// 액션/강제 교체/파티 선택/불러오기 대기가 이 타이머 하나를 씀(겹칠 일이 없음).
-// 내 결정 대기는 정확히 durationMs에 처리하고, 상대 메시지 대기는 mpPeerSlackThenJudge로 여유를 더 줌
-let mpDeadlineTimeout = null;
-let mpDeadlineInterval = null;
-let mpDeadlineEl = null;
-let mpDeadlineGen = 0; // 타이머를 새로 걸거나 지울 때마다 증가 — 보류된 판정이 아직 유효한지 확인용
-let mpDeadlineEndAt = 0; // 지금 걸려 있는 타이머의 만료 시각 — 재접속 때 남은 시간을 이어서 주려고 기록
-
-function mpFormatCountdown(ms) {
-    return formatMMSS(Math.max(0, Math.ceil(ms / 1000)));
-}
-
-window.mpClearDeadlineTimer = function() {
-    mpDeadlineGen++;
-    mpDeadlineEndAt = 0;
-    if (mpDeadlineTimeout) { clearTimeout(mpDeadlineTimeout); mpDeadlineTimeout = null; }
-    if (mpDeadlineInterval) { clearInterval(mpDeadlineInterval); mpDeadlineInterval = null; }
-    if (mpDeadlineEl) { mpDeadlineEl.classList.add('hidden'); mpDeadlineEl = null; }
-}
-
-// el 안에 남은 시간을 표시하며 durationMs 안에 mpClearDeadlineTimer()가 불리지 않으면
-// onTimeout()을 실행함(el이 없으면 표시 없이 타이머만 동작)
-window.mpStartDeadline = function(el, durationMs, onTimeout) {
-    window.mpClearDeadlineTimer();
-    mpDeadlineEl = el || null;
-    const endAt = Date.now() + durationMs;
-    mpDeadlineEndAt = endAt;
-    if (mpDeadlineEl) {
-        mpDeadlineEl.textContent = mpFormatCountdown(durationMs);
-        mpDeadlineEl.classList.remove('hidden');
-        mpDeadlineInterval = setInterval(() => {
-            if (mpDeadlineEl) mpDeadlineEl.textContent = mpFormatCountdown(endAt - Date.now());
-        }, 1000);
-    }
-    mpDeadlineTimeout = setTimeout(() => {
-        mpDeadlineTimeout = null;
-        window.mpClearDeadlineTimer();
-        onTimeout();
-    }, durationMs);
-}
-
-// 지금 걸려 있는 타이머의 남은 시간(ms) — 걸려 있지 않으면 null
-window.mpDeadlineRemaining = function() {
-    return mpDeadlineEndAt ? Math.max(0, mpDeadlineEndAt - Date.now()) : null;
-}
-
-// 상대 메시지 대기 중 제한시간이 다 됐을 때 — 여유만큼 더 기다린 뒤 끊김 판정(그 사이 오면 mpClearDeadlineTimer로 취소)
+// ---------------- 상대 대기 여유 ----------------
+// 상대 메시지 대기 중 제한시간이 다 됐을 때 — 여유만큼 더 기다린 뒤 끊김 판정(그 사이 오면 clearBattleTimer로 취소).
+// 대결 제한시간 타이머(startBattleTimer 등)는 pokemon_battle.js
 window.mpPeerSlackThenJudge = function() {
-    window.mpStartDeadline(null, MP_PEER_SLACK_MS, () => {
-        const gen = mpDeadlineGen;
-        mpJudgePeer(() => gen === mpDeadlineGen, () => window.mpForceDisconnect());
+    startBattleTimer(null, MP_PEER_SLACK_MS, () => {
+        const gen = battleTimerGen;
+        mpJudgePeer(() => gen === battleTimerGen, () => window.mpForceDisconnect());
     });
 }
 
@@ -489,7 +444,7 @@ function mpTeardown(superseded) {
     window.mp.roomCode = null;
     window.mpInbox = [];
     window.mpWaiters = [];
-    window.mpClearDeadlineTimer();
+    clearBattleTimer();
 
     [unsubscribeMessages, unsubscribeRoom, unsubscribePeerPresence, unsubscribeEnd, unsubscribeSid, unsubscribeRejoin, unsubscribeResync]
         .forEach(fn => { if (fn) fn(); });
