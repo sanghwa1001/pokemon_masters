@@ -102,7 +102,7 @@
               "$msg": {
                 ".validate": "newData.hasChildren(['type', 'from', 'timestamp'])",
                 "type": {
-                  ".validate": "newData.isString() && newData.val().matches(/^(action|forcedSwitch|party|loaded|rematch|leave|commit|reveal|state|snapshot)$/)"
+                  ".validate": "newData.isString() && newData.val().matches(/^(forcedSwitch|party|loaded|rematch|leave|commit|reveal|snapshot)$/)"
                 },
                 "from": {
                   ".validate": "newData.val() === 'host' || newData.val() === 'guest'"
