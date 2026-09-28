@@ -54,13 +54,15 @@
             <button id="btn-admin-logout" class="menu-item">로그아웃</button>
         </div>
 
-        <!-- 학생 관리 창 (관리자용) — 도감 목록과 같은 구성: 위쪽 줄 왼쪽에 "전체 선택" 체크박스(도감의
-             "잡음"과 같은 모양), 오른쪽에 인원수. 각 학생 줄(이름·아이디 두 줄) 왼쪽 체크박스로 고르고
-             아래 "삭제하기"를 누르면 명단과 학생 데이터(도감 등)가 함께 지워짐 -->
+        <!-- 학생 관리 창 (관리자용) — 도감 창과 같은 목록 창(.list-panel: 480px 고정, 맨 위 검색창, 목록 위
+             "전체 선택 / N명" 줄, 목록이 남는 높이를 채움). 줄 왼쪽 체크박스로 고르고 아래 "삭제하기"를
+             누르면 명단과 학생 데이터(도감 등)가 함께 지워짐 -->
         <div id="admin-student-manage-modal" class="mp-modal hidden">
-            <div class="mp-box">
+            <div class="mp-box list-panel">
                 <button id="admin-student-manage-close-btn" class="quiz-close-btn">×</button>
-                <div class="mp-title">학생 관리</div>
+                <div class="list-panel-header">
+                    <input type="text" id="student-search-input" class="dex-search-input" placeholder="이름 또는 이메일 검색" autocomplete="off">
+                </div>
                 <div class="admin-count-bar">
                     <label class="dex-owned-only-label">
                         <input type="checkbox" id="student-select-all">
@@ -111,22 +113,41 @@
             </div>
         </div>
 
-        <!-- 학습 데이터 관리 창 (관리자용) — 학생 계정 관리 모달과 동일한 구성(목록만) -->
+        <!-- 학습 데이터 관리 창 (관리자용) — 학생 관리 창과 같은 목록 창: 맨 위 검색창, "전체 선택 / N개",
+             줄 왼쪽 체크박스로 고르고 아래 "삭제하기"로 여러 개를 한 번에 삭제 -->
         <div id="admin-data-manage-modal" class="mp-modal hidden">
-            <div class="mp-box">
+            <div class="mp-box list-panel">
                 <button id="admin-data-manage-close-btn" class="quiz-close-btn">×</button>
-                <div class="mp-title">학습 데이터 관리</div>
+                <div class="list-panel-header">
+                    <input type="text" id="data-search-input" class="dex-search-input" placeholder="데이터 이름 검색" autocomplete="off">
+                </div>
+                <div class="admin-count-bar">
+                    <label class="dex-owned-only-label">
+                        <input type="checkbox" id="data-select-all">
+                        <span>전체 선택</span>
+                    </label>
+                    <div id="data-count" class="admin-count-text">0개</div>
+                </div>
                 <div id="data-list-container" class="admin-list">
                     <!-- 데이터 목록이 동적으로 추가됨 -->
                 </div>
+                <button id="btn-delete-data" class="dex-settings-action-btn dex-danger admin-list-action" disabled>삭제하기</button>
+                <div id="data-delete-feedback" class="admin-delete-feedback"></div>
             </div>
         </div>
 
-        <!-- 학습 데이터 선택 모달 (학생용) -->
+        <!-- 학습 데이터 선택 창 (학생용) — 같은 목록 창. 누르면 그 데이터로 바뀌고, 지금 쓰고 있는 데이터
+             줄에는 도감 파티 선택과 같은 초록 ✓ 배지(.is-current) -->
         <div id="student-data-select-modal" class="mp-modal hidden">
-            <div class="mp-box">
+            <div class="mp-box list-panel">
                 <button id="student-data-select-close-btn" class="quiz-close-btn">×</button>
-                <div class="mp-title">학습 데이터 선택</div>
+                <div class="list-panel-header">
+                    <input type="text" id="student-data-search-input" class="dex-search-input" placeholder="데이터 이름 검색" autocomplete="off">
+                </div>
+                <div class="admin-count-bar">
+                    <span></span>
+                    <div id="student-data-count" class="admin-count-text">0개</div>
+                </div>
                 <div id="student-data-list-container" class="admin-list">
                     <!-- 데이터 목록이 동적으로 추가됨 -->
                 </div>

@@ -1095,7 +1095,8 @@ html, body {
    같은 방식으로 #dex-box 모서리에 position:absolute로 떠 있고(top:6px, 너비 26px), 그 폭이
    #dex-header의 좌우 안쪽까지 파고들기 때문에, 검색창이 버튼과 겹치지 않도록 좌우에 20px씩
    여백을 둬서 항상 버튼 바깥쪽에서만 폭을 차지하게 함(남는 폭은 flex:1이 전부 차지) */
-#dex-header {
+#dex-header,
+.list-panel-header {
     flex-shrink: 0;
     display: flex;
     padding: 0 20px;
@@ -1606,7 +1607,8 @@ html, body {
 
 /* 배틀 선택 모드에서 이 폼이 지금 배틀 슬롯에 등록되어 있음을 표시하는 체크 배지
    (markDexFormGridPartyCells 참고). .selected(빨간 테두리, 미리보기 중)와 동시에 표시될 수 있음 */
-.dex-form-cell.in-party::after {
+.dex-form-cell.in-party::after,
+.admin-row.is-current::after {
     content: '✓';
     position: absolute;
     top: 2px;
@@ -2169,6 +2171,7 @@ html, body {
        같은 칸 크기로 맞춤 — 이 목록들은 아이콘이 없어 내용만으로는 그보다 짧아지므로 min-height로
        강제하고, 내용은 이미 align-items:center라 가운데에 그대로 정렬됨 */
     min-height: 48px;
+    position: relative; /* 지금 쓰는 학습 데이터 표시(.is-current ✓ 배지)의 위치 기준 */
 }
 
 /* 학습 데이터 선택 목록(학생용)처럼 줄 전체가 클릭 대상일 때 — 도감 칸(.dex-row)과 같은
@@ -2280,10 +2283,41 @@ html, body {
     text-align: right;
 }
 
-/* 학생 한 줄 — [체크박스] 이름 / 아이디(이메일) 두 줄. 칸 모양은 학습 데이터 관리 목록(.admin-row)과
-   같고, 체크박스는 도감 "잡음" 체크박스(.dex-owned-only-label input)와 같은 크기·색 */
-.admin-student-row {
-    cursor: pointer;
+/* =====================================================
+   📋 목록 창(.list-panel) — 학생 관리 / 학습 데이터 관리 / 학습 데이터 선택. 도감 창(#dex-box)과
+   같은 구성·수치: 480px 고정, 위 여백 34px, 맨 위 검색창(#dex-header 규칙 공유, 30px + 아래 10px),
+   목록 위 줄(20px + 아래 12px), 목록이 남는 높이를 채움. 관리자 창은 목록 아래 삭제하기 + 결과 문구
+   ===================================================== */
+.mp-box.list-panel {
+    height: 480px;
+    padding: 34px 14px 18px;
+    gap: 0; /* .mp-box 기본 간격 대신 도감처럼 요소마다 여백을 따로 줌 */
+}
+
+.list-panel .admin-count-bar {
+    flex-shrink: 0;
+    margin-bottom: 12px;
+}
+
+.list-panel .admin-list {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+}
+
+.list-panel .admin-list-action {
+    flex-shrink: 0;
+    margin-top: 10px;
+}
+
+.list-panel .admin-delete-feedback {
+    flex-shrink: 0;
+    margin-top: 8px;
+}
+
+/* 목록 칸 두 줄(이름 / 이메일, 데이터 이름 / N문항) — 체크박스는 도감 "잡음" 체크박스
+   (.dex-owned-only-label input)와 같은 크기·색. 누를 수 있는 칸이라 .clickable(도감 칸과 같은 반응) */
+.admin-row-two-line {
     user-select: none;
 }
 
@@ -2296,7 +2330,7 @@ html, body {
     cursor: pointer;
 }
 
-.admin-student-row .admin-row-name {
+.admin-row-two-line .admin-row-name {
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -2322,7 +2356,7 @@ html, body {
 .admin-row-sub {
     display: block;
     font-size: 11px;
-    color: #666;
+    color: #888; /* 도감 칸의 번호(.dex-num)와 같은 작은 회색 */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

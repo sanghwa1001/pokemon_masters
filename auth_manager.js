@@ -1,5 +1,5 @@
 import { db, auth, googleProvider, authPersistenceReady } from "./firebase_config.js";
-import { ref, set, get, update, push, remove, onValue, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+import { ref, set, get, update, push, onValue, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
 // ===================== auth_manager.js (구글 로그인 + 관리자 기능) =====================
@@ -53,32 +53,105 @@ function emailKeyOf(email) {
     return String(email || '').trim().toLowerCase().replace(/\./g, ',');
 }
 
-// 관리자/학생 쪽 목록(학습 데이터 관리, 학습 데이터 선택) 두 곳이 전부 "이름 + (있으면) 삭제 버튼"
-// 또는 "줄 전체 클릭"이라는 같은 모양의 .admin-row 한 줄을 쓰므로 공용으로 뽑음
-function renderAdminRow(labelText, { clickable, onClick, deleteConfirmMessage, onDelete } = {}) {
-    const row = document.createElement('div');
-    row.className = clickable ? 'admin-row clickable' : 'admin-row';
+// ---- 목록 창(.list-panel) 공용 — 학생 관리 / 학습 데이터 관리 / 학습 데이터 선택이 함께 씀 ----
+// 도감 창과 같은 구성(맨 위 검색창, 목록 위 줄, 두 줄 칸)이라 칸 만들기·검색·체크박스 선택을 한 곳에 둠
 
-    const titleSpan = document.createElement('span');
-    titleSpan.className = 'admin-row-name';
-    titleSpan.textContent = labelText;
-    row.appendChild(titleSpan);
+const LIST_NO_RESULT_TEXT = '검색 결과가 없습니다'; // 도감 검색과 같은 문구
 
-    if (onClick) row.onclick = onClick;
+// 두 줄 칸 하나 — 첫 줄 main(흐리게: mutedMain, 옆에 작은 빨간 tag), 둘째 줄 sub(작은 회색).
+// check가 있으면 줄 전체를 label로 만들어 왼쪽 체크박스를 넣음(check의 값들은 체크박스 data-*로),
+// current면 지금 쓰는 항목 표시(✓ 배지), onClick이면 줄을 눌렀을 때 실행. 검색은 searchText로 함
+function renderTwoLineRow({ main, sub, mutedMain, tag, check, current, onClick, searchText }) {
+    const row = document.createElement(check ? 'label' : 'div');
+    row.className = 'admin-row admin-row-two-line clickable' + (current ? ' is-current' : '');
+    row.dataset.search = String(searchText !== undefined ? searchText : `${main} ${sub}`).toLowerCase();
 
-    if (onDelete) {
-        const delBtn = document.createElement('button');
-        delBtn.className = 'dex-settings-action-btn dex-danger dex-danger-sm';
-        delBtn.textContent = '삭제';
-        delBtn.onclick = async () => {
-            if (confirm(deleteConfirmMessage)) {
-                await onDelete();
-                row.remove(); // onValue 실시간 목록이면 어차피 다시 그려지지만, 그 전까지 기다리지 않고 바로 빠지도록
-            }
-        };
-        row.appendChild(delBtn);
+    if (check) {
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.className = 'admin-row-check';
+        Object.entries(check).forEach(([k, v]) => { if (v !== undefined && v !== null) box.dataset[k] = v; });
+        row.appendChild(box);
     }
+
+    const text = document.createElement('span');
+    text.className = 'admin-row-name';
+    const mainLine = document.createElement('span');
+    mainLine.className = mutedMain ? 'admin-row-main admin-row-muted' : 'admin-row-main';
+    mainLine.textContent = main;
+    if (tag) {
+        const tagEl = document.createElement('span');
+        tagEl.className = 'admin-row-tag';
+        tagEl.textContent = tag;
+        mainLine.appendChild(tagEl);
+    }
+    const subLine = document.createElement('span');
+    subLine.className = 'admin-row-sub';
+    subLine.textContent = sub;
+    text.appendChild(mainLine);
+    text.appendChild(subLine);
+    row.appendChild(text);
+
+    if (onClick) row.addEventListener('click', onClick);
     return row;
+}
+
+// 검색어가 들어 있지 않은 칸은 숨기고, 보이는 칸이 하나도 없으면 "검색 결과가 없습니다"
+// (목록 자체가 비어 있을 때의 안내는 renderAdminList가 따로 보여줌)
+function applyListSearch(listEl, query) {
+    const q = String(query || '').trim().toLowerCase();
+    const rows = Array.from(listEl.querySelectorAll('.admin-row'));
+    let shown = 0;
+    rows.forEach(row => {
+        const hit = !q || (row.dataset.search || '').includes(q);
+        row.classList.toggle('hidden', !hit);
+        if (hit) shown++;
+    });
+    let noResult = listEl.querySelector('.list-no-result');
+    if (rows.length && !shown) {
+        if (!noResult) {
+            noResult = document.createElement('div');
+            noResult.className = 'admin-row-empty list-no-result';
+            noResult.textContent = LIST_NO_RESULT_TEXT;
+            listEl.appendChild(noResult);
+        }
+    } else if (noResult) {
+        noResult.remove();
+    }
+}
+
+// 체크박스로 고르는 목록 — "전체 선택"과 실행 버튼(한 개 이상 골랐을 때만 누를 수 있음)을 목록에 맞춤.
+// 대상은 보이는(검색에 걸린) 칸만이라, 전체 선택·삭제가 검색 결과에만 적용됨
+function createSelectionControls(listEl, selectAllEl, actionBtn) {
+    const checkboxes = () => Array.from(listEl.querySelectorAll('.admin-row:not(.hidden) .admin-row-check'));
+    const refresh = () => {
+        const boxes = checkboxes();
+        const checked = boxes.filter(b => b.checked).length;
+        selectAllEl.checked = boxes.length > 0 && checked === boxes.length;
+        selectAllEl.indeterminate = checked > 0 && checked < boxes.length;
+        selectAllEl.disabled = boxes.length === 0;
+        actionBtn.disabled = checked === 0;
+    };
+    const clear = () => {
+        listEl.querySelectorAll('.admin-row-check').forEach(b => { b.checked = false; });
+        refresh();
+    };
+    listEl.addEventListener('change', (e) => {
+        if (e.target.classList.contains('admin-row-check')) refresh();
+    });
+    selectAllEl.addEventListener('change', () => {
+        checkboxes().forEach(b => { b.checked = selectAllEl.checked; });
+        refresh();
+    });
+    return { checkboxes, refresh, clear };
+}
+
+// 목록 창의 검색창 — 검색어가 바뀌면(보이지 않는 항목이 지워지지 않도록) 선택을 모두 풀고 다시 거름
+function bindListSearch(inputEl, listEl, selection) {
+    inputEl.addEventListener('input', () => {
+        applyListSearch(listEl, inputEl.value);
+        if (selection) selection.clear();
+    });
 }
 
 // listContainer를 "items가 비어있으면 안내문 / 아니면 rowBuilder(item)으로 만든 줄들"로 채움.
@@ -240,6 +313,7 @@ async function routeSignedInUser(user, token) {
 // 관리자가 학생 모드로 게임 중인지 — 이때 학생 시작화면 맨 아래 버튼은 "로그아웃" 대신
 // "관리자 메뉴"(관리자 대시보드로 돌아가기)가 됨
 let adminStudentMode = false;
+let currentSelectedDataId = null; // 지금 쓰고 있는 학습 데이터(학습 데이터 선택 창의 ✓ 표시용)
 const studentLogoutBtn = document.getElementById('btn-student-logout');
 
 function enterAdmin() {
@@ -294,6 +368,7 @@ async function startStudentSession(user, name, token) {
 
     // 이전에 선택해둔 학습 데이터가 있으면 다시 고르지 않아도 자동으로 적용
     // (선택을 바꾸기 전까지는 계정에 남아있어 다음 로그인에도 계속 유지됨)
+    currentSelectedDataId = data.selectedDataId || null;
     if (data.selectedDataId) {
         try {
             const dataSnapshot = await get(ref(db, `learningData/${data.selectedDataId}`));
@@ -312,6 +387,7 @@ async function startStudentSession(user, name, token) {
 // 학생 시작화면의 게임 데이터 표시(도감·학습 데이터 선택 상태)를 비움 — 로그아웃과 학생 모드 종료가 함께 씀.
 // 실제 기록(students/{uid})은 계정에 남아 다음에 다시 불러옴
 function clearStudentSessionLocal() {
+    currentSelectedDataId = null;
     if (window.resetPokedexLocal) window.resetPokedexLocal();
     if (window.resetLearningDataLocal) window.resetLearningDataLocal();
     document.getElementById('btn-select-learning-data').textContent = "학습 데이터 선택";
@@ -500,59 +576,25 @@ const studentCountEl = document.getElementById('student-count');
 const studentSelectAllEl = document.getElementById('student-select-all');
 const studentDeleteBtn = document.getElementById('btn-delete-students');
 const studentDeleteFeedbackEl = document.getElementById('student-delete-feedback');
+const studentSearchInputEl = document.getElementById('student-search-input');
+const studentSelection = createSelectionControls(studentListContainer, studentSelectAllEl, studentDeleteBtn);
+bindListSearch(studentSearchInputEl, studentListContainer, studentSelection);
 
-function studentCheckboxes() {
-    return Array.from(studentListContainer.querySelectorAll('.admin-row-check'));
-}
-
-// "전체 선택" 상태와 삭제하기 버튼(한 명 이상 골랐을 때만 누를 수 있음)을 목록에 맞춤
-function updateStudentSelectionUI() {
-    const boxes = studentCheckboxes();
-    const checked = boxes.filter(b => b.checked).length;
-    studentSelectAllEl.checked = boxes.length > 0 && checked === boxes.length;
-    studentSelectAllEl.indeterminate = checked > 0 && checked < boxes.length;
-    studentSelectAllEl.disabled = boxes.length === 0;
-    studentDeleteBtn.disabled = checked === 0;
-}
-
-// 한 줄: [체크박스] 이름(없으면 "이름 없음") · 아직 로그인 전이면 "미접속" / 둘째 줄 아이디(이메일).
-// 줄 전체가 label이라 줄 아무 곳이나 눌러도 선택됨
+// 한 줄: [체크박스] 이름(없으면 흐린 "이름 없음") · 아직 로그인 전이면 "미접속" / 둘째 줄 아이디(이메일)
 function renderStudentRow({ key, data }) {
-    const row = document.createElement('label');
-    row.className = 'admin-row admin-student-row';
-
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.className = 'admin-row-check';
-    box.dataset.key = key;
-    box.dataset.email = data.email;
-    if (data.uid) box.dataset.uid = data.uid;
-    box.addEventListener('change', updateStudentSelectionUI);
-    row.appendChild(box);
-
-    const text = document.createElement('span');
-    text.className = 'admin-row-name';
-    const nameLine = document.createElement('span');
-    nameLine.className = data.name ? 'admin-row-main' : 'admin-row-main admin-row-muted';
-    nameLine.textContent = data.name || '이름 없음';
-    if (!data.uid) {
-        const tag = document.createElement('span');
-        tag.className = 'admin-row-tag';
-        tag.textContent = '미접속';
-        nameLine.appendChild(tag);
-    }
-    const idLine = document.createElement('span');
-    idLine.className = 'admin-row-sub';
-    idLine.textContent = data.email;
-    text.appendChild(nameLine);
-    text.appendChild(idLine);
-    row.appendChild(text);
-    return row;
+    return renderTwoLineRow({
+        main: data.name || '이름 없음',
+        mutedMain: !data.name,
+        tag: data.uid ? null : '미접속',
+        sub: data.email,
+        searchText: `${data.name || ''} ${data.email}`,
+        check: { key, email: data.email, uid: data.uid }
+    });
 }
 
 async function loadStudentList() {
     studentListContainer.innerHTML = '로딩 중...';
-    updateStudentSelectionUI();
+    studentSelection.refresh();
     try {
         const snapshot = await get(ref(db, 'allowedStudents'));
         const entries = Object.entries(snapshot.val() || {})
@@ -560,23 +602,20 @@ async function loadStudentList() {
             .sort((a, b) => (a.data.name || a.data.email).localeCompare(b.data.name || b.data.email, 'ko'));
         studentCountEl.textContent = `${entries.length}명`;
         renderAdminList(studentListContainer, entries, '등록된 학생이 없습니다', renderStudentRow);
+        applyListSearch(studentListContainer, studentSearchInputEl.value);
     } catch (e) {
         console.error(e);
         studentCountEl.textContent = '0명';
         studentListContainer.innerHTML = '<div class="admin-row-empty">학생 목록을 불러올 수 없습니다</div>';
     }
-    updateStudentSelectionUI();
+    studentSelection.refresh();
 }
 
 document.getElementById('btn-admin-manage-students').addEventListener('click', () => {
     setFieldFeedback(studentDeleteFeedbackEl, '');
+    studentSearchInputEl.value = '';
     showModal(adminStudentManageModal);
     loadStudentList();
-});
-
-studentSelectAllEl.addEventListener('change', () => {
-    studentCheckboxes().forEach(b => { b.checked = studentSelectAllEl.checked; });
-    updateStudentSelectionUI();
 });
 
 // 고른 학생들을 명단(allowedStudents)과 학생 데이터(students/{uid} — 도감·선택한 학습 데이터)에서
@@ -606,7 +645,7 @@ async function findStudentUidsByEmail(emails) {
 }
 
 studentDeleteBtn.addEventListener('click', async () => {
-    const selected = studentCheckboxes().filter(b => b.checked);
+    const selected = studentSelection.checkboxes().filter(b => b.checked);
     if (!selected.length) return;
     if (!confirm(`${selected.length}명을 삭제하시겠습니까?\n도감 기록도 함께 삭제되며 되돌릴 수 없습니다`)) return;
 
@@ -639,6 +678,8 @@ document.getElementById('btn-admin-upload-data').addEventListener('click', () =>
 });
 
 document.getElementById('btn-admin-manage-data').addEventListener('click', () => {
+    setFieldFeedback(dataDeleteFeedbackEl, '');
+    dataSearchInputEl.value = '';
     showModal(adminDataManageModal);
     loadLearningDataForAdmin();
 });
@@ -671,9 +712,19 @@ function stopAdminLearningDataListener() {
     }
 }
 
+// 학습 데이터 관리 — 학생 관리와 같은 목록 창(검색, "전체 선택 / N개", 체크박스 + 아래 삭제하기)
+const dataListContainer = document.getElementById('data-list-container');
+const dataCountEl = document.getElementById('data-count');
+const dataSelectAllEl = document.getElementById('data-select-all');
+const dataDeleteBtn = document.getElementById('btn-delete-data');
+const dataDeleteFeedbackEl = document.getElementById('data-delete-feedback');
+const dataSearchInputEl = document.getElementById('data-search-input');
+const dataSelection = createSelectionControls(dataListContainer, dataSelectAllEl, dataDeleteBtn);
+bindListSearch(dataSearchInputEl, dataListContainer, dataSelection);
+
 function loadLearningDataForAdmin() {
-    const listContainer = document.getElementById('data-list-container');
-    listContainer.innerHTML = '로딩 중...';
+    dataListContainer.innerHTML = '로딩 중...';
+    dataSelection.refresh();
 
     // 화면에 들어올 때마다 리스너가 중복으로 쌓이지 않도록 기존 리스너 해제 후 등록
     stopAdminLearningDataListener();
@@ -682,38 +733,76 @@ function loadLearningDataForAdmin() {
         snapshot.forEach((childSnapshot) => {
             entries.push({ id: childSnapshot.key, data: childSnapshot.val() });
         });
-        renderAdminList(listContainer, entries, '등록된 학습 데이터가 없습니다.', ({ id, data }) =>
-            renderAdminRow(data.title + ` (${data.questions.length}문항)`, {
-                deleteConfirmMessage: `'${data.title}' 데이터를 삭제하시겠습니까?`,
-                onDelete: () => remove(ref(db, `learningData/${id}`))
+        dataCountEl.textContent = `${entries.length}개`;
+        renderAdminList(dataListContainer, entries, '등록된 학습 데이터가 없습니다.', ({ id, data }) =>
+            renderTwoLineRow({
+                main: data.title,
+                sub: `${(data.questions || []).length}문항`,
+                searchText: data.title,
+                check: { id }
             })
         );
+        applyListSearch(dataListContainer, dataSearchInputEl.value);
+        dataSelection.refresh();
     }, (e) => {
         console.error(e);
-        listContainer.innerHTML = '<div class="admin-row-empty">데이터 로딩 실패</div>';
+        dataCountEl.textContent = '0개';
+        dataListContainer.innerHTML = '<div class="admin-row-empty">데이터 로딩 실패</div>';
+        dataSelection.refresh();
     });
 }
+
+// 고른 학습 데이터를 한 번에 삭제(다중 경로 update — 중간에 실패해도 일부만 지워지지 않음).
+// 실시간 목록이라 지워지면 목록은 자동으로 다시 그려짐
+dataDeleteBtn.addEventListener('click', async () => {
+    const selected = dataSelection.checkboxes().filter(b => b.checked);
+    if (!selected.length) return;
+    if (!confirm(`${selected.length}개를 삭제하시겠습니까?\n되돌릴 수 없습니다`)) return;
+    dataDeleteBtn.disabled = true;
+    setFieldFeedback(dataDeleteFeedbackEl, '삭제 중...');
+    try {
+        const updates = {};
+        selected.forEach(b => { updates[`learningData/${b.dataset.id}`] = null; });
+        await update(ref(db), updates);
+        setFieldFeedback(dataDeleteFeedbackEl, `${selected.length}개가 삭제되었습니다`, 'success');
+    } catch (e) {
+        console.error(e);
+        setFieldFeedback(dataDeleteFeedbackEl, '삭제하지 못했습니다', 'error');
+    }
+    dataSelection.refresh();
+});
 
 
 // ===================== 학생: 학습 데이터 선택 =====================
 
+// 같은 목록 창 — 검색, "N개", 두 줄 칸. 지금 쓰고 있는 데이터 줄에는 ✓ 배지(도감 파티 선택과 같음)
+const studentDataListContainer = document.getElementById('student-data-list-container');
+const studentDataCountEl = document.getElementById('student-data-count');
+const studentDataSearchInputEl = document.getElementById('student-data-search-input');
+bindListSearch(studentDataSearchInputEl, studentDataListContainer, null);
+
 document.getElementById('btn-select-learning-data').addEventListener('click', () => {
+    studentDataSearchInputEl.value = '';
     showModal(studentDataSelectModal);
-    const listContainer = document.getElementById('student-data-list-container');
-    listContainer.innerHTML = '로딩 중...';
+    studentDataListContainer.innerHTML = '로딩 중...';
 
     get(ref(db, 'learningData')).then((snapshot) => {
         const entries = [];
         snapshot.forEach((childSnapshot) => {
             entries.push({ id: childSnapshot.key, data: childSnapshot.val() });
         });
-        renderAdminList(listContainer, entries, '등록된 학습 데이터가 없습니다. 선생님께 문의하세요.', ({ id, data }) =>
-            renderAdminRow(data.title + ` (${data.questions.length}문항)`, {
-                clickable: true,
+        studentDataCountEl.textContent = `${entries.length}개`;
+        renderAdminList(studentDataListContainer, entries, '등록된 학습 데이터가 없습니다. 선생님께 문의하세요.', ({ id, data }) =>
+            renderTwoLineRow({
+                main: data.title,
+                sub: `${(data.questions || []).length}문항`,
+                searchText: data.title,
+                current: id === currentSelectedDataId,
                 onClick: () => {
                     if (window.applyLearningData) {
                         window.applyLearningData(data.questions, data.title);
                     }
+                    currentSelectedDataId = id;
                     // 선택한 데이터를 계정에 저장 — 다음에 로그인해도 다시 고르지 않아도 됨
                     if (window.currentStudentId) {
                         update(ref(db, `students/${window.currentStudentId}`), {
@@ -725,8 +814,10 @@ document.getElementById('btn-select-learning-data').addEventListener('click', ()
                 }
             })
         );
+        applyListSearch(studentDataListContainer, studentDataSearchInputEl.value);
     }).catch(e => {
-        listContainer.innerHTML = '<div class="admin-row-empty">데이터 로딩 실패</div>';
+        studentDataCountEl.textContent = '0개';
+        studentDataListContainer.innerHTML = '<div class="admin-row-empty">데이터 로딩 실패</div>';
         console.error(e);
     });
 });
