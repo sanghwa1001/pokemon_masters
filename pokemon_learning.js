@@ -1,6 +1,6 @@
 // ===================== pokemon_learning.js (퀴즈 — 학습 데이터 등록은 auth_manager.js) =====================
 // 정답/오답 처리는 콜백(setQuizAnswerHandlers)으로 위임해 다른 파일이 이 퀴즈를 재사용할 수
-// 있게 함(구조는 MODULARIZATION_PLAN.md 참고). 로드 순서: script.js 다음, pokemon_catch.js보다 먼저.
+// 있게 함. 로드 순서: script.js 다음, pokemon_catch.js보다 먼저.
 
 const quizModal    = document.getElementById('quiz-modal');
 const quizCloseBtn = document.getElementById('quiz-close-btn');
@@ -8,15 +8,15 @@ const quizQuestion = document.getElementById('quiz-question');
 const quizOptions  = document.getElementById('quiz-options');
 const quizFeedback = document.getElementById('quiz-feedback');
 
-// 결과 화면 요소
+// 퀴즈에 쓰는 단어 목록: [{ en, kr }, ...]
 let wordList = [];
 const QUIZ_MIN_WORDS = 4; // 4지선다를 위해 최소 4개 단어 필요 (학습 데이터 등록 검사도 이 값을 씀 — auth_manager.js)
 
-// 포켓볼 / 도망치기 보유 개수 (기본 1개씩 제공, 퀴즈 정답 시 각각 +1)
+// 이번 판의 퀴즈 정답·오답 수
 let quizCorrectCount = 0;
 let quizWrongCount   = 0;
 
-// 포획한 포켓몬 목록 (포획한 순서대로 저장: { id, name, bst })
+// 고른 학습 데이터를 퀴즈 단어 목록으로 적용
 window.applyLearningData = function(questions, title) {
     wordList = questions;
     const startBtn = document.getElementById('start-btn');

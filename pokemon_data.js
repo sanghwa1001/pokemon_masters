@@ -1,23 +1,10 @@
-// 엑셀(pokemon_data_최종확정_v2.xlsx)에서 생성된 포켓몬 이름/종족값(CP)/카테고리 데이터
-// 1~9세대(1~1025번) + 폼 차이(성별/지역폼/특수폼/코스튬 등) + 메가진화(mega) + 거다이맥스(gmax) 전부 포함, 총 1591종
-// (가짜/중복 폼 28종은 삭제 완료 — 호바귀·펌킨인 사이즈폼, 오거폰 중복 가면, 우츠동·에레브 섀도우폼 등)
-// (2026-08 메가진화 확장 패치로 신규 메가 47폼 추가, 1544 → 1591종)
-// category: "normal"(일반 야생 출현) / "mega"(메가진화) / "gmax"(거다이맥스)
-// species: 폼 차이를 묶어서 그룹화할 때 쓰는 기본 번호 (접미사 제외)
-// bst: 이 폼의 "진짜" 종족값(CP 배율 안 섞인 순수 스탯 합).
-// - mega 중 실존하는 오리지널 48종(6/7세대 공식 메가진화, "메가진화 확장" 구간 이전에 위치)은
-//   각자 실제 공식 종족값을 그대로 저장(예: 6-mega_x 메가리자몽X = 634, 기본 리자몽 534와 다름).
-// - mega 중 2026-08 확장으로 추가된 신규 47종(공식에 존재하지 않는 가상 메가)과 gmax 전부는
-//   참조할 실제 공식 스탯이 없거나(신규 메가) 실제로 스탯 변화가 없으므로(gmax) 기본종(species)과
-//   동일한 값을 그대로 저장함.
-// CP 점수용 배율(이로치/메가/거다이맥스)은 여기 안 섞고 pokemon_catch.js의 MEGA_CP_MULTIPLIER/
-// GMAX_CP_MULTIPLIER/SHINY_CP_MULTIPLIER가 표시/계산 시점에 곱함 — 패치82, 패치83 참고
-// types: 원본 게임(Pokemon Another Red_PWT_250821, species.dat)의 @types를 그대로 가져온 실제
-// 포켓몬 타입 1~2개(대문자 영문, images/pokemon/layout/types.png의 뱃지 이름과 매칭 — 순서/인덱스는
-// script.js의 TYPE_ICON_ORDER 참고). normal 카테고리는 기본 폼(species) 기준, mega/gmax는 그 폼
-// 자체의 정확한 타입(메가 진화로 타입이 바뀌는 경우 반영됨 — 예: 리자몽메가X는 불꽃/드래곤).
-// 폼 차이(성별/지역폼 등)까지는 전부 기본 폼과 동일하게 처리함(원본에서 폼별로 정확히 대응시키기엔
-// 근거가 부족해서 뒷모습 폴백과 같은 수준)
+// 엑셀(pokemon_data_최종확정_v2.xlsx)에서 생성된 포켓몬 데이터 — 1~1025번 + 폼 차이 + 메가 + 거다이맥스, 총 1591종
+// category: "normal"(야생 출현) / "mega" / "gmax"
+// species: 폼 차이를 묶는 기본 번호(접미사 제외)
+// bst: 이 폼의 순수 종족값 — 공식 메가 48종은 공식 값, 가상 메가와 gmax는 기본종과 같은 값.
+//   CP 배율(이로치/메가/거다이맥스)은 pokemon_catch.js에서 곱함
+// types: 원본 게임 species.dat의 타입 1~2개(순서는 script.js TYPE_ICON_ORDER). normal은 기본 폼 기준,
+//   mega/gmax는 그 폼의 정확한 타입
 const POKEMON_DATA = {
   "1": { "name": "이상해씨", "bst": 318, "category": "normal", "species": "1", "types": ["GRASS", "POISON"] },
   "2": { "name": "이상해풀", "bst": 405, "category": "normal", "species": "2", "types": ["GRASS", "POISON"] },
@@ -1564,12 +1551,7 @@ const POKEMON_DATA = {
   "1024-2": { "name": "테라파고스", "bst": 700, "category": "normal", "species": "1024", "types": ["NORMAL"] },
   "1025": { "name": "복숭악동", "bst": 600, "category": "normal", "species": "1025", "types": ["POISON", "GHOST"] },
 
-  // ===================== 메가진화 확장 (2026-08 패치, 47개 신규) =====================
-  // 신규 41종(각 1폼) + 앱솔/한카리아스/루카리오 2번째 메가(Z) + 라이츄 X/Y +
-  // 싸리용 기존 3서브폼 각각에 메가 1개.
-  // 전부 실제 포켓몬 공식에는 존재하지 않는 가상 메가라서 참조할 실제 종족값이 없음 —
-  // bst는 기본종과 동일값 그대로 사용(패치82로 CP 배율 분리, 패치83에서 오리지널 48종만
-  // 실제 공식 종족값으로 별도 수정함. 이 구간의 47종은 대상 아님).
+  // ===================== 가상 메가진화(47폼) — 공식 종족값이 없어 bst는 기본종과 같음 =====================
   "26-mega_x": { "name": "메가라이츄X", "bst": 485, "category": "mega", "species": "26", "types": ["ELECTRIC"] },
   "26-mega_y": { "name": "메가라이츄Y", "bst": 485, "category": "mega", "species": "26", "types": ["ELECTRIC"] },
   "36-mega": { "name": "메가픽시", "bst": 483, "category": "mega", "species": "36", "types": ["FAIRY"] },

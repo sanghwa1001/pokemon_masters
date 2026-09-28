@@ -4,7 +4,6 @@ import { getDatabase, ref, set, get, update, push, remove, onValue, onChildAdded
 
 // DB 보안 규칙은 firebase_database_rules.json 참고 (Firebase 콘솔 > Realtime Database > 규칙 탭에 붙여넣어야 적용됨)
 
-// TODO: Firebase Console에서 앱 등록 후 아래 값을 자신의 프로젝트 설정으로 교체하세요.
 const firebaseConfig = {
   apiKey: "AIzaSyDqR0eWQ1CYnPlJVDKLV7Qho4BwvuVx-VE",
   authDomain: "pokemon-masters-af173.firebaseapp.com",

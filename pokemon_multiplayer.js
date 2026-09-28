@@ -1,19 +1,9 @@
 // ===================== pokemon_multiplayer.js (함께하기 — Firebase 연동) =====================
-// Firebase Realtime Database(RTDB)를 메시지 통로로 쓰는 서버 없는 구조(양쪽이 같은 계산을 돌림).
-//
-// 끊김 처리 원칙(업계 표준 턴제 PvP와 같은 방향):
-//  - "연결 끊김"과 "기권"을 분리함. 연결이 잠깐 끊겨도 방을 지우지 않고(onDisconnect는 내
-//    presence만 offline으로 바꿈), 유예(MP_RECONNECT_GRACE_MS) 안에 돌아오면 그대로 이어감
-//  - 자기 제한시간은 자기가 판정(자동 패스/기권), 상대는 "살아 있는지"만 판정함
-//  - 판정이 확정되는 순간(mpFinish) 구독·타이머를 전부 끊어서, 그 뒤로는 상대 메시지가 와도
-//    턴이 진행되지 않음(제출됐지만 처리 안 된 행동은 폐기)
-//  - 내 연결이 끊겼거나 막 돌아온 직후(백그라운드 복귀 포함)엔 상대를 끊는 판정을 보류하고,
-//    판정 직전에 서버 왕복(mpPingServer)으로 내 쪽이 정말 연결돼 있는지 확인함
-//
-//  - 새로고침·탭 닫힘 후 재접속(업계 표준 방식): 진행 중인 대전을 계정(students/{uid}/activeRoom)에
-//    기록해 두고, 다시 열면 uid로 원래 자리인지 확인한 뒤 자동 복귀. 연결돼 있던 쪽의 상태가 정답이라
-//    그쪽이 안전 지점(턴 연출이 끝난 뒤)에서 상태 스냅샷을 새 채널로 보내 주고, 돌아온 쪽은 그 상태로
-//    화면을 복원함. 제한시간은 이어서 흐르고(초기화 없음), 이미 낸 행동은 확정(바꿀 수 없음).
+// Firebase Realtime Database를 메시지 통로로 쓰는 서버 없는 구조(양쪽이 같은 계산을 돌림).
+//  - 연결 끊김과 기권을 분리: 끊겨도 방을 지우지 않고 유예(MP_RECONNECT_GRACE_MS) 안에 돌아오면 이어감
+//  - 자기 제한시간은 자기가 판정, 상대는 살아 있는지만 판정. 확정(mpFinish)되면 구독·타이머를 모두 끊음
+//  - 내 연결이 불확실한 동안엔 상대를 끊는 판정을 보류하고, 판정 직전 서버 왕복(mpPingServer)으로 확인
+//  - 재접속: 계정(students/{uid}/activeRoom)에 대전을 기록해 두고 자동 복귀, 남은 쪽이 스냅샷을 보내 줌.
 //    같은 계정이 다른 곳에서 다시 접속하면 가장 최근 접속만 남김(sid)
 //
 // 방 구조: rooms/{code} = { host, guest, hostUid, guestUid, status, createdAt,
@@ -119,8 +109,7 @@ function mpWithTimeout(promise, ms) {
 }
 
 // ---------------- 연결 상태 표시(신호 아이콘) ----------------
-// 연결 중이면 실시간(신호 ↔ 끊김). 함께하기가 종료되면(mpFinish 등) 그 순간 모습으로 고정해 두고, 시작화면으로
-// 나갈 때(pokemon_battle.js/pokemon_pokedex.js가 mpClearSignalFreeze) 숨김 — 대전 화면에 있는 동안은 항상 보임
+// 대전이 끝나면 그 순간 모습으로 고정하고, 시작화면으로 나갈 때(mpClearSignalFreeze) 숨김
 let mpSignalFrozen = null; // null | 'ok'(신호) | 'lost'(끊김)
 function mpUpdateSignalIcon() {
     const show = window.mp.active || mpSignalFrozen !== null;
@@ -166,9 +155,7 @@ function mpInitConnectionWatch() {
 if (window.firebaseDb) mpInitConnectionWatch();
 else window.addEventListener('firebase-ready', mpInitConnectionWatch);
 
-// Firebase SDK는 gstatic.com에서 받아오는데, 학교망 방화벽 등으로 막히면 로그인 버튼이 아무
-// 반응 없이 멈춘 것처럼 보임 — 일정 시간 안에 준비되지 않으면 로그인 화면에 원인을 안내하고,
-// 늦게라도 준비되면 안내를 지움
+// Firebase SDK가 방화벽 등으로 막히면 로그인 버튼이 멈춘 것처럼 보여서, 일정 시간 안에 준비되지 않으면 안내함
 const MP_SDK_LOAD_TIMEOUT_MS = 10000;
 const firebaseLoadErrorEl = document.getElementById('firebase-load-error');
 setTimeout(() => {
@@ -180,9 +167,8 @@ window.addEventListener('firebase-ready', () => {
     if (firebaseLoadErrorEl) firebaseLoadErrorEl.textContent = '';
 });
 
-// 백그라운드에서 돌아오면 밀려 있던 setTimeout이 한꺼번에 실행되는데, 그때 소켓은 아직 다시
-// 연결되기 전일 수 있음 — 복귀 직후엔 판정을 보류. visibilitychange보다 타이머가 먼저 실행되는
-// 경우도 있어서 1초 틱이 밀렸는지로도 한 번 더 감지함(mpCanJudgePeer)
+// 백그라운드에서 돌아온 직후엔 밀린 타이머가 소켓 재연결보다 먼저 실행될 수 있어 판정을 보류함
+// (1초 틱이 밀렸는지로도 한 번 더 감지 — mpCanJudgePeer)
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
         mpSettleUntil = Math.max(mpSettleUntil, Date.now() + MP_RESUME_SETTLE_MS);
@@ -204,9 +190,7 @@ function mpCanJudgePeer() {
     return mpConnected && now >= mpSettleUntil;
 }
 
-// 내 presence를 서버에 한 번 써서 응답(ack)이 오는지로 "내가 정말 연결돼 있는지" 확인함 —
-// .info/connected는 소켓이 반쯤 죽은 상태를 늦게 알아채는 경우가 있어서, 상대를 끊기 직전엔
-// 이 왕복 확인을 반드시 거침
+// 서버에 한 번 써서 ack가 오는지로 내 연결을 확인 — .info/connected는 반쯤 죽은 소켓을 늦게 알아챔
 function mpPingServer() {
     if (!presenceRef) return Promise.resolve(false);
     const write = window.firebaseSet(presenceRef, { online: true, lastSeen: window.firebaseServerTimestamp() })
@@ -245,8 +229,7 @@ function mpScheduleJudgeRecheck() {
 }
 
 // ---------------- presence(내 온라인 표시 + 상대 감시) ----------------
-// Firebase 권장 순서: onDisconnect를 먼저 등록하고 그다음 online으로 씀. 서버가 onDisconnect를
-// 한 번 실행하면 등록이 사라지므로, 재연결될 때마다(mpInitConnectionWatch) 다시 부름
+// onDisconnect를 먼저 등록하고 online으로 씀. 서버가 한 번 실행하면 등록이 사라져서 재연결마다 다시 부름
 function mpRegisterPresence() {
     if (!currentRoomRef || !myRole || !mpConnected) return;
     presenceRef = getFirebaseRef(`rooms/${myRoomCode}/presence/${myRole}`);
@@ -312,8 +295,7 @@ window.mpSetPresenceGrace = function(enabled) {
 // ---------------- 메시지 큐 처리 ----------------
 window.mpSend = function(type, data) {
     if (!window.mp.active || !messagesRef) return;
-    // 보낸 사람은 역할(host/guest)로 표시 — 새로고침하면 MP_CLIENT_ID가 바뀌므로, 페이지 번호로
-    // 구분하면 재접속한 쪽이 예전에 자기가 보낸 메시지를 상대 것으로 착각함
+    // 보낸 사람은 역할로 표시 — 페이지 번호는 새로고침하면 바뀌어 내 메시지를 상대 것으로 착각함
     const msg = { type, from: myRole, timestamp: Date.now() };
     if (data !== undefined) msg.data = data;
     window.firebasePush(messagesRef, msg).catch(e => {
@@ -374,11 +356,8 @@ function mpHandleMessage(msg) {
 }
 
 // ---------------- 공정성: commit-reveal용 해시/난수 ----------------
-// 턴마다 각자 "행동+난수"의 해시(commit)만 먼저 보내고, 양쪽 commit이 모인 뒤에야 실제 행동과
-// 난수(reveal)를 공개함 — 먼저 고른 쪽의 행동을 나중 쪽이 미리 볼 수 없고, 명중/치명타 판정도
-// 양쪽 난수를 합친 값으로 정해져서 어느 한쪽이 미리 알거나 조작할 수 없음(pokemon_battle.js
-// mpSubmitTurnAction). crypto.subtle은 비동기이고 https/localhost에서만 되므로, 턴 흐름을 단순하게
-// 유지하려고 동기식 SHA-256을 직접 둠
+// 각자 "행동+난수"의 해시를 먼저 보내고 모인 뒤에 공개함 — 상대 행동을 미리 볼 수 없고 판정도 조작 불가.
+// crypto.subtle은 비동기이고 https에서만 되므로 동기식 SHA-256을 직접 둠
 const MP_SHA256_K = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -444,15 +423,8 @@ function mpGenerateCode() {
 }
 
 // ---------------- 대기 제한시간 타이머(UI 포함) ----------------
-// 배틀 액션 선택/강제 교체/파티 선택/불러오기 신호 대기, 4곳 전부 이 하나의 타이머로 처리함
-// (동시에 두 곳이 겹칠 일이 없으므로 공유해도 안전). 카운트다운 표시는 캐치 게임의
-// #game-timer와 같은 MM:SS 스타일이고, 위치는 각 화면의 닫기(×) 버튼과 대칭.
-//
-// "내가 아직 결정 못 함"(자동 패스·기권)은 내 로컬 얘기라 정확히 durationMs에 처리함. 반대로
-// "상대의 메시지를 기다리는 중"(이미 내 몫은 끝냄)이면 상대 시계는 연출 길이 차이만큼 늦게
-// 시작했을 수 있으므로 곧바로 끊지 않고 mpPeerSlackThenJudge()로 여유(MP_PEER_SLACK_MS)를 더
-// 준 뒤, 그래도 안 오면 mpJudgePeer로 판정함 — 호출하는 쪽(pokemon_battle.js)이 지금이
-// "내 결정" 상황인지 "상대 대기" 상황인지 구분해서 둘 중 하나를 씀
+// 액션/강제 교체/파티 선택/불러오기 대기가 이 타이머 하나를 씀(겹칠 일이 없음).
+// 내 결정 대기는 정확히 durationMs에 처리하고, 상대 메시지 대기는 mpPeerSlackThenJudge로 여유를 더 줌
 let mpDeadlineTimeout = null;
 let mpDeadlineInterval = null;
 let mpDeadlineEl = null;
@@ -500,9 +472,7 @@ window.mpDeadlineRemaining = function() {
     return mpDeadlineEndAt ? Math.max(0, mpDeadlineEndAt - Date.now()) : null;
 }
 
-// "상대의 메시지를 기다리는 중"에 단계 제한시간이 다 됐을 때 — 화면엔 아무것도 안 보이는 채로
-// 여유만큼 더 기다렸다가, 그래도 메시지가 안 오면 끊김 판정. 그 사이 메시지가 오면 호출하는
-// 쪽이 mpClearDeadlineTimer()로 취소함(판정이 보류 중이어도 mpDeadlineGen이 바뀌어 무효가 됨)
+// 상대 메시지 대기 중 제한시간이 다 됐을 때 — 여유만큼 더 기다린 뒤 끊김 판정(그 사이 오면 mpClearDeadlineTimer로 취소)
 window.mpPeerSlackThenJudge = function() {
     window.mpStartDeadline(null, MP_PEER_SLACK_MS, () => {
         const gen = mpDeadlineGen;
@@ -530,9 +500,8 @@ function mpTeardown(superseded) {
     unsubscribeSid = unsubscribeRejoin = unsubscribeResync = null;
     if (mpResyncTimer) { clearTimeout(mpResyncTimer); mpResyncTimer = null; }
 
-    // 등록해 둔 onDisconnect 해제 + 내 presence 삭제 — 안 하면 나중에 탭을 닫을 때 이미 끝난
-    // 방에 뒤늦게 presence가 써짐. 다른 곳에서 재접속해 밀려난 경우엔 presence가 새 접속의 것이므로
-    // 지우지 않음(내 onDisconnect만 해제)
+    // onDisconnect 해제 + 내 presence 삭제 — 안 하면 끝난 방에 뒤늦게 presence가 써짐.
+    // 다른 곳에서 재접속해 밀려난 경우엔 presence가 새 접속의 것이라 지우지 않음
     if (presenceDisconnectOp) { presenceDisconnectOp.cancel().catch(() => {}); presenceDisconnectOp = null; }
     if (presenceRef && !superseded) window.firebaseRemove(presenceRef).catch(() => {});
     presenceRef = null;
@@ -595,8 +564,7 @@ window.mpDeclarePeerForfeit = function() {
 }
 
 // ---------------- 매칭 후 공통 구독 ----------------
-// match/{n}/messages 채널을 구독 — 대전마다 새 채널을 써서 지난 대전의 메시지가 섞이거나
-// 계속 쌓이지 않게 함
+// match/{n}/messages 채널 구독 — 대전마다 새 채널이라 지난 메시지가 섞이지 않음
 function mpSubscribeMatchChannel(code) {
     if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
     messagesRef = getFirebaseRef(`rooms/${code}/match/${mpMatchNo}/messages`);
@@ -647,9 +615,8 @@ function mpClearActiveRoom() {
 }
 window.mpClearActiveRoom = mpClearActiveRoom;
 
-// 이번 턴에 이미 낸 행동(턴·행동·비밀값)을 진행 중 대전 기록 안에 둠 — 창을 닫거나 다른 기기로 재접속해도 내가
-// 고른 행동을 되살려 공개(reveal)할 수 있게 함(서버가 행동을 보관해 주는 업계 표준 방식을 흉내 냄). 본인 계정
-// 공간이라 상대는 읽을 수 없어 commit-reveal의 공정성은 그대로. 대전이 끝나면 activeRoom과 함께 지워짐
+// 이번 턴에 낸 행동(턴·행동·비밀값)을 계정의 진행 중 대전 기록에 둠 — 창을 닫거나 다른 기기로 와도 공개할 수 있게.
+// 본인만 읽을 수 있어 공정성은 그대로이고, 대전이 끝나면 activeRoom과 함께 지워짐
 window.mpSaveRemotePending = function(pending) {
     const uid = mpMyUid();
     if (!uid || !window.mp.active) return;
@@ -689,9 +656,8 @@ function mpWatchRejoinRequests(code) {
 
 window.mpHasPendingRejoin = function() { return !!mpPendingRejoinSid; }
 
-// 연결돼 있는 쪽이 안전 지점에서 부름 — 새 채널로 옮기고 그 채널 번호를 상대에게 알린 뒤 상태
-// 스냅샷을 보냄. 이후 내가 이미 보냈던 메시지(파티·로딩·commit·재대결)는 호출한 쪽이 새 채널로 다시 보냄.
-// 상대의 예전 메시지는 상대가 필요한 것만 다시 보내므로 대기열은 비움
+// 연결돼 있는 쪽이 안전 지점에서 부름 — 새 채널로 옮겨 번호를 알리고 스냅샷을 보냄.
+// 내가 보냈던 메시지는 호출한 쪽이 다시 보내고, 상대의 예전 메시지는 대기열에서 비움
 window.mpPerformResync = function(snapshot) {
     if (!window.mp.active || !mpPendingRejoinSid) return false;
     const sid = mpPendingRejoinSid;
@@ -726,9 +692,8 @@ function mpWatchEnd(code) {
     });
 }
 
-// 돌아온 쪽: 계정에 남아 있던 진행 중 대전으로 복귀 시도. 방이 그대로 있고 내 자리(uid)가 맞으면
-// 자리를 다시 차지하고 재동기화를 요청한 뒤, 상대가 보낸 스냅샷으로 화면을 복원함.
-// 복원하면 true, 복귀할 수 없으면(방 없음·시간 초과 등) 기록을 지우고 false — 문구 없이 시작화면으로
+// 돌아온 쪽: 방이 있고 내 자리(uid)가 맞으면 재동기화를 요청해 스냅샷으로 복원하고 true.
+// 복귀할 수 없으면 기록을 지우고 false
 window.mpTryRejoin = async function(pointer) {
     const uid = mpMyUid();
     const code = pointer && pointer.code;

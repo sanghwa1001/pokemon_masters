@@ -3,12 +3,8 @@ import { ref, set, get, update, push, onValue, query, orderByChild, equalTo } fr
 import { signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
 // ===================== auth_manager.js (구글 로그인 + 관리자 기능) =====================
-// 학생·관리자 모두 구글 계정으로 로그인하고, 역할은 이메일로 판단함:
-//   admins/{이메일키} = true            → 관리자(콘솔에서만 등록 가능 — 보안 규칙이 코드 쓰기를 막음)
-//   allowedStudents/{이메일키} = {...}   → 선생님이 등록한 학생
-//   둘 다 아니면                        → "등록되지 않은 계정" 안내 후 로그아웃
-// 학생 데이터는 students/{uid}(도감·선택한 학습 데이터)에 저장됨. 이메일키는 이메일을 소문자로
-// 바꾸고 '.'을 ','로 바꾼 값(RTDB 키에는 '.'을 쓸 수 없음) — 보안 규칙도 같은 방식으로 계산함
+// 역할은 이메일로 판단: admins/{이메일키}(콘솔에서만 등록) → 관리자, allowedStudents/{이메일키} → 학생,
+// 둘 다 아니면 안내 후 로그아웃. 이메일키 = 소문자 이메일의 '.'을 ','로(RTDB 키 제약, 보안 규칙도 같은 계산)
 
 // DOM Elements
 const loginScreen = document.getElementById('login-screen');
@@ -38,9 +34,7 @@ function switchScreen(screen) {
     screen.classList.remove('hidden');
 }
 
-// alert() 팝업 대신 모달 안 한 줄에 결과를 표시하는 공용 헬퍼 — 도감 치트 코드 페이지
-// (#dex-cheat-feedback)와 같은 방식으로, 네이티브 브라우저 알림 대신 나머지 UI와
-// 같은 톤으로 성공/실패를 보여줌
+// alert() 대신 모달 안 한 줄에 결과를 표시하는 공용 헬퍼(#dex-cheat-feedback과 같은 방식)
 function setFieldFeedback(el, message, type) {
     if (!el) return;
     el.textContent = message || '';
@@ -58,9 +52,8 @@ function emailKeyOf(email) {
 
 const LIST_NO_RESULT_TEXT = '검색 결과가 없습니다'; // 도감 검색과 같은 문구
 
-// 두 줄 칸 하나 — 첫 줄 main(흐리게: mutedMain, 옆에 작은 빨간 tag), 둘째 줄 sub(작은 회색).
-// check가 있으면 줄 전체를 label로 만들어 왼쪽 체크박스를 넣음(check의 값들은 체크박스 data-*로),
-// current면 지금 쓰는 항목 표시(✓ 배지), onClick이면 줄을 눌렀을 때 실행. 검색은 searchText로 함
+// 두 줄 칸 하나 — main(mutedMain이면 흐리게, 옆에 빨간 tag)과 sub. check면 왼쪽 체크박스,
+// current면 ✓ 배지, onClick이면 줄 클릭 동작. 검색은 searchText로 함
 function renderTwoLineRow({ main, sub, mutedMain, tag, check, current, onClick, searchText }) {
     const row = document.createElement(check ? 'label' : 'div');
     row.className = 'admin-row admin-row-two-line clickable' + (current ? ' is-current' : '');
@@ -154,9 +147,7 @@ function bindListSearch(inputEl, listEl, selection) {
     });
 }
 
-// listContainer를 "items가 비어있으면 안내문 / 아니면 rowBuilder(item)으로 만든 줄들"로 채움.
-// "로딩 중..." 표시~완료까지의 흐름은 목록마다 비동기 방식이 달라서(onValue 실시간 vs get()
-// 1회성) 호출하는 쪽에서 그대로 처리하고, 이 함수는 다 받아온 뒤의 렌더링만 담당
+// 목록을 items로 채우거나 비었으면 안내문 — 불러오는 흐름은 목록마다 달라 호출하는 쪽이 처리
 function renderAdminList(listContainer, items, emptyMessage, rowBuilder) {
     listContainer.innerHTML = '';
     if (!items.length) {
@@ -351,9 +342,7 @@ async function startStudentSession(user, name, token) {
     window.currentStudentId = uid;
     if (data.pokedex && window.loadPokedexFromFirebase) window.loadPokedexFromFirebase(data.pokedex);
 
-    // 진행 중이던 함께하기 대전이 있으면(새로고침·탭 닫힘) 자동으로 복귀 — 그동안은 지금 화면
-    // ("계정 확인 중...")을 그대로 두고, 복귀에 성공하면 복원된 배틀/선택 화면이 바로 보이게 함.
-    // 복귀할 수 없으면(시간 초과·방 없음) 문구 없이 평소처럼 시작화면
+    // 진행 중이던 함께하기 대전이 있으면 자동 복귀(그동안 "계정 확인 중..." 유지), 못 하면 평소처럼 시작화면
     let rejoined = false;
     if (data.activeRoom && window.mpTryRejoin) {
         rejoined = await window.mpTryRejoin(data.activeRoom);
@@ -439,8 +428,7 @@ document.getElementById('btn-admin-logout').addEventListener('click', logout);
 
 
 // ===================== 관리자: 등록 입력 상자 공용 (학생 등록·학습 데이터 등록) =====================
-// 두 창 모두 큰 입력 상자에 한 줄에 한 개씩 "첫 칸, 둘째 칸"을 적음 — 탭이 있으면 탭, 없으면 첫 쉼표에서만
-// 나눔(뜻에 쉼표가 자주 들어가서 "서비스, 근무, 봉사"가 잘리지 않게). 칸마다 앞뒤 공백 제거
+// 한 줄에 "첫 칸, 둘째 칸" — 탭이 있으면 탭, 없으면 첫 쉼표에서만 나눔(뜻에 쉼표가 자주 들어감)
 
 function splitRegisterLine(line) {
     if (line.includes('\t')) return line.split('\t').map(c => c.trim());
@@ -521,9 +509,8 @@ document.getElementById('btn-admin-create-student').addEventListener('click', ()
     studentRegisterInputEl.focus();
 });
 
-// [{ email, name, raw }] 목록을 allowedStudents에 추가하고 { added, duplicate, invalidRaws }를 돌려줌 —
-// 목록 안 중복·이미 등록된 이메일은 건너뛰고, 형식 오류 줄은 원문(raw)을 모아 돌려줌(머리글 줄도
-// 따로 판별하지 않고 형식 오류로 처리 — 입력 상자에 남으니 무엇인지 바로 보임)
+// [{ email, name, raw }]를 allowedStudents에 추가하고 { added, duplicate, invalidRaws }를 돌려줌 —
+// 중복은 건너뛰고 형식 오류 줄은 원문을 모음(머리글 줄도 형식 오류로 처리)
 async function addStudents(entries) {
     const existing = (await get(ref(db, 'allowedStudents'))).val() || {};
     const updates = {};
@@ -584,8 +571,7 @@ bindExcelPicker(studentRegisterExcelBtn, studentRegisterFileEl, studentCreateFee
 
 
 // ===================== 관리자: 학생 관리 =====================
-// 도감 목록과 같은 구성 — 위쪽 줄 "전체 선택"(도감의 "잡음"과 같은 체크박스) + 인원수, 각 줄 왼쪽
-// 체크박스로 골라 아래 "삭제하기"로 삭제
+// 도감 목록과 같은 구성 — "전체 선택" 체크박스 + 인원수, 줄마다 체크박스로 골라 "삭제하기"
 
 const studentListContainer = document.getElementById('student-list-container');
 const studentCountEl = document.getElementById('student-count');
@@ -634,13 +620,8 @@ document.getElementById('btn-admin-manage-students').addEventListener('click', (
     loadStudentList();
 });
 
-// 고른 학생들을 명단(allowedStudents)과 학생 데이터(students/{uid} — 도감·선택한 학습 데이터)에서
-// 한 번에 삭제. 학생 데이터는 명단에 기록된 uid뿐 아니라 이메일로도 찾아서, uid 기록이 빠져 있어도
-// 데이터가 남지 않게 함. 구글 로그인 기록(Authentication 사용자 목록)은 브라우저에서 지울 수 없어
-// 남지만, 명단에서 빠졌으므로 더 이상 로그인할 수 없음
-// 이메일로 학생 데이터(students/{uid})의 uid를 찾음 — 보안 규칙에 students의 email 인덱스가 게시돼
-// 있지 않으면 이메일 검색 자체가 "Index not defined" 오류로 실패하므로, 그때는 학생 데이터 전체를
-// 한 번 읽어서 이메일을 직접 비교함(관리자는 전체를 읽을 수 있음). 인덱스가 있으면 필요한 것만 받음
+// 이메일로 students/{uid}를 찾음 — email 인덱스가 게시되지 않았으면 "Index not defined"로 실패하므로
+// 그때는 전체를 한 번 읽어 직접 비교함
 async function findStudentUidsByEmail(emails) {
     const found = new Set();
     try {
@@ -660,6 +641,8 @@ async function findStudentUidsByEmail(emails) {
     return found;
 }
 
+// 고른 학생을 명단과 학생 데이터에서 함께 삭제 — 데이터는 uid 기록과 이메일 둘 다로 찾아 남지 않게 함.
+// 구글 로그인 기록은 브라우저에서 지울 수 없지만 명단에서 빠져 로그인할 수 없음
 studentDeleteBtn.addEventListener('click', async () => {
     const selected = studentSelection.checkboxes().filter(b => b.checked);
     if (!selected.length) return;
@@ -703,11 +686,9 @@ document.getElementById('btn-admin-manage-data').addEventListener('click', () =>
     loadLearningDataForAdmin();
 });
 
-// 학습 데이터 등록 — 학생 등록과 같은 입력 상자. 첫 줄은 데이터 이름, 둘째 줄부터 "영어, 뜻".
-// 학생과 달리 한 묶음으로 저장되므로, 틀린 줄이 하나라도 있으면 저장하지 않고 정상 줄은 원래 자리와 함께
-// 데이터 이름과 함께 보관(heldData)한 채 상자에는 틀린 줄만 빨간 글자로 남김(학생 등록과 같음 — 이름 줄까지
-// 상자에 두면 상자 전체가 빨개져 이름도 틀린 줄처럼 보임) → 고쳐서 다시 등록하면 보관한 이름·줄과 합쳐
-// 한 묶음으로 저장. 보관은 창 안 임시 메모리라 창을 다시 열거나 새로고침하면 비워짐
+// 학습 데이터 등록 — 첫 줄은 데이터 이름, 둘째 줄부터 "영어, 뜻". 한 묶음으로 저장하므로 틀린 줄이
+// 있으면 저장하지 않고, 이름과 정상 줄은 원래 자리와 함께 보관(heldData)한 채 상자에는 틀린 줄만 남김
+// (보관은 창 안 임시 메모리)
 const dataRegisterInputEl = document.getElementById('data-register-input');
 const dataRegisterFeedbackEl = document.getElementById('data-register-feedback');
 const dataRegisterBtn = document.getElementById('btn-register-data');
@@ -730,9 +711,8 @@ function toWordSlot(cells, raw) {
 // 틀린 줄의 첫 칸(영어 자리) — 고친 줄을 원래 자리에 맞출 때 비교에 씀
 const slotKey = (raw) => (splitRegisterLine(raw)[0] || '').toLowerCase();
 
-// 보관한 칸 목록에 상자의 고친 줄들을 합침 — 고친 줄 수가 틀린 줄 수와 같으면 순서대로 원래 자리에 넣고,
-// 다르면(줄을 지우거나 추가함) 첫 칸이 같은 틀린 줄을 순서대로 찾아 그 자리에 넣음. 짝이 없는 틀린 줄의
-// 자리는 버리고, 짝이 없는 고친 줄은 맨 뒤에 붙임
+// 보관한 칸에 고친 줄을 합침 — 줄 수가 같으면 순서대로 제자리에, 다르면 첫 칸이 같은 틀린 줄 자리에.
+// 짝 없는 자리는 버리고 짝 없는 고친 줄은 맨 뒤에
 function mergeFixedLines(slots, fixedLines) {
     const errorIdx = slots.map((s, i) => (s.error ? i : -1)).filter(i => i >= 0);
     const fixedSlots = fixedLines.map(line => toWordSlot(splitRegisterLine(line), line));

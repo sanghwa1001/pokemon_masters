@@ -1,18 +1,8 @@
-// 각 포켓몬 스프라이트의 정지 포즈(0번 프레임)를 직접 실측한 데이터.
-// x, y, w, h: 일반(front 계열) 버전 기준 — 캔버스 정중앙 대비 그림 중심의 좌우/상하 보정값(x,y)과
-//   그림 자체(투명 제외)의 실제 가로/세로 픽셀 크기(w,h)
-// shinyX, shinyY, shinyW, shinyH: 이로치(front_shiny 계열) 버전 기준, 위와 동일한 방식으로 별도 실측.
-//   대부분 종은 일반/이로치가 같은 그림(색만 다름)이라 x,y,w,h와 거의 같지만, 일부 종(39종)은
-//   일반/이로치의 원본 그림 구조 자체가 달라서 반드시 구분해서 써야 함
-// (v2 이미지팩 실측, 가짜/중복 폼 28종 삭제 반영 — 전체 1591종, 2026-08 메가진화 확장 47폼 포함)
-// effectW, effectH / shinyEffectW, shinyEffectH: 이펙트(이로치·칼춤·회복) 크기 계산 전용 — 0번 프레임이
-//   아니라 "스프라이트시트 모든 프레임"의 그림(투명 제외) 가로/세로를 각각 평균낸 값(px, 일반/이로치 따로).
-//   애니메이션 중 크기가 크게 바뀌는 종(예: 또가스 109번)도 평소 보이는 크기로 이펙트를 맞추기 위함
-// topSafety, shinyTopSafety: 0번 프레임이 아니라 "해당 스프라이트시트 전체 프레임 중 그림이 가장
-//   위로 튀어나온 프레임"까지 반영한 추가 여백(px) — (0번 프레임 상단여백 - 전체 프레임 중 최소
-//   상단여백), 항상 0 이상. alignWildMonsterTopToHpBar()(pokemon_battle.js)가 박스를 이 값만큼
-//   hp바 반대 방향으로 더 밀어서, 애니메이션 재생 중 어떤 프레임이 나와도 hp바-그림 간격이
-//   WILD_INFO_GAP(5px) 밑으로 내려가지 않도록 보장함. 정지 이미지(프레임 1장)는 항상 0.
+// 앞모습 스프라이트 0번 프레임 실측값(1591종)
+// x, y, w, h: 일반 — 그림 중심 보정값과 그림 크기(투명 제외, px)
+// shinyX, shinyY, shinyW, shinyH: 이로치 — 39종은 그림 구조가 달라 반드시 구분해서 씀
+// effectW, effectH / shinyEffectW, shinyEffectH: 이펙트 크기용 — 모든 프레임 그림 크기의 평균
+// topSafety, shinyTopSafety: 0번 프레임 상단여백 - 전체 프레임 중 최소 상단여백 — 박스를 이만큼 내려 hp바 간격을 보장
 const SPRITE_OFFSETS = {
   "432": { "x": -1.0, "y": -1.5, "w": 59, "h": 58, "shinyX": -1.0, "shinyY": -1.5, "shinyW": 59, "shinyH": 58, "topSafety": 4, "shinyTopSafety": 4, "effectW": 59.6, "effectH": 57.1, "shinyEffectW": 59.6, "shinyEffectH": 57.1 },
   "774": { "x": 3.5, "y": 0.5, "w": 37, "h": 37, "shinyX": 3.5, "shinyY": 0.5, "shinyW": 37, "shinyH": 37, "topSafety": 9, "shinyTopSafety": 9, "effectW": 37.9, "effectH": 37.1, "shinyEffectW": 37.9, "shinyEffectH": 37.1 },

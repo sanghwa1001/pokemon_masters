@@ -57,9 +57,7 @@
             <button id="btn-admin-logout" class="menu-item">로그아웃</button>
         </div>
 
-        <!-- 학생 관리 창 (관리자용) — 도감 창과 같은 목록 창(.list-panel: 480px 고정, 맨 위 검색창, 목록 위
-             "전체 선택 / N명" 줄, 목록이 남는 높이를 채움). 줄 왼쪽 체크박스로 고르고 아래 "삭제하기"를
-             누르면 명단과 학생 데이터(도감 등)가 함께 지워짐 -->
+        <!-- 학생 관리 창 (관리자용) — 체크박스로 골라 "삭제하기"를 누르면 명단과 학생 데이터가 함께 지워짐 -->
         <div id="admin-student-manage-modal" class="mp-modal hidden">
             <div class="mp-box list-panel">
                 <button id="admin-student-manage-close-btn" class="quiz-close-btn">×</button>
@@ -81,9 +79,7 @@
             </div>
         </div>
 
-        <!-- 학생 등록 창 (관리자용) — 큰 입력 상자에 한 줄에 한 명씩 "이메일, 이름"(쉼표·탭 구분, 이름은
-             선택 — 엑셀 두 열을 복사해 붙여넣어도 됨) 입력 후 등록, 또는 엑셀(첫 열 이메일, 둘째 열 이름)로
-             일괄 등록. 형식이 틀린 줄은 등록 후 상자에 빨간 글자로 남음. 등록된 이메일만 로그인할 수 있음 -->
+        <!-- 학생 등록 창 (관리자용) — 한 줄에 "이메일, 이름" 또는 엑셀로 일괄 등록, 틀린 줄은 빨간 글자로 남음 -->
         <div id="admin-student-create-modal" class="mp-modal hidden">
             <div class="mp-box">
                 <button id="admin-student-create-close-btn" class="quiz-close-btn">×</button>
@@ -98,9 +94,7 @@
             </div>
         </div>
 
-        <!-- 학습 데이터 등록 창 (관리자용) — 학생 등록 창과 같은 구성: 큰 입력 상자의 첫 줄은 데이터 이름,
-             둘째 줄부터 한 줄에 한 단어씩 "영어, 뜻"(탭, 없으면 첫 쉼표로 구분), 또는 엑셀(첫 열 영어, 둘째 열
-             뜻, 파일 이름이 데이터 이름)로 일괄 등록. 틀린 줄이 있으면 저장하지 않고 그 줄만 빨간 글자로 남김 -->
+        <!-- 학습 데이터 등록 창 (관리자용) — 첫 줄은 데이터 이름, 이후 "영어, 뜻" 또는 엑셀(파일 이름이 데이터 이름) -->
         <div id="admin-data-upload-modal" class="mp-modal hidden">
             <div class="mp-box">
                 <button id="admin-data-upload-close-btn" class="quiz-close-btn">×</button>
@@ -223,18 +217,12 @@
             </div>
         </div>
 
-        <!-- 배틀 뒷모습 프리뷰: 아직 실제 배틀 로직은 없고, 고른 포켓몬의 뒷모습을 포획 게임
-             화면의 몬스터볼 위치에 보여주고, 야생 포켓몬(#monster 등 기존 요소 재사용)이
-             캐치 게임과 동일하게 등장하는 것까지만 구현된 화면. 액션박스는 위치만 캐치 게임과
-             맞춘 비활성 장식(기능은 추후 구현) -->
+        <!-- 대결 화면: 상대 포켓몬은 포획 게임 요소(#monster 등)를 재사용 -->
         <div id="battle-preview-screen" class="hidden">
             <button id="battle-preview-close-btn" class="quiz-close-btn">×</button>
-            <!-- 함께하기(멀티플레이) 턴 행동/강제교체/불러오기 대기 제한시간 — 닫기(×) 버튼과
-                 대칭 위치·여백. 혼자하기에서는 항상 hidden, 대기 중일 때만 pokemon_multiplayer.js/
-                 pokemon_battle.js가 표시함(캐치 게임 #game-timer와 같은 MM:SS 스타일) -->
+            <!-- 대결 제한시간 — 닫기(×)와 대칭 위치, 대기 중일 때만 표시 -->
             <div id="battle-turn-timer" class="hidden"></div>
-            <!-- 함께하기 연결 상태 아이콘 — 닫기(×) 버튼 바로 왼쪽. 매칭 중에만 보이고, 내 연결 또는
-                 상대 presence가 끊기면 끊김 신호로 바뀜(pokemon_multiplayer.js mpUpdateSignalIcon) -->
+            <!-- 함께하기 연결 상태 아이콘 — 닫기(×) 바로 왼쪽 -->
             <div class="mp-signal-icon hidden"></div>
             <div id="battle-back-sprite-box"><div id="battle-back-sprite"></div></div>
             <div id="battle-back-shiny-effect" class="hidden"></div>
@@ -258,11 +246,7 @@
                     <button id="battle-move-back-btn" class="battle-move-back-btn" aria-label="뒤로가기"></button>
                     <div id="battle-move-list"></div>
                 </div>
-                <!-- "포켓몬"을 누르면(자진 교체) 또는 내 포켓몬이 기절해서 강제로
-                     교체해야 할 때(강제 교체) 둘 다 위 메뉴 대신 이게 보임 — 지금 나가있지 않고
-                     기절하지 않은 포켓몬의 이름만 버튼으로 보여주고, 누르면 바로 그 포켓몬으로
-                     교체를 선택함(기술 메뉴와 동일한 방식). 예전엔 강제 교체만 별도 오버레이
-                     (#battle-switch-menu)를 썼는데, 그 오버레이는 죽은 코드가 되어 완전히 삭제함 -->
+                <!-- 교체 이름 버튼 목록(자진 교체·강제 교체 공용) — 누르면 바로 그 포켓몬으로 교체 선택 -->
                 <div id="battle-switch-inline-menu" class="hidden">
                     <button id="battle-switch-inline-back-btn" class="battle-move-back-btn" aria-label="뒤로가기"></button>
                     <div id="battle-switch-inline-list"></div>
@@ -272,9 +256,7 @@
                 <div id="battle-message-box" class="hidden"></div>
             </div>
 
-            <!-- "상태 확인" 버튼으로 여는 정보 전용 오버레이(퀴즈창 #quiz-modal과 같은 디자인) — 내/상대
-                 포켓몬 슬롯 3칸씩과, 지금 나가있는 내 포켓몬 기준 상대 3마리와의 상성을 보여줌.
-                 슬롯 칸은 배틀 선택 슬롯(.battle-slot)과 같은 구조라 createSlotSpriteController를 재사용함 -->
+            <!-- "상태 확인" 오버레이 — 양쪽 파티 3칸씩과 상성 표시(슬롯은 .battle-slot과 같은 구조) -->
             <div id="battle-status-modal" class="hidden">
                 <div id="battle-status-box">
                     <button id="battle-status-close-btn" class="quiz-close-btn">×</button>
@@ -294,10 +276,6 @@
             </div>
 
             <div id="battle-result-overlay" class="hidden">
-                <!-- 배틀 쪽은 아직 학습 데이터 연계 통계(점수/정답/오답) 시스템이 없어서
-                     비워두고 hidden 처리 — 승패 소식은 이 화면이 뜨기 직전 액션박스 멘트
-                     ("상대와의 승부에서 이겼다!"/"졌다!")로 이미 전달됨. 나중에 배틀에도 통계
-                     기능이 붙으면(포획 게임의 #result-stats처럼) 이 자리에 다시 채워 넣을 것 -->
                 <!-- 포획 게임 결과 화면(#result-actions)과 동일하게 "처음으로"/
                      "다시하기" 버튼을 함께 보여줌 -->
                 <div id="battle-result-actions">
@@ -329,18 +307,14 @@
             </div>
         </div>
 
-        <!-- 포켓몬 도감: "포획한 포켓몬" 목록 창(#captured-modal)과 동일한 디자인(흰 바탕 + 검정 테두리)으로 통일.
-             "포켓몬 배틀" 버튼으로 열렸을 때는 dexPickerMode 플래그로 선택 모드가 되어, #dex-core 아래에
-             배틀 슬롯 바(#dex-battle-slot-row/#dex-battle-decide-btn)가 추가로 나타남. 폼 그리드 칸을
-             클릭하는 것 자체가 미리보기 + 슬롯 등록/해제를 겸함(별도 추가/빼기 버튼 없음) -->
+        <!-- 포켓몬 도감 — "포켓몬 배틀"로 열면 선택 모드(dexPickerMode)가 되어 아래에 슬롯 바가 붙고,
+             폼 칸 클릭이 슬롯 등록/해제를 겸함 -->
         <div id="dex-modal" class="hidden">
             <div id="dex-box">
                 <!-- 함께하기 파티 선택 대기 제한시간 — dex-close-btn(×)과 대칭 위치·여백 -->
                 <div id="dex-wait-timer" class="hidden"></div>
                 <div class="mp-signal-icon hidden"></div>
-                <!-- 도감 본문 전체(헤더~치트 페이지)를 감싸는 래퍼 — 일반 도감 모드일 때의 #dex-box
-                     콘텐츠 영역과 정확히 같은 고정 높이를 가져서, 배틀 선택 모드에서 슬롯 바가 이
-                     영역을 줄이지 않고 #dex-box 자체가 그만큼 더 길어지게 함(style.css #dex-core 참고) -->
+                <!-- 도감 본문 래퍼 — 고정 높이라 선택 모드의 슬롯 바는 #dex-box만 늘림 -->
                 <div id="dex-core">
                 <div id="dex-header">
                     <!-- 좌측 상단 자리: 목록 화면에서는 설정 버튼, 정보/설정 화면에서는 뒤로가기 버튼 —
@@ -369,27 +343,18 @@
                     <div id="dex-info-sprite-card">
                         <div id="dex-info-sprite-box"><div id="dex-info-sprite"></div></div>
                     </div>
-                    <!-- 폼 그리드: 이 종에 속한 대표폼을 포함한 모든 폼(리전/성별/코스튬/그림자 등
-                         일반폼 + 메가진화 + 거다이맥스)을 한 줄에 3칸씩 정리. 모든 칸은 정지 아이콘만
-                         표시(잡은 폼은 컬러, 못 잡은 폼은 실루엣). 칸을 클릭하면 위 큰 카드가 해당
-                         폼의 움직이는 스프라이트로 전환됨(renderDexFormGrid / showDexInfoForm) —
-                         배틀 선택 모드(dexPickerMode)에서는 같은 클릭이 슬롯 등록/해제도 겸함(이미
-                         슬롯에 있는 폼은 .in-party 체크 배지로 표시, markDexFormGridPartyCells 참고) -->
+                    <!-- 폼 그리드: 이 종의 모든 폼을 한 줄에 3칸씩(잡은 폼은 컬러, 못 잡은 폼은 실루엣) -->
                     <div id="dex-info-form-grid" class="hidden"></div>
                 </div>
 
-                <!-- 설정 화면: 좌측 상단 설정(⚙) 버튼을 누르면 목록 대신 표시됨. 버튼 두 개만
-                     있고, 각각을 누르면 아래의 전용 페이지(#dex-reset-page / #dex-cheat-page)로
-                     "이동"함(토글로 펼치는 방식이 아니라 완전히 별도 화면 전환) -->
+                <!-- 설정 화면: 두 버튼이 각각 아래 전용 페이지로 이동 -->
                 <div id="dex-settings" class="hidden">
                     <div id="dex-settings-title">설정</div>
                     <button id="dex-reset-btn" class="dex-settings-action-btn">도감 초기화</button>
                     <button id="dex-cheat-btn" class="dex-settings-action-btn">치트 코드</button>
                 </div>
 
-                <!-- 도감 초기화 페이지: 설정 화면에서 "도감 초기화" 버튼을 누르면 전환됨(뒤로가기를
-                     누르면 설정 화면으로 복귀). 되돌릴 수 없는 파괴적 동작이라 정확한 코드(DeleteAll)를
-                     입력해야만 초기화 버튼이 실제로 동작하는 안전장치를 둠(applyDexReset 참고) -->
+                <!-- 도감 초기화 페이지 — 정확한 코드를 입력해야만 초기화됨 -->
                 <div id="dex-reset-page" class="hidden">
                     <div id="dex-reset-page-title">도감 초기화</div>
                     <div id="dex-reset-row">
@@ -399,10 +364,7 @@
                     <div id="dex-reset-feedback"></div>
                 </div>
 
-                <!-- 치트 코드 페이지: 설정 화면에서 "치트 코드" 버튼을 누르면 전환됨(뒤로가기를
-                     누르면 설정 화면으로 복귀). 실제 포획 데이터는 건드리지 않고 화면 표시만 바꾸는
-                     개발/테스트용 기능. DexAll = 전부 언락(이름 공개)되지만 실제로 안 잡은 건 흑백,
-                     CaughtAll = 전부 실제로 잡은 것처럼 컬러 표시 -->
+                <!-- 치트 코드 페이지 — 실제 포획 데이터는 그대로 두고 표시만 바꾸는 테스트용 기능 -->
                 <div id="dex-cheat-page" class="hidden">
                     <div id="dex-cheat-page-title">치트 코드</div>
                     <div id="dex-cheat-row">
@@ -413,9 +375,7 @@
                 </div>
                 </div><!-- /#dex-core -->
 
-                <!-- 배틀 슬롯 바 — dexPickerMode일 때만 보임(updateDexPickerBarVisibility). 목록/정보
-                     화면 어느 쪽에 있든 하단에 고정으로 붙어있고, 설정/초기화/치트 페이지에서는 숨김.
-                     슬롯 칸 디자인(.battle-slot 등)은 실제 앞모습 애니메이션을 재생함(renderBattleSlotSprite) -->
+                <!-- 배틀 슬롯 바 — 선택 모드의 목록/정보 화면에서만 하단에 보임 -->
                 <div id="dex-battle-slot-row" class="hidden">
                     <div class="battle-slot empty" data-slot="0">
                         <div class="battle-slot-sprite-box"><div class="battle-slot-sprite"></div></div>
@@ -445,8 +405,7 @@
 
         <div id="monster-info" class="hidden"><div id="monster-hp-fill" class="hidden"></div></div>
         <div id="monster-info-text" class="hidden">
-            <!-- 지금 등장한 몬스터를 "정확히 이 폼(+ 이로치 여부까지 일치)"으로 예전에 잡아본
-                 적이 있으면 이름 앞에 표시되는 포획 완료 아이콘 (updateMonsterInfo 참고) -->
+            <!-- 이 폼(이로치 여부까지)을 잡은 적 있으면 이름 앞에 표시되는 포획 완료 아이콘 -->
             <span id="monster-owned-badge" class="dex-owned-badge hidden"></span>
             <span id="monster-name"></span>
             <span id="monster-bst"></span>

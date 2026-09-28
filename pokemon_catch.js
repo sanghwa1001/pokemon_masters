@@ -1,6 +1,6 @@
 // ===================== pokemon_catch.js (포켓몬 포획 게임) =====================
 // script.js(공용)/pokemon_pokedex.js/pokemon_learning.js 다음, pokemon_battle.js보다 먼저
-// 로드되어야 함(배틀 프리뷰가 initGame()을 재사용). 구조는 MODULARIZATION_PLAN.md 참고.
+// 로드되어야 함(배틀 프리뷰가 initGame()을 재사용).
 
 const startBtn    = document.getElementById('start-btn');
 const throwBtn    = document.getElementById('throw-btn');
@@ -42,20 +42,20 @@ let isAnimating = false;
 let gameTimeUp = false;
 
 // 상수
-const THROW_DURATION          = 400;  // ms - 던지는 시간 (몬스터볼 패치: 새 throw.gif 8프레임×50ms에 맞춤. style.css의 #pokeball.throwing transition-duration과 반드시 함께 변경)
-const BOUNCE_DURATION         = 525;  // ms - 충돌 후 정점까지 걸리는 시간 (기존 750 → 70%)
-const OPEN_DELAY              = 210;  // ms - 충돌 후 open.gif 시작까지 딜레이 (기존 300 → 70%)
-const CAPTURE_ABSORB_DURATION = 280;  // ms - 포획 흡수(.captured) CSS 트랜지션 시간 (기존 400 → 70%, 도망치다와는 별개)
+const THROW_DURATION          = 400;  // ms - 던지는 시간 (throw.gif 8프레임×50ms. style.css의 #pokeball.throwing transition-duration과 반드시 함께 변경)
+const BOUNCE_DURATION         = 525;  // ms - 충돌 후 정점까지 걸리는 시간
+const OPEN_DELAY              = 210;  // ms - 충돌 후 open.gif 시작까지 딜레이
+const CAPTURE_ABSORB_DURATION = 280;  // ms - 포획 흡수(.captured) CSS 트랜지션 시간 (도망치다와는 별개)
 const MONSTER_SHRINK_DURATION = 400;  // ms - 도망치다/새 몬스터 등장 시 몬스터 페이드 시간 (변경 없음)
 const BOUNCE_PEAK_OFFSET      = 125; // px - ball-bounce 키프레임 이동거리 (CSS와 동일값 유지)
-const DROP_DURATION           = 280;  // ms - 낙하 transition 시간 (기존 400 → 70%)
-const LAND_DURATION           = 280;  // ms - 착지 바운스 animation 시간 (기존 400 → 70%)
-const LANDED_WAIT             = 350;  // ms - 착지 후 onLanded 호출까지 대기 (기존 500 → 70%)
-const ESCAPE_CALLBACK_WAIT    = 350;  // ms - 탈출 연출 후 콜백까지 대기 (기존 500 → 70%)
-const ESCAPE_SPRING_DURATION  = 350;  // ms - 탈출 후 원래 크기로 복귀하는 스프링 트랜지션 (기존 500 → 70%)
-const SHAKE_DURATION          = 450;  // ms - catch.gif 1회 재생 시간 (몬스터볼 패치: 새 catch.gif 9프레임×50ms에 맞춤)
-const SHAKE_PAUSE             = 350;  // ms - 흔들림 사이 또는 탈출 전 대기 시간 (기존 500 → 70%)
-const CAPTURE_CHAR_DELAY      = 42;   // ms - 포획 메시지 한 글자당 타이핑 속도 (기존 60 → 70%)
+const DROP_DURATION           = 280;  // ms - 낙하 transition 시간
+const LAND_DURATION           = 280;  // ms - 착지 바운스 animation 시간
+const LANDED_WAIT             = 350;  // ms - 착지 후 onLanded 호출까지 대기
+const ESCAPE_CALLBACK_WAIT    = 350;  // ms - 탈출 연출 후 콜백까지 대기
+const ESCAPE_SPRING_DURATION  = 350;  // ms - 탈출 후 원래 크기로 복귀하는 스프링 트랜지션
+const SHAKE_DURATION          = 450;  // ms - catch.gif 1회 재생 시간 (catch.gif 9프레임×50ms)
+const SHAKE_PAUSE             = 350;  // ms - 흔들림 사이 또는 탈출 전 대기 시간
+const CAPTURE_CHAR_DELAY      = 42;   // ms - 포획 메시지 한 글자당 타이핑 속도
 const CAPTURE_MESSAGE_WAIT    = 1000; // ms - 메시지 완성 후 다음 몬스터로 넘어가기까지 대기 시간
 
 if (dexBtnResult) dexBtnResult.addEventListener('click', openDexModalNormal);
@@ -65,10 +65,8 @@ const CATEGORY_RATE = { gmax: 0.005, mega: 0.025, normal: 0.97 };
 
 const SHINY_CHANCE         = 0.1;   // 10% 확률로 shiny 등장 (카테고리와 무관하게 독립 적용)
 
-// CP(점수 표시용) 배율 — pokemon_data.js의 bst는 항상 "진짜" 종족값(mega/gmax도 자기 기본종과
-// 동일)만 저장하고, 카테고리/이로치에 따른 점수 보정은 전부 여기서 곱셈으로만 적용함(포획 확률·
-// 실패 모션 계산에는 이 배율들을 절대 안 섞고 항상 원본 bst만 씀 — getCatchProbability/
-// pickFailType 쪽 currentBst 참고). 서로 곱연산이라 이로치 메가/거다이맥스는 두 배율이 같이 적용됨.
+// CP(점수 표시용) 배율 — bst는 항상 원본 종족값이고 카테고리·이로치 보정은 여기서 곱하기만 함
+// (포획 확률·실패 모션 계산에는 섞지 않음). 이로치 메가/거다이맥스는 두 배율이 같이 적용됨
 const SHINY_CP_MULTIPLIER  = 1.5;   // 이로치 포획 시 점수(CP) 배율. 카테고리 상관없이 통일
 const MEGA_CP_MULTIPLIER   = 2;     // 메가진화 포획 시 점수(CP) 배율
 const GMAX_CP_MULTIPLIER   = 3;     // 거다이맥스 포획 시 점수(CP) 배율
@@ -82,9 +80,7 @@ function getCpMultiplier(category, isShiny) {
     return categoryMult * (isShiny ? SHINY_CP_MULTIPLIER : 1);
 }
 
-// 아래 두 경로(몬스터볼 open/catch)는 프리로드와 실제 재생 양쪽에서 항상 같은 문자열을 쓰도록
-// 상수로 관리. 쿼리스트링을 붙이지 않아야 브라우저 캐시가 재사용됨 (재생 직전 항상 다른 src가
-// 이미 들어있는 흐름이라, 쿼리스트링 없이도 브라우저가 알아서 처음부터 다시 재생해줌)
+// 몬스터볼 open/catch 경로 — 프리로드와 재생에 같은 문자열을 써야 캐시가 재사용됨(쿼리스트링 금지)
 const POKEBALL_OPEN_SRC  = 'images/pokemon/pokeball/open.gif';
 const POKEBALL_CATCH_SRC = 'images/pokemon/pokeball/catch.gif';
 
@@ -92,8 +88,7 @@ const CATCH_PROB_MAX  = 0.9;   // 종족값 최저(normal) 몬스터의 포획 �
 const CATCH_PROB_MIN  = 0.10;  // 종족값 최고(normal) 몬스터의 포획 성공률 (지수함수 곡선의 이론적 하한 참고값)
 const CATCH_PROB_RARE = 0.10;  // 메가/거다이맥스 전용 고정 포획 성공률 (normal 최고와 동일)
 
-// 포획률패치: 일반 포켓몬 포획 확률을 선형 보간 대신 지수함수로 변경.
-// 세 지점을 정확히 지나도록 피팅한 계수(BST 175→90%, 500→30%, 770→10%):
+// 일반 포켓몬 포획 확률 — BST 175→90%, 500→30%, 770→10%를 지나는 지수함수:
 //   prob(bst) = CATCH_EXP_C + CATCH_EXP_A * exp(-CATCH_EXP_K * bst)
 const CATCH_EXP_A = 1.6276185420670406;
 const CATCH_EXP_K = 0.003028144951451861;
@@ -169,9 +164,7 @@ function onTimeUp() {
         // 진행 중인 애니메이션이 없으면 바로 결과 화면으로 전환
         finishGameToResult();
     }
-    // isAnimating이 true인 경우(몬스터볼 던지는 중 / 도망치는 중)엔 여기서 아무것도 하지 않고,
-    // 해당 애니메이션이 자연스럽게 끝나는 지점(runThrow/runRunAway 내부)에서
-    // gameTimeUp 플래그를 감지해 자동으로 결과 화면으로 전환됨
+    // 던지는 중/도망치는 중이면 그 애니메이션이 끝나는 지점에서 gameTimeUp을 보고 결과 화면으로 감
 }
 
 // 실제로 게임을 종료 상태로 만들고 결과 화면을 표시
@@ -216,9 +209,7 @@ function getCatchProbability(bst, category) {
     return CATCH_EXP_C + CATCH_EXP_A * Math.exp(-CATCH_EXP_K * bst);
 }
 
-// 포획 확률 곡선에서 "얼마나 어려운 위치인지"를 0(가장 쉬움)~1(가장 어려움)로 환산.
-// 종족값을 직접 쓰지 않고 포획확률 기반으로 계산해서, 실패 유형 비율도 지수함수의
-// 굴곡(초반에 빠르게 어려워지는 모양)을 그대로 반영하도록 함
+// 포획 확률 곡선상의 난이도를 0(쉬움)~1(어려움)로 환산 — 실패 유형 비율도 같은 곡선을 따르게 함
 function getFailTypeProgress(bst) {
     const prob = getCatchProbability(bst, 'normal');
     return (CATCH_PROB_MAX - prob) / (CATCH_PROB_MAX - CATCH_PROB_MIN);
@@ -254,9 +245,8 @@ function capturedIconSrc(id, category, isShiny) {
     return `${SPRITE9_ROOT}/${folder}/${id}.png`;
 }
 
-// 배틀 화면에 쓰는 뒷모습(back) 스프라이트 경로. 뒷모습 자료는 폼 차이(지역폼/코스튬/성별)까지
-// 구분해서 구할 수 없어 "일반(normal)" 카테고리는 항상 기본 폼(species) 뒷모습으로 대체함.
-// 메가/거다이맥스는 정확한 id로 시도하되, 뒷모습이 없으면 <img onerror>에서 기본 폼으로 폴백함.
+// 뒷모습 스프라이트 경로 — 일반은 폼 구분 자료가 없어 기본 폼, 메가/거다이맥스는 정확한 id로
+// 시도하고 없으면 onerror에서 기본 폼으로 폴백
 function pickCategory() {
     const r = Math.random();
     if (r < CATEGORY_RATE.gmax) return 'gmax';
@@ -289,9 +279,7 @@ function pickRandomMonster() {
     };
 }
 
-// 이미지를 미리 요청해 캐시에 올리고, 로딩이 끝나거나 최대 PRELOAD_TIMEOUT_MS(1초)가 지나면
-// resolve되는 Promise를 반환함 — 온라인 배포 환경에서 네트워크 지연으로 몬스터 이미지가
-// hp바/텍스트보다 늦게 나타나는 현상을 줄이기 위함(느린 네트워크에서도 최대 1초에서 끊고 넘어감).
+// 포켓볼을 던지기 전 초기 상태로 되돌림
 function resetPokeball() {
     pokeball.src = 'images/pokemon/pokeball/1.png';
     pokeball.style.transition = 'none';
@@ -308,16 +296,13 @@ function refreshButtons() {
     throwBtn.disabled   = isAnimating || pokeballCount <= 0;
     runawayBtn.disabled = isAnimating || runawayCount  <= 0;
     chargeBtn.disabled  = isAnimating || wordList.length < QUIZ_MIN_WORDS;
-    // 터치 반응 통일 패치: game-timer/cp-total도 <button>으로 전환해서 나머지 3개 버튼과
-    // 완전히 동일한 방식(disabled 속성 + :disabled 룩)으로 통일함
+    // game-timer/cp-total도 <button>이라 다른 버튼과 같은 disabled 방식
     gameTimerEl.disabled = isAnimating;
     cpTotalEl.disabled   = isAnimating;
 }
 
-// 게임 초기화. preselected가 있으면(프리로드해둔 다음 몬스터) 그대로 쓰고, 없으면 새로 랜덤 선택.
-// onSpriteReady: 스프라이트 크기 계산이 끝난 뒤(displayMonsterSprite의 onReady) 실행할 선택적
-// 콜백 — 배틀 프리뷰가 몬스터 위치를 hp바에 맞춰 재조정하는 용도로만 쓰며, 실제 포획 게임
-// (startGame → initGame())은 이 인자 없이 호출되어 동작이 달라지지 않음.
+// 게임 초기화. preselected가 있으면(미리 로드한 다음 몬스터) 그대로 씀.
+// onSpriteReady: 스프라이트 크기 계산 뒤 실행 — 배틀 화면이 위치를 hp바에 맞추는 용도
 function initGame(preselected, onSpriteReady) {
     isAnimating = false;
     refreshButtons();
@@ -327,13 +312,9 @@ function initGame(preselected, onSpriteReady) {
     // 이전 라운드에서 남아있을 수 있는 shiny 이펙트 정리 (재생 중이었다면 타이머도 같이 정지)
     stopShinyAnimation();
     shinyEffect.classList.add('hidden');
-    // #shiny-effect는 #monster 밖의 독립 요소(베타와 동일 구조)라 부모 페이드인의 영향을 안 받음.
-    // 다만 크기(몬스터 비례)를 정확히 맞추려면 #monster-sprite의 크기 계산이 끝난 뒤(onReady)에
-    // 재생해야 함 — 동기적으로 바로 부르면 아직 계산 전이라 기본값을 읽게 됨
+    // #shiny-effect는 몬스터 크기에 맞추므로 스프라이트 크기 계산이 끝난 뒤(onReady)에 재생
     displayMonsterSprite(monster, picked.src, picked.id, () => {
-        // onSpriteReady(배틀 프리뷰의 alignWildMonsterTopToHpBar)가 #monster의 최종 위치를
-        // 먼저 확정해야, 그 위치를 읽는 playShinyEffect()가 정확한 좌표로 이펙트를 그림 —
-        // 순서가 바뀌면 이전 라운드의 낡은 위치를 읽어 이펙트가 엉뚱한 곳에 나타남
+        // 배틀 화면이 #monster 위치를 먼저 확정해야 이펙트가 정확한 좌표에 그려짐
         if (onSpriteReady) onSpriteReady(picked);
         if (picked.isShiny) playShinyEffect();
     });
@@ -478,13 +459,10 @@ function onCaptureSuccess() {
     // 도감 등록: 이번 판 한정인 capturedList와 별개로, 브라우저에 계속 누적되는 전국도감에도 기록
     registerDexCatch(currentMonsterId, currentIsShiny);
 
-    // 아이콘프리로드패치: 도감 목록을 열 때 여러 아이콘이 한꺼번에 몰려서(브라우저 동시 요청 제한
-    // 약 6개) 대기 줄이 생기는 것을 막기 위해, 포획하는 순간마다 하나씩 분산해서 미리 받아둠
+    // 도감을 열 때 아이콘 요청이 몰리지 않도록 포획할 때마다 하나씩 미리 받아 둠
     preloadImage(capturedIconSrc(currentMonsterId, currentCategory, currentIsShiny));
 
-    // 다음 몬스터를 미리 뽑아 포획 메시지가 보이는 동안(타이핑+대기, 1.6~1.8초) 이미지를 미리
-    // 로드해둠 → initGame 표시 시점엔 이미 로딩이 끝나 hp바/텍스트와 동시에 나타남. 느린 네트워크
-    // 등 예외 상황을 위해 initGame 호출 직전에 한 번 더 확실히 기다림.
+    // 포획 메시지가 보이는 동안 다음 몬스터 이미지를 미리 로드하고, initGame 직전에 한 번 더 기다림
     const nextMonster = pickRandomMonster();
     const preloadPromise = preloadImage(nextMonster.src);
 
@@ -516,8 +494,7 @@ function reenableButtons() {
 }
 
 // 몬스터볼 던지기: 종족값 기반 확률로 성공/실패 결정
-// - 성공: 흔들림 3회 후 포획 메시지를 타이핑으로 표시, 2초 뒤 새 몬스터로 교체
-// - 실패: 종족값이 높을수록 실패모션 1(무저항)이 잦고 3(장시간 저항)은 드묾, 탈출 후 같은 몬스터로 재도전 가능
+// 실패 모션은 종족값이 높을수록 1(무저항)이 잦고 3(장시간 저항)은 드묾
 function runThrow() {
     if (pokeballCount <= 0 || isAnimating) return;
     pokeballCount--;
@@ -550,9 +527,7 @@ function runThrow() {
     });
 }
 
-// 몬스터 정중앙 타겟 bottom 값 계산. getBoundingClientRect()는 스케일 적용된 화면 좌표를
-// 반환하지만 style.bottom은 스케일 적용 전 로컬 좌표계라 currentScale로 나눠 환산해야
-// 반응형 스케일링 상태에서도 몬스터볼이 정확한 위치로 날아감.
+// 몬스터 정중앙 타겟 bottom 값 — 화면 좌표를 currentScale로 나눠 로컬 좌표로 환산
 function getThrowTargetBottom() {
     const containerRect  = gameContainer.getBoundingClientRect();
     const monsterRect    = monster.getBoundingClientRect();
@@ -568,9 +543,7 @@ function runRunAway() {
     isAnimating = true;
     refreshButtons();
 
-    // 다음 몬스터를 미리 뽑아서 페이드아웃 구간(약 400ms) 동안 이미지 로딩을 시작해둠.
-    // 실제로 다 받아질 때까지(또는 최대 PRELOAD_TIMEOUT_MS까지) 기다렸다가 교체하므로,
-    // 이미지 용량이 커도 화면이 끊기거나 깨진 채로 나타나지 않음.
+    // 페이드아웃 동안 다음 몬스터 이미지를 받고, 다 받을 때까지(최대 PRELOAD_TIMEOUT_MS) 기다렸다 교체
     const picked = pickRandomMonster();
     const preloadPromise = preloadImage(picked.src);
 
@@ -588,7 +561,7 @@ function runRunAway() {
         // 이전 shiny 이펙트 정리 (재생 중이었다면 타이머도 같이 정지)
         stopShinyAnimation();
         shinyEffect.classList.add('hidden');
-        // 샤이니 패치: 크기 계산 완료(onReady) 이후에 재생 (#shiny-effect는 독립 요소라 지연 없이 즉시 재생)
+        // 이로치 이펙트는 크기 계산 완료(onReady) 이후에 재생
         displayMonsterSprite(monster, picked.src, picked.id, () => {
             if (picked.isShiny) playShinyEffect();
         });
@@ -620,9 +593,7 @@ function runRunAway() {
 
 // ===================== 학습 데이터 업로드 (엑셀: A열 영어 / B열 한글뜻) =====================
 
-// 정답/오답 시 몬스터볼/도망치다를 증감시키는 건 포획 게임만의 규칙이라 pokemon_learning.js에는
-// 없고 여기서 콜백으로 등록함 — 다른 파일이 같은 퀴즈를 다른 용도로 쓰려면 자기만의 콜백만
-// 등록하면 됨(pokemon_learning.js는 그대로 두고 등록만 추가).
+// 퀴즈 정답/오답 시 몬스터볼/도망치다 증감은 포획 게임만의 규칙이라 여기서 콜백으로 등록
 setQuizAnswerHandlers(
     () => {
         quizFeedback.textContent = '정답! 몬스터볼×1, 도망치다×1 획득!';
@@ -632,8 +603,7 @@ setQuizAnswerHandlers(
     },
     () => {
         quizFeedback.textContent = '오답! 몬스터볼×1, 도망치다×1 차감!';
-        // 오답 패널티 패치: 정답 보상(+1/+1)과 대칭으로 -1/-1. 0 밑으로는 안 내려가게 클램프
-        // (app.js의 modifyGems()가 보석 차감할 때 쓰는 것과 동일한 관례)
+        // 정답 보상(+1/+1)과 대칭으로 -1/-1, 0 밑으로는 안 내려감
         pokeballCount = Math.max(0, pokeballCount - 1);
         runawayCount  = Math.max(0, runawayCount - 1);
         refreshButtons();
@@ -738,13 +708,6 @@ function renderCapturedList() {
     });
 }
 
-// 야생 포켓몬(#monster)을 우측 "상단"으로 옮기되, 내 포켓몬(뒷모습) 쪽과 대칭 구조로 배치함.
-// 내 쪽은 [액션박스]-15px-[hp바]-3px-[이름표]-(닿음)-[스프라이트, 위로 자람] 순서라, 야생 쪽은
-// 위아래로 뒤집어 [화면 상단]-15px-[이름표]-3px-[hp바]-(닿음)-[스프라이트, 아래로 자람] 순서로
-// 둠("이름표는 항상 hp바 위" 규칙을 지키려면 화면 상단에 가까운 쪽이 이름표여야 하기 때문).
-// hp바+이름표는 dexBattleDecideBtn 클릭 핸들러에서 이 상수들로 인라인 배치하고, #monster의
-// top은 그림 실제 위쪽 끝(SPRITE_OFFSETS 실측)이 hp바 바로 아래에 닿도록 역산함 — #shiny-effect는
-// 매번 #monster의 렌더링 위치를 다시 읽으므로(playShinyEffect() 참고) 자동으로 따라옴.
 startBtn.addEventListener('click', startGame);
 retryBtn.addEventListener('click', startGame);
 resultHomeBtn.addEventListener('click', () => {
@@ -753,10 +716,6 @@ resultHomeBtn.addEventListener('click', () => {
     resultScreen.classList.add('hidden');
     startScreen.classList.remove('hidden');
 });
-
-// "포켓몬 배틀" 버튼 — 전용 목록 대신 도감(#dex-modal)을 선택 모드로 염. 배틀 결과 화면의
-// "다시하기" 버튼과 로직을 공유해, 다시하기는 시작화면으로 안 돌아가고 곧바로 파티 선택부터
-// 다시 시작함(openBattlePartyPicker 본체는 pokemon_battle.js에 있고 battleBtn도 거기서 연결됨).
 
 capturedListBtn.addEventListener('click', () => {
     renderCapturedList();
@@ -778,7 +737,7 @@ capturedCloseBtn.addEventListener('click', () => {
 // ===================== 게임 중 타이머 클릭 → 일시정지 화면 =====================
 // 대기 화면(시작/결과 화면)과 같은 스타일의 오버레이를 띄우고, 그동안 타이머를 멈춤
 gameTimerEl.addEventListener('click', () => {
-    // 일시정지 버그 패치: 몬스터볼/도망치다 애니메이션 도중엔 무시(악용 방지, 퀴즈 모달과 동일한 방식)
+    // 몬스터볼/도망치다 애니메이션 도중엔 무시(악용 방지)
     if (!quizModal.classList.contains('hidden') || !capturedModal.classList.contains('hidden') || isAnimating) return;
     pauseGameTimer();
     pauseModal.classList.remove('hidden');
@@ -796,7 +755,7 @@ function quitFromPause() {
 
 // ===================== 게임 중 점수 클릭 → 포획한 포켓몬 화면 =====================
 cpTotalEl.addEventListener('click', () => {
-    // 일시정지 버그 패치: 몬스터볼/도망치다 애니메이션 도중엔 무시(악용 방지, 퀴즈 모달과 동일한 방식)
+    // 몬스터볼/도망치다 애니메이션 도중엔 무시(악용 방지)
     if (!quizModal.classList.contains('hidden') || !pauseModal.classList.contains('hidden') || isAnimating) return;
     pauseGameTimer();
     capturedModalOpenedDuringGame = true;

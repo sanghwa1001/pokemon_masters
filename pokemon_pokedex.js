@@ -1,7 +1,7 @@
 // ===================== pokemon_pokedex.js (포켓몬 도감) =====================
 // 폼 표시용 데이터 테이블은 pokemon_pokedex_form_data.js 참고. registerDexCatch()는
 // pokemon_catch.js가, openDexModal()/dexPickerMode는 pokemon_battle.js가 가져다 쓰므로
-// 이 파일이 두 파일보다 먼저 로드되어야 함(구조는 MODULARIZATION_PLAN.md 참고).
+// 이 파일이 두 파일보다 먼저 로드되어야 함.
 
 const dexBtn            = document.getElementById('dex-btn');
 const dexModal          = document.getElementById('dex-modal');
@@ -37,7 +37,7 @@ const dexInfoNumEl      = document.getElementById('dex-info-num');
 const dexInfoNameEl     = document.getElementById('dex-info-name');
 const dexInfoFormGridEl = document.getElementById('dex-info-form-grid');
 
-// 엑셀 업로드로 채워지는 단어 목록: [{ en: '영어단어', kr: '한글뜻' }, ...]
+// 종의 대표 폼 id — 기본형이 있으면 그것, 없으면 첫 폼
 function dexRepresentativeId(species) {
     const forms = NORMAL_BY_SPECIES[species] || [];
     return forms.includes(species) ? species : forms[0];
@@ -89,19 +89,12 @@ function writeDexToFirebase(changes) {
 }
 
 // ===================== 도감 치트 코드 (설정 화면에서 입력) =====================
-// 실제 포획 데이터(ownedDex*)는 절대 건드리지 않고, 화면 표시 로직에서만 우회하는 방식으로
-// 구현함 — 그래야 "도감 초기화"를 누르면 치트 흔적 없이 완전히 원래 상태로 돌아갈 수 있음.
-//   DexAll    : 모든 종/폼이 "언락"(이름 공개) 상태가 되지만, 실제로 잡지 않은 건 흑백(grayed)으로 표시
-//   CaughtAll : 모든 종/폼이 실제로 잡은 것처럼 컬러(owned)로 표시
-// 치트 코드 상태(DexAll/CaughtAll)는 기기별 localStorage가 아니라 도감 데이터와 같은
-// 계정 경로(students/{uid}/pokedex)에 저장됨 — loadPokedexFromFirebase/writeDexToFirebase 참고.
-// 로그인 전에는 도감 화면 자체에 진입할 수 없으므로 기본값은 항상 false로 시작함
+// 실제 포획 데이터(ownedDex*)는 건드리지 않고 표시만 바꿈 — 도감 초기화로 흔적 없이 되돌릴 수 있게.
+//   DexAll: 모두 이름 공개(안 잡은 건 흑백), CaughtAll: 모두 잡은 것처럼 컬러
 let dexCheatDexAll    = false;
 let dexCheatCaughtAll = false;
 
-// 종/폼 단위로 "언락 여부"(이름 공개)와 "컬러 표시 여부"(실제로 잡은 것처럼 보임)를 계산하는
-// 헬퍼. 도감 목록/정보/폼 그리드 렌더링이 전부 이 함수들을 통해서만 ownedDex* Set을 조회하므로,
-// 치트가 꺼져 있으면 지금까지의 동작과 완전히 동일함
+// 종/폼의 이름 공개·컬러 표시 여부 — 도감 렌더링은 모두 이 함수로만 ownedDex*를 조회함(치트 반영 지점)
 function isSpeciesUnlocked(species) {
     return dexCheatDexAll || dexCheatCaughtAll || ownedDexSpecies.has(species);
 }
@@ -145,9 +138,7 @@ function registerDexCatch(monsterId, isShiny) {
     if (Object.keys(changes).length) writeDexToFirebase(changes);
 }
 
-// 도감 헤더 검색창 상태: 빈 문자열이면 전체 표시. 숫자만 입력하면 도감번호(3자리, 0패딩)
-// 부분일치, 그 외 문자는 "포획한 종의 이름"에만 부분일치(미포획 종은 이름이 '???'라 검색으로
-// 노출되면 안 되므로 잠긴 종은 이름 검색 대상에서 항상 제외함)
+// 검색어: 숫자만이면 도감번호 부분일치, 그 외는 잡은 종의 이름에만 부분일치(안 잡은 종 이름이 드러나지 않게)
 let dexSearchQuery = '';
 
 // "포획한 포켓몬만 보기" 체크박스 상태 — true면 검색어와 별개로 미포획 종을 목록에서 아예 제외함
@@ -167,9 +158,7 @@ function matchesDexSearch(species) {
     return info.name.toLowerCase().includes(q.toLowerCase());
 }
 
-// 도감 목록 렌더링: species 번호 순으로 검색어/"포획한 것만 보기" 조건에 맞는 항목만 나열하고,
-// 포획한 적 있는 종만 이름/아이콘 공개, 나머지는 실루엣(검은 그림자) 처리. 상단 카운트는
-// 필터와 무관하게 항상 전체 기준(포획수/전체종수)으로 표시함
+// 도감 목록 — 조건에 맞는 종만 번호순으로, 안 잡은 종은 실루엣. 상단 카운트는 필터와 무관하게 전체 기준
 function renderDexList() {
     dexTotalCountEl.textContent = String(DEX_SPECIES_ORDER.length);
     dexCaughtCountEl.textContent = String(DEX_SPECIES_ORDER.filter(isSpeciesColored).length);
@@ -256,15 +245,11 @@ function stopDexInfoSpriteAnimation() {
     }
 }
 
-// 지금 정보 화면에서 큰 스프라이트 카드에 표시 중인 정확한 폼 id. 대표폼으로 시작하지만,
-// 아래 폼 그리드에서 다른 칸을 누르면 그 폼으로 바뀜(showDexInfoForm 참고). "색이 다른"(이로치)
-// 가상 칸을 눌렀을 때는 실제 POKEMON_DATA에 없는 합성 id("<대표폼id>::shiny")가 여기 들어감
+// 정보 화면 큰 카드에 표시 중인 폼 id — 이로치 가상 칸이면 "<폼id>::shiny"
 let dexInfoCurrentSpecies = null;
 let dexInfoSelectedFormId = null;
 
-// 폼 그리드 칸의 id는 실제 POKEMON_DATA id이거나, "<폼id>::shiny" 형태의 가상 칸(그 폼을 이로치
-// 색상으로 보여줌, 폼마다 1개씩)일 수 있음. "::"는 실제 id에 나오지 않는 구분자라 안전하게 씀 —
-// 이 헬퍼로 항상 "실제 id"와 "이로치 여부" 두 값으로 분리함.
+// 폼 그리드 칸 id를 실제 id와 이로치 여부로 분리("::"는 실제 id에 없는 구분자)
 const DEX_SHINY_CELL_SUFFIX = '::shiny';
 function parseDexCellId(cellId) {
     if (cellId.endsWith(DEX_SHINY_CELL_SUFFIX)) {
@@ -273,13 +258,8 @@ function parseDexCellId(cellId) {
     return { realId: cellId, isShiny: false };
 }
 
-// displayMonsterSprite()와 동일한 방식(정사각형 프레임을 잘라 background-position으로 재생)을
-// 정보 화면 전용 박스(#dex-info-sprite-box, 140px 기준)에 맞게 재사용. id의 실제 카테고리
-// (normal/mega/gmax)에 맞는 스프라이트 폴더를 반드시 찾아서 재생해야 함(normal/front로 고정하면
-// 메가/거다이맥스 폼에서 잘못된 이미지가 나옴). cellId는 실제 폼 id이거나 가상 칸 id
-// (parseDexCellId 참고) — 둘 다 이 함수 하나로 처리하며, SPRITE_SIZE_REF_SPECIES_NORMAL/_SHINY
-// 정지 이미지 크기 보정도 반드시 함께 적용해야 함(빠지면 716/791-1/792-1/802-1 등이 다른
-// 포켓몬보다 크게 보이는 버그가 재발함).
+// 정보 화면 큰 카드의 애니메이션 — 카테고리(normal/mega/gmax) 폴더를 정확히 찾아야 하고,
+// 정지 이미지 크기 보정(SPRITE_SIZE_REF_SPECIES_*)도 함께 적용해야 크기가 맞음
 function renderDexInfoSprite(cellId) {
     stopDexInfoSpriteAnimation();
     const { realId: id, isShiny } = parseDexCellId(cellId);
@@ -325,9 +305,7 @@ function dexFormShortLabel(id, species, repId) {
 
 
 
-// 폼 id를 숫자/비숫자 조각으로 나눠 비교하는 자연 정렬. 문자열 그대로 비교하면 "1017-10"이
-// "1017-2"보다 앞에 와버리는(사전식 비교라 '1'<'2') 문제가 있어서, 숫자 조각은 반드시 수치로
-// 비교해야 "100" -> "100-1" -> "100-2" -> ... -> "100-10" 순서가 파일명 감각과 일치함
+// 폼 id 자연 정렬 — 숫자 조각을 수치로 비교해 "100-2"가 "100-10"보다 앞에 오게 함
 function naturalIdCompare(a, b) {
     const re = /(\d+)|(\D+)/g;
     const aParts = a.match(re) || [];
@@ -349,13 +327,9 @@ function naturalIdCompare(a, b) {
 }
 
 
-// 이 species의 모든 폼(대표폼+리전/성별/코스튬/그림자+메가+거다이맥스)을 그리며, 각 폼 바로 뒤에
-// 전용 이로치 가상 칸을 하나씩 끼워 1:1로 짝지음. 칸은 정지 아이콘만 쓰고(애니메이션은 큰 카드
-// 전용), 실제로 잡은 폼/이로치는 컬러(ownedDexForms/ownedDexShinyForms 기준)로, 못 잡은 건
-// 실루엣으로 표시함. 정렬은 DEX_FORM_CATEGORY→DEX_FORM_BUCKET_ORDER 범주 안에서 폼 id 순서로
-// 배열한 뒤(DEX_FORM_SORT_OVERRIDE 있으면 그 값 우선) 각 폼 뒤에 이로치 짝을 삽입하는 방식.
-// 이름표는 DEX_FORM_LABEL_FORCED_SPLIT에 등록된 폼만 의미 조각 경계까지 <br> 강제 줄바꿈하고
-// 나머지는 word-break:keep-all에 맡김. 칸 클릭은 dexInfoFormGridEl 위임 리스너 한 곳에서 처리.
+// 이 종의 모든 폼 칸을 그리고 각 폼 뒤에 이로치 가상 칸을 짝지음(정지 아이콘, 안 잡은 건 실루엣).
+// 정렬: DEX_FORM_BUCKET_ORDER 범주 안에서 폼 id 순(DEX_FORM_SORT_OVERRIDE 우선).
+// 이름표는 DEX_FORM_LABEL_FORCED_SPLIT에 있는 폼만 강제 줄바꿈
 function renderDexFormGrid(species, repId) {
     dexInfoFormGridEl.innerHTML = '';
 
@@ -387,9 +361,7 @@ function renderDexFormGrid(species, repId) {
         const unlocked = isShinyCell ? isFormShinyUnlocked(realFormId) : isFormUnlocked(realFormId);
         const colored  = isShinyCell ? isFormShinyColored(realFormId)  : isFormColored(realFormId);
 
-        // 배틀 선택 모드에서는 못 잡은 폼은 슬롯에 등록할 수 없으니 그리드에 아예 안 보여줌
-        // (registerDexCatch가 종을 등록할 때 항상 정확한 폼도 같이 등록하므로, 목록에 뜨는
-        // 종은 그리드에 최소 1칸은 항상 남음 — 빈 그리드가 되는 경우 없음)
+        // 선택 모드에서는 못 잡은 폼을 숨김(목록에 뜨는 종은 최소 1칸이 남음)
         if (dexPickerMode && !colored) return;
 
         const cell = document.createElement('div');
@@ -414,9 +386,7 @@ function renderDexFormGrid(species, repId) {
         const label = document.createElement('div');
         label.className = unlocked ? 'dex-form-name' : 'dex-form-name locked';
         if (unlocked) {
-            // DEX_FORM_LABEL_FORCED_SPLIT에 있는 폼은 그 조각들로, 없으면 라벨 전체를 한 조각으로
-            // 취급. 이로치 칸은 "색이 다른"을 마지막 조각으로 추가함 — 조각 사이만 <br>로 강제
-            // 줄바꿈하고, 조각 내부는 기존처럼 word-break:keep-all 자동 줄바꿈에 맡김.
+            // 강제 줄바꿈 조각 — 이로치 칸은 "색이 다른"을 마지막 조각으로 추가
             const segments = (DEX_FORM_LABEL_FORCED_SPLIT[realFormId] || [dexFormShortLabel(realFormId, species, repId)]).slice();
             if (isShinyCell) segments.push('색이 다른');
             segments.forEach((seg, i) => {
@@ -434,9 +404,7 @@ function renderDexFormGrid(species, repId) {
     markDexFormGridPartyCells(); // 그리드를 새로 그릴 때마다 지금 배틀 슬롯에 있는 폼 표시를 반영
 }
 
-// 폼 그리드 칸 클릭 → 큰 카드를 그 폼으로 전환(이벤트 위임 리스너 하나만 유지). 배틀 선택 모드
-// (dexPickerMode)에서는 같은 클릭이 슬롯 등록/해제도 겸함(다시 누르면 빠짐) — 못 잡은 폼은
-// 미리보기만 되고 슬롯엔 등록되지 않음.
+// 폼 칸 클릭 → 큰 카드를 그 폼으로 전환. 선택 모드에서는 슬롯 등록/해제도 겸함(못 잡은 폼은 미리보기만)
 dexInfoFormGridEl.addEventListener('click', (e) => {
     const cell = e.target.closest('.dex-form-cell');
     if (!cell) return;
@@ -458,13 +426,8 @@ dexInfoFormGridEl.addEventListener('click', (e) => {
     renderBattleSlots();
 });
 
-// 큰 스프라이트 카드+이름을 특정 폼 그리드 칸(cellFormId) 기준으로 채움 — 대표폼, 다른 폼
-// (리전/성별/코스튬/그림자/메가/거다이맥스), 가상 이로치 칸까지 전부 이 함수 하나로 처리함
-// (parseDexCellId로 실제 id/이로치 여부를 분리). 정확히 그 폼을 잡았는지(ownedDexForms,
-// 이로치는 ownedDexShinyForms, 둘 다 폼 단위 판정)에 따라 컬러 애니메이션 또는 실루엣으로 표시.
-// 이름 텍스트는 선택한 폼과 무관하게 항상 그 종의 대표폼 이름(=도감 이름)으로 고정함(예: 메가
-// 리자몽X를 선택해도 "리자몽"으로 표시, 스프라이트만 바뀜) — "-female" 폼 전용 ♀ 표시는 이
-// 고정 방침 때문에 쓰지 않음. 그리드 안 현재 선택 칸도 함께 강조 표시함.
+// 큰 카드를 선택한 폼 칸 기준으로 채움 — 그 폼(이로치 포함)을 잡았으면 컬러 애니메이션, 아니면 실루엣.
+// 이름은 폼과 무관하게 종의 대표 이름으로 고정(그래서 ♀ 표시는 쓰지 않음)
 function showDexInfoForm(cellFormId) {
     dexInfoSelectedFormId = cellFormId;
     const { realId, isShiny } = parseDexCellId(cellFormId);
@@ -487,10 +450,7 @@ function showDexInfoForm(cellFormId) {
     });
 }
 
-// species를 받아 정보 화면을 채우고 목록 대신 표시함(미포획 종은 이름/스프라이트가 "???"·실루엣으로
-// 나옴). 도감번호/이름은 species 단위로 고정 표시하고(nameUnlocked 참고), 스프라이트만 showDexInfoForm이
-// 처리하는 폼 단위 정보라 대표폼부터 시작해 폼 그리드 선택에 따라 바뀜. 이로치 여부는 별도 배지
-// 없이 폼 그리드의 컬러/실루엣 구분만으로 표시함.
+// 종의 정보 화면을 채워 표시 — 번호·이름은 종 단위 고정, 스프라이트는 폼 그리드 선택을 따름
 function openDexInfo(species) {
     const repId = dexRepresentativeId(species);
 
@@ -499,9 +459,7 @@ function openDexInfo(species) {
 
     renderDexFormGrid(species, repId);
 
-    // 선택 모드에서는 대표폼 자체는 못 잡았고 다른 폼만 잡았을 수 있음(그리드엔 잡은 폼만
-    // 보임) — 그리드에 실제로 그려진 첫 칸을 초기 미리보기로 써서 "???"/실루엣으로 시작하지
-    // 않게 함(대표폼이 잡혀있으면 어차피 그 칸이 첫 칸이라 결과는 같음)
+    // 선택 모드에선 대표폼을 못 잡았을 수 있어 그리드의 첫 칸으로 시작
     const firstOwnedCell = dexPickerMode ? dexInfoFormGridEl.querySelector('.dex-form-cell') : null;
     showDexInfoForm(firstOwnedCell ? firstOwnedCell.dataset.formId : repId); // 처음 열 때는 항상 대표폼부터 보여줌
 
@@ -513,8 +471,7 @@ function openDexInfo(species) {
     dexBackBtn.classList.remove('hidden');
     dexSettingsBtn.classList.add('hidden');
 
-    // 검색창/체크박스/포획 수 표시는 목록 화면 전용이라 정보 화면에서는 숨김 (도감번호/이름은
-    // 헤더에 따로 안 두고, 이제 본문의 큰 스프라이트 카드 바로 위에 표시됨 — dexInfoNumEl/dexInfoNameEl 참고)
+    // 검색창/체크박스/포획 수는 목록 화면 전용이라 정보 화면에선 숨김
     dexSearchInputEl.classList.add('hidden');
     dexCountBarEl.classList.add('hidden');
 
@@ -540,9 +497,7 @@ function showDexList() {
     updateDexPickerBarVisibility();
 }
 
-// 좌측 상단 ⚙ 버튼을 누르면 목록 대신 설정 화면으로 전환 (뒤로가기 버튼을 눌러 목록으로 복귀).
-// 설정 화면 자체는 이제 "도감 초기화"/"치트 코드" 버튼 두 개만 있는 목록이고, 각 버튼을 누르면
-// showDexResetPage/showDexCheatPage로 완전히 별도 화면 전환됨(토글 패널 아님)
+// ⚙ 설정 화면 — "도감 초기화"/"치트 코드" 버튼 목록, 각각 별도 화면으로 전환
 function showDexSettings() {
     stopDexInfoSpriteAnimation();
     dexListEl.classList.add('hidden');
@@ -619,9 +574,7 @@ function resetDexData() {
     renderDexList(); // 화면 전환은 하지 않고 목록 데이터만 배경에서 최신화(치트 코드 적용 방식과 동일)
 }
 
-// 뒤로가기 버튼: 도감 초기화/치트 코드 전용 페이지에서는 설정 화면으로, 그 외(정보 화면 등)는
-// 목록 화면으로 복귀. 별도 상태 변수 대신 현재 어느 화면이 보이는지 DOM에서 직접 확인해서
-// 판단하므로 화면 전환 로직과 상태가 어긋날 일이 없음
+// 뒤로가기: 초기화/치트 화면이면 설정 화면으로, 그 외엔 목록으로 — 지금 보이는 화면을 DOM에서 직접 확인
 dexBackBtn.addEventListener('click', () => {
     if (!dexResetPageEl.classList.contains('hidden') || !dexCheatPageEl.classList.contains('hidden')) {
         showDexSettings();
@@ -634,9 +587,7 @@ dexSettingsBtn.addEventListener('click', showDexSettings);
 // 도감 초기화 버튼: 전용 페이지로 이동
 dexResetBtn.addEventListener('click', showDexResetPage);
 
-// 되돌릴 수 없는 파괴적 동작이라, 정확히 이 코드를 입력해야만 실제로 초기화됨(실수 클릭 방지용
-// 안전장치 — 치트 코드(DexAll/CaughtAll)와 동일한 방식으로, 정확한 코드(대소문자 구분) 일치로
-// 판정. 코드가 틀리면 에러 피드백만 보여주고 아무 것도 지우지 않음
+// 되돌릴 수 없는 동작이라 정확한 코드(대소문자 구분)를 입력해야만 초기화됨
 const DEX_RESET_CONFIRM_CODE = 'DeleteAll';
 
 function applyDexReset() {
@@ -662,10 +613,7 @@ dexResetInputEl.addEventListener('keydown', (e) => {
 // 치트 코드 버튼: 전용 페이지로 이동
 dexCheatBtn.addEventListener('click', showDexCheatPage);
 
-// 입력된 치트 코드를 검사해 적용함. 대소문자를 정확히 구분해서 비교하므로(예: "DexAll"만
-// 인정, "dexall"/"DEXALL"은 불인정) trim만 하고 대소문자는 그대로 둠. 실제 포획 데이터
-// (ownedDex*)는 절대 바꾸지 않고 화면 표시용 플래그만 켬 — 그래서 저장해두면 다음에 도감을
-// 열어도 그대로 유지되지만, 도감 초기화를 누르면 함께 꺼짐
+// 치트 코드 적용 — 대소문자를 정확히 구분(trim만 함). 표시용 플래그만 켜고 도감 초기화 때 함께 꺼짐
 function applyDexCheatCode() {
     const code = dexCheatInputEl.value.trim();
 
@@ -749,9 +697,7 @@ dexCloseBtn.addEventListener('click', () => {
     }
 });
 
-// 검색창 입력: 입력할 때마다 검색어를 갱신하고 목록을 다시 그림. 정보 화면을 보고 있는 도중에
-// 검색어를 입력하면(뒤로가기 없이 헤더 검색창을 바로 눌러 입력하는 경우) 자동으로 필터링된
-// 목록 화면으로 돌아가서 결과를 바로 확인할 수 있게 함
+// 검색어가 바뀔 때마다 목록을 다시 그림 — 정보 화면에서 입력하면 목록 화면으로 돌아감
 dexSearchInputEl.addEventListener('input', () => {
     dexSearchQuery = dexSearchInputEl.value;
     if (!dexInfoEl.classList.contains('hidden')) {
