@@ -691,7 +691,7 @@ studentDeleteBtn.addEventListener('click', async () => {
 document.getElementById('btn-admin-upload-data').addEventListener('click', () => {
     setFieldFeedback(dataRegisterFeedbackEl, '');
     setRegisterInputText(dataRegisterInputEl, '', false);
-    heldDataSlots = null;
+    heldData = null;
     showModal(adminDataUploadModal);
     dataRegisterInputEl.focus();
 });
@@ -705,8 +705,9 @@ document.getElementById('btn-admin-manage-data').addEventListener('click', () =>
 
 // 학습 데이터 등록 — 학생 등록과 같은 입력 상자. 첫 줄은 데이터 이름, 둘째 줄부터 "영어, 뜻".
 // 학생과 달리 한 묶음으로 저장되므로, 틀린 줄이 하나라도 있으면 저장하지 않고 정상 줄은 원래 자리와 함께
-// 보관(heldDataSlots)한 채 상자에는 이름 + 틀린 줄만 빨간 글자로 남김 → 고쳐서 다시 등록하면 보관한 줄과
-// 합쳐 한 묶음으로 저장. 보관은 창 안 임시 메모리라 창을 다시 열거나 새로고침하면 비워짐
+// 데이터 이름과 함께 보관(heldData)한 채 상자에는 틀린 줄만 빨간 글자로 남김(학생 등록과 같음 — 이름 줄까지
+// 상자에 두면 상자 전체가 빨개져 이름도 틀린 줄처럼 보임) → 고쳐서 다시 등록하면 보관한 이름·줄과 합쳐
+// 한 묶음으로 저장. 보관은 창 안 임시 메모리라 창을 다시 열거나 새로고침하면 비워짐
 const dataRegisterInputEl = document.getElementById('data-register-input');
 const dataRegisterFeedbackEl = document.getElementById('data-register-feedback');
 const dataRegisterBtn = document.getElementById('btn-register-data');
@@ -714,8 +715,8 @@ const dataRegisterExcelBtn = document.getElementById('btn-register-data-excel');
 const dataRegisterFileEl = document.getElementById('data-register-file');
 setupRegisterInput(dataRegisterInputEl);
 
-// 원래 순서대로의 칸 목록 — 정상 줄 { en, kr, raw } 또는 틀린 줄 { raw, error: true }
-let heldDataSlots = null;
+// { title, slots } — slots는 원래 순서대로의 칸 목록(정상 줄 { en, kr, raw } 또는 틀린 줄 { raw, error: true })
+let heldData = null;
 
 const HANGUL_RE = /[ㄱ-ㅎㅏ-ㅣ가-힣]/;
 // 영어 칸은 영문자가 있고 한글이 없어야, 뜻 칸은 한글이 있어야 정상 — 칸 빠짐, 순서 반대, 머리글("영어, 뜻",
@@ -755,15 +756,15 @@ function mergeFixedLines(slots, fixedLines) {
 async function registerLearningData(title, slots) {
     const errors = slots.filter(s => s.error);
     if (errors.length) {
-        heldDataSlots = slots;
-        setRegisterInputText(dataRegisterInputEl, [title, ...errors.map(s => s.raw)].join('\n'), true);
+        heldData = { title, slots };
+        setRegisterInputText(dataRegisterInputEl, errors.map(s => s.raw).join('\n'), true);
         setFieldFeedback(dataRegisterFeedbackEl, `등록하지 못했습니다 (오류 ${errors.length})`, 'error');
         return;
     }
     const distinctMeanings = new Set(slots.map(s => s.kr)).size;
     if (distinctMeanings < QUIZ_MIN_WORDS) {
         // 단어를 더 적을 수 있게 보관한 줄까지 전부 상자로 되돌림
-        heldDataSlots = null;
+        heldData = null;
         setRegisterInputText(dataRegisterInputEl, [title, ...slots.map(s => s.raw)].join('\n'), false);
         setFieldFeedback(dataRegisterFeedbackEl, `뜻이 다른 단어가 ${QUIZ_MIN_WORDS}개 이상 필요합니다 (현재 ${distinctMeanings}개)`, 'error');
         return;
@@ -775,27 +776,30 @@ async function registerLearningData(title, slots) {
             title: title.slice(0, 100),
             questions: slots.map(({ en, kr }) => ({ en, kr }))
         });
-        heldDataSlots = null;
+        heldData = null;
         setRegisterInputText(dataRegisterInputEl, '', false);
         setFieldFeedback(dataRegisterFeedbackEl, `${slots.length}문항이 등록되었습니다`, 'success');
     } catch (e) {
         // 합친 전체를 상자로 되돌려 등록하기로 다시 시도할 수 있게 함(엑셀로 올린 경우도 상자에서 이어서)
         console.error(e);
-        heldDataSlots = null;
+        heldData = null;
         setRegisterInputText(dataRegisterInputEl, [title, ...slots.map(s => s.raw)].join('\n'), false);
         setFieldFeedback(dataRegisterFeedbackEl, '등록하지 못했습니다', 'error');
     }
     dataRegisterBtn.disabled = dataRegisterExcelBtn.disabled = false;
 }
 
-// 입력 상자 — 글자가 있는 첫 줄은 데이터 이름(쉼표가 있어도 통째로), 둘째 줄부터 단어
+// 입력 상자 — 글자가 있는 첫 줄은 데이터 이름(쉼표가 있어도 통째로), 둘째 줄부터 단어. 틀린 줄을 고치는
+// 중(보관 있음)이면 상자의 모든 줄이 고친 줄이고 이름은 보관한 것을 씀
 dataRegisterBtn.addEventListener('click', () => {
-    const [titleLine = '', ...lines] = nonBlankLines(dataRegisterInputEl.value);
-    const title = titleLine.trim() || '제목 없음';
-    const slots = heldDataSlots
-        ? mergeFixedLines(heldDataSlots, lines)
-        : lines.map(line => toWordSlot(splitRegisterLine(line), line));
-    registerLearningData(title, slots);
+    const lines = nonBlankLines(dataRegisterInputEl.value);
+    if (heldData) {
+        registerLearningData(heldData.title, mergeFixedLines(heldData.slots, lines));
+        return;
+    }
+    const [titleLine = '', ...wordLines] = lines;
+    registerLearningData(titleLine.trim() || '제목 없음',
+        wordLines.map(line => toWordSlot(splitRegisterLine(line), line)));
 });
 
 // 엑셀 — 파일 이름(확장자 제외)이 데이터 이름, 첫 열 영어, 둘째 열 뜻(파일 안 쉼표는 칸 구분에 안 씀).
@@ -803,7 +807,7 @@ dataRegisterBtn.addEventListener('click', () => {
 bindExcelPicker(dataRegisterExcelBtn, dataRegisterFileEl, dataRegisterFeedbackEl, (buffer, fileName) => {
     const title = fileName.replace(/\.[^.]+$/, '').trim() || '제목 없음';
     const slots = readSheetRows(buffer).map(({ cells, raw }) => toWordSlot(cells, raw));
-    heldDataSlots = null;
+    heldData = null;
     registerLearningData(title, slots);
 });
 
