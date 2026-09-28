@@ -432,10 +432,7 @@ let mpDeadlineGen = 0; // 타이머를 새로 걸거나 지울 때마다 증가 
 let mpDeadlineEndAt = 0; // 지금 걸려 있는 타이머의 만료 시각 — 재접속 때 남은 시간을 이어서 주려고 기록
 
 function mpFormatCountdown(ms) {
-    const totalSec = Math.max(0, Math.ceil(ms / 1000));
-    const m = Math.floor(totalSec / 60);
-    const s = totalSec % 60;
-    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    return formatMMSS(Math.max(0, Math.ceil(ms / 1000)));
 }
 
 window.mpClearDeadlineTimer = function() {

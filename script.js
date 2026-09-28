@@ -72,6 +72,7 @@ const SHINY_FRAME_COUNT       = 31;
 const SHINY_NATIVE_WIDTH      = 23901;
 const SHINY_FRAME_INTERVAL_MS = 30; // 원본 gif의 실제 프레임(1~28번) 재생 속도와 동일하게 맞춤
 
+// CP 합계를 k 단위(소수 첫째자리)로 표시 (예: 1234 → "1.2k")
 function formatCpTotal(cp) {
     return Math.round(cp).toLocaleString('ko-KR');
 }
@@ -100,16 +101,23 @@ function getFrontSpriteMetrics(id, isShiny) {
         : { x: o.x, y: o.y, w: o.w, h: o.h, topSafety: o.topSafety, effectW: o.effectW, effectH: o.effectH };
 }
 
-// 도감/포획 목록에 쓰이는 아이콘 경로 (카테고리별로 icon/icon_mega/icon_gmax + _shiny 폴더로 분기)
+// 이미지를 미리 받아 캐시에 올림 — 받으면 true, 실패하거나 timeoutMs가 지나면 false(진행은 막지 않음)
 const PRELOAD_TIMEOUT_MS = 1000;
-function preloadImage(src) {
+function loadImage(src, timeoutMs = PRELOAD_TIMEOUT_MS) {
     return new Promise((resolve) => {
         const img = new Image();
-        img.onload = () => resolve();
-        img.onerror = () => resolve(); // 로딩 실패해도 게임 진행 자체는 막지 않음
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
         img.src = src;
-        setTimeout(resolve, PRELOAD_TIMEOUT_MS);
+        setTimeout(() => resolve(false), timeoutMs);
     });
+}
+
+// 초 단위 정수를 "mm:ss"로 표시
+function formatMMSS(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 // ===================== 스프라이트시트 애니메이션 재생 =====================

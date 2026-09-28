@@ -109,16 +109,8 @@ let remainingSeconds  = TIME_LIMIT_SECONDS;
 let timerIntervalId   = null;
 let totalCapturedCp   = 0; // 지금까지 포획한 몬스터들의 종족값(CP) 합계
 
-// 초 단위 정수를 "mm:ss" 형태로 표시
-function formatTime(sec) {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-// CP 합계를 k 단위(소수 첫째자리)로 표시 (예: 1234 → "1.2k")
 function updateTimerDisplay() {
-    gameTimerEl.textContent = formatTime(Math.max(remainingSeconds, 0));
+    gameTimerEl.textContent = formatMMSS(Math.max(remainingSeconds, 0));
 }
 
 function updateCpTotalDisplay() {
@@ -460,11 +452,11 @@ function onCaptureSuccess() {
     registerDexCatch(currentMonsterId, currentIsShiny);
 
     // 도감을 열 때 아이콘 요청이 몰리지 않도록 포획할 때마다 하나씩 미리 받아 둠
-    preloadImage(capturedIconSrc(currentMonsterId, currentCategory, currentIsShiny));
+    loadImage(capturedIconSrc(currentMonsterId, currentCategory, currentIsShiny));
 
     // 포획 메시지가 보이는 동안 다음 몬스터 이미지를 미리 로드하고, initGame 직전에 한 번 더 기다림
     const nextMonster = pickRandomMonster();
-    const preloadPromise = preloadImage(nextMonster.src);
+    const preloadPromise = loadImage(nextMonster.src);
 
     const message = `신난다!\n${currentMonsterName}을(를) 잡았다`;
     typeMessage(captureMessageEl, message, CAPTURE_CHAR_DELAY, () => {
@@ -545,7 +537,7 @@ function runRunAway() {
 
     // 페이드아웃 동안 다음 몬스터 이미지를 받고, 다 받을 때까지(최대 PRELOAD_TIMEOUT_MS) 기다렸다 교체
     const picked = pickRandomMonster();
-    const preloadPromise = preloadImage(picked.src);
+    const preloadPromise = loadImage(picked.src);
 
     // 1. 페이드아웃 (CSS #monster / #monster-info 모두 동일한 opacity transition 사용)
     monster.style.opacity = '0';

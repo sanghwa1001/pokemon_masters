@@ -685,7 +685,7 @@ const BATTLE_EFFECTS = {
 };
 
 // 첫 재생 때 그림이 늦게 떠서 깜빡이지 않도록 미리 받아둠
-Object.values(BATTLE_EFFECTS).forEach(effect => { new Image().src = effect.src; });
+Object.values(BATTLE_EFFECTS).forEach(effect => { loadImage(effect.src); });
 
 // 내 쪽/상대 쪽 이펙트 요소를 따로 둠 — 각자 자기 hp바/이름표와 같은 층에 있어야 hp바가 이펙트 위에
 // 그려짐(상대 hp바는 배틀 화면 밖 게임 컨테이너에 있어서, 배틀 화면 안의 요소로는 그 아래에 그릴 수 없음)
@@ -872,7 +872,7 @@ function switchAiToIndex(targetIndex, onDone) {
 
     showBattleMessage(`상대가 ${nextInfo.name}을(를) 내보냈다!`, () => {
         const monsterObj = partyEntryToMonsterObj(entry);
-        const preloadPromise = preloadImage(monsterObj.src);
+        const preloadPromise = loadImage(monsterObj.src);
 
         // hidden을 opacity 0과 같은 시점에 벗겨야 페이드인이 적용됨(display:none에서 바로 바꾸면 트랜지션이 생략됨)
         monster.classList.remove('hidden');
@@ -966,7 +966,7 @@ function applyPlayerSwitch(targetIndex, onDone) {
     const entry = battleParty[targetIndex];
     // displayBackSprite()가 쓰는 1차 후보 경로를 미리 로드(폴백은 displayBackSprite()가 알아서 재시도)
     const backOff = backSpriteInfo(entry.id, entry.isShiny);
-    const preloadPromise = backOff ? preloadImage(backOff.src) : Promise.resolve();
+    const preloadPromise = backOff ? loadImage(backOff.src) : Promise.resolve();
 
     battleBackSpriteBoxEl.style.opacity = '0';
     battleBackInfoEl.style.opacity = '0';
@@ -1412,15 +1412,7 @@ function mpWaitForcedSwitch(onDone) {
 // 함께하기 배틀 시작 전 프리로드 — 내 3마리 뒷모습(폼 전용이 없으면 종 기준형), 내/상대 6마리
 // 앞모습(상대 등장·상태 확인 창), 상태 확인 창의 물음표 이미지. 실패·시간초과여도 진행은 막지 않음
 const MP_PRELOAD_TIMEOUT_MS = 8000;
-function mpLoadImage(src) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-        img.src = src;
-        setTimeout(() => resolve(false), MP_PRELOAD_TIMEOUT_MS);
-    });
-}
+const mpLoadImage = (src) => loadImage(src, MP_PRELOAD_TIMEOUT_MS);
 // 포켓몬 그림 말고도 대결 화면에서 쓰는 그림(CSS 배경·이펙트) — 처음 화면에 필요해지는 순간 받으면 첫 대결에서
 // 상성 아이콘·HP 바·이펙트가 늦게 뜰 수 있어서 불러오기 단계에서 같이 받음(합쳐서 약 55KB)
 const MP_PRELOAD_UI_SRCS = [
@@ -2512,7 +2504,7 @@ const PICKER_PRELOAD_SRCS = [
 // 파티 선택 화면 열기 — "포켓몬 배틀" 버튼과 다시하기가 같이 씀
 
 function openBattlePartyPicker(partyDeadlineMs = MP_PARTY_TIMEOUT_MS) {
-    PICKER_PRELOAD_SRCS.forEach(src => { new Image().src = src; });
+    PICKER_PRELOAD_SRCS.forEach(src => { loadImage(src); });
     dexPickerMode = true;
     battleParty = [];
     mpPartyLocked = false;
