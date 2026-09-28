@@ -1384,6 +1384,16 @@ html, body {
     background-color: #ff6b81;
 }
 
+/* 엑셀로 일괄 등록 — 삭제하기(.dex-danger)와 같은 모양에 퀴즈 정답 버튼(.quiz-option-btn.correct)과 같은 초록 */
+.dex-settings-action-btn.dex-positive {
+    background-color: #2ed573;
+    color: #fff;
+}
+
+.dex-settings-action-btn.dex-positive:hover:not(:disabled) {
+    background-color: #7bed9f;
+}
+
 /* 치트 코드 / 도감 초기화 입력 행 공용 — 검색창(.dex-search-input)과 같은 톤의 알약형
    입력창 + 버튼을 한 줄에 배치. 두 페이지가 완전히 같은 상호작용 방식(각자 전용 페이지에서
    입력 후 버튼 클릭, 전용 취소 버튼 없이 뒤로가기로 복귀)을 쓰므로 레이아웃도 하나의 규칙으로
