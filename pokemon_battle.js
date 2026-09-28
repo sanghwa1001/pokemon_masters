@@ -29,7 +29,6 @@ const battleMessageBoxEl    = document.getElementById('battle-message-box');
 const battleBackInfoEl      = document.getElementById('battle-back-info');
 const battleBackHpFillEl    = document.getElementById('battle-back-hp-fill');
 const battleResultOverlayEl = document.getElementById('battle-result-overlay');
-const battleResultTextEl    = document.getElementById('battle-result-text');
 const battleResultHomeBtn   = document.getElementById('battle-result-home-btn');
 const battleResultRetryBtn  = document.getElementById('battle-result-retry-btn');
 

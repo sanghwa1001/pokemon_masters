@@ -66,7 +66,6 @@ const mpSignalIconEls      = Array.from(document.querySelectorAll('.mp-signal-ic
 window.mp = { active: false, isHost: false, partnerId: null, roomCode: null };
 window.mpInbox = [];
 window.mpWaiters = [];
-window.mpHandlers = {};
 // 대전이 끝나는(더 이어갈 수 없는) 순간 한 번 불림 — info: { reason: 'forfeit', iLost } | { reason: 'disconnect' }
 window.mpOnTerminal = null;
 
@@ -324,8 +323,6 @@ window.mpSend = function(type, data) {
     });
 }
 
-window.mpOn = function(type, handler) { window.mpHandlers[type] = handler; }
-
 // 재동기화 때 이번 턴의 교환(commit/reveal)을 처음부터 다시 하기 위해 걸려 있던 대기를 걷어냄
 window.mpDropWaiters = function(types) {
     window.mpWaiters = window.mpWaiters.filter(w => !types.includes(w.type));
@@ -366,8 +363,6 @@ function mpHandleMessage(msg) {
         mpHandleRemoteGone();
         return;
     }
-
-    if (window.mpHandlers[msg.type]) { window.mpHandlers[msg.type](msg.data); return; }
 
     const wi = window.mpWaiters.findIndex(w => w.type === msg.type);
     if (wi !== -1) {

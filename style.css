@@ -2061,9 +2061,7 @@ html, body {
 .bs-icon.none { display: block; background-position: -12px 0; } /* 효과 없음 */
 .bs-icon.bad  { display: block; background-position: -24px 0; } /* 별로 / 매우 별로 */
 
-/* 승패 결과 오버레이 — 포획 게임 결과 화면(#result-screen)과 완전히 동일한 디자인으로
-   통일(밝은 반투명 흰 배경 + gap 20px). #battle-result-text는 아직 배틀 쪽에 학습 데이터 연계
-   통계(점수/정답/오답) 시스템이 없어서 hidden 처리 — 나중에 그 기능이 추가되면 재사용 예정 */
+/* 승패 결과 오버레이 — 포획 게임 결과 화면(#result-screen)과 같은 디자인 */
 #battle-result-overlay {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -2083,15 +2081,6 @@ html, body {
 #battle-preview-screen .mp-signal-icon,
 #battle-preview-close-btn {
     z-index: 31;
-}
-
-#battle-result-text {
-    font-family: var(--pixel-font);
-    font-size: 20px;
-    letter-spacing: 1px;
-    color: #000;
-    text-align: center;
-    padding: 0 20px;
 }
 
 /* 포획 게임 결과 화면(#result-actions)과 완전히 동일한 세로 스택 레이아웃 +
@@ -2278,15 +2267,6 @@ html, body {
     color: #666;
     text-align: center;
     padding: 20px 0;
-}
-
-/* 목록 안 삭제 버튼 — .dex-settings-action-btn.dex-danger와 같은 색이지만 줄 안에 들어가는
-   작은 크기 변형 */
-.dex-settings-action-btn.dex-danger-sm {
-    width: auto;
-    flex-shrink: 0;
-    padding: 4px 10px;
-    font-size: 12px;
 }
 
 /* 로그인/계정 생성/업로드 등 입력 폼 공용 피드백 한 줄 — 도감 치트 코드 페이지의

@@ -44,55 +44,27 @@ function dexRepresentativeId(species) {
 }
 
 // ===================== 포켓몬 도감 (Firebase 연동) =====================
-const DEX_STORAGE_KEY       = 'pokemonCatchGame_ownedDex_v1';       // 포획한 species id 목록
-const DEX_FORMS_STORAGE_KEY = 'pokemonCatchGame_ownedDexForms_v1';  // 포획한 적 있는 개별 폼(POKEMON_DATA id) 목록
-const DEX_SHINY_FORMS_STORAGE_KEY = 'pokemonCatchGame_ownedDexShinyForms_v1';
-
 let ownedDexSpecies = new Set();
 let ownedDexForms = new Set();
 let ownedDexShinyForms = new Set();
 
 // 도감 저장 형식: students/{uid}/pokedex/{species|forms|shinyForms}/{id} = true (키 단위).
-// 예전엔 배열 전체를 매번 덮어써서, 탭 두 개나 기기 두 대로 동시에 잡으면 나중에 저장한 쪽이
-// 이겨 포획 기록이 사라졌음 — 이제는 새로 잡은 항목 하나만 추가로 씀
-//
-// 불러올 때는 세 가지 모양을 다 읽음: ① 예전 배열 형식(["6","25"]), ② 새 형식 객체({"6":true}),
-// ③ 새 형식인데 키가 촘촘한 숫자라 RTDB가 배열로 돌려준 경우([null, true, ...] — 인덱스가 id)
+// 새로 잡은 항목 하나만 추가로 써서, 탭·기기 두 곳에서 동시에 잡아도 기록이 사라지지 않음.
+// 키가 촘촘한 숫자면 RTDB가 배열로 돌려주므로([null, true, ...] — 인덱스가 id) 둘 다 읽음
 function readDexIdSet(data) {
-    if (!data) return { ids: [], legacy: false };
+    if (!data) return [];
     const entries = Array.isArray(data) ? data.map((v, i) => [String(i), v]) : Object.entries(data);
-    const present = entries.filter(([, v]) => v !== null && v !== undefined);
-    if (present.length && present.every(([, v]) => v === true)) {
-        return { ids: present.map(([k]) => k), legacy: false };
-    }
-    return { ids: present.map(([, v]) => String(v)), legacy: present.length > 0 };
+    return entries.filter(([, v]) => v === true).map(([k]) => k);
 }
 
-// Firebase에서 도감 데이터를 불러와서 메모리에 적용 — 예전 배열 형식이면 한 번 새 형식으로 옮겨 저장
+// Firebase에서 도감 데이터를 불러와서 메모리에 적용
 window.loadPokedexFromFirebase = function(pokedexData) {
-    const species = readDexIdSet(pokedexData.species);
-    const forms = readDexIdSet(pokedexData.forms);
-    const shinyForms = readDexIdSet(pokedexData.shinyForms);
-    ownedDexSpecies = new Set(species.ids);
-    ownedDexForms = new Set(forms.ids);
-    ownedDexShinyForms = new Set(shinyForms.ids);
-    // 치트 코드 상태도 도감 데이터와 같은 계정 경로(students/{uid}/pokedex)에서 불러와서,
-    // 어떤 기기로 로그인해도 이전에 켜둔 치트 상태가 그대로 유지됨(기기별 localStorage가 아님)
+    ownedDexSpecies = new Set(readDexIdSet(pokedexData.species));
+    ownedDexForms = new Set(readDexIdSet(pokedexData.forms));
+    ownedDexShinyForms = new Set(readDexIdSet(pokedexData.shinyForms));
+    // 치트 상태도 계정 경로에 저장 — 어느 기기로 로그인해도 그대로 유지
     dexCheatDexAll = !!pokedexData.cheatDexAll;
     dexCheatCaughtAll = !!pokedexData.cheatCaughtAll;
-
-    if (species.legacy || forms.legacy || shinyForms.legacy) {
-        const toMap = (set) => {
-            const m = {};
-            set.forEach(id => { m[id] = true; });
-            return Object.keys(m).length ? m : null;
-        };
-        writeDexToFirebase({
-            species: toMap(ownedDexSpecies),
-            forms: toMap(ownedDexForms),
-            shinyForms: toMap(ownedDexShinyForms)
-        });
-    }
 };
 
 // 로그아웃 시 메모리 도감 비우기

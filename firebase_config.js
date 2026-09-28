@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
-import { getDatabase, ref, set, get, update, push, remove, child, onValue, onChildAdded, onDisconnect, runTransaction, serverTimestamp, query, orderByChild, endAt, limitToFirst } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+import { getDatabase, ref, set, get, update, push, remove, onValue, onChildAdded, onDisconnect, runTransaction, serverTimestamp, query, orderByChild, endAt, limitToFirst } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
 
 // DB 보안 규칙은 firebase_database_rules.json 참고 (Firebase 콘솔 > Realtime Database > 규칙 탭에 붙여넣어야 적용됨)
 
@@ -37,7 +37,6 @@ window.firebaseGet = get;
 window.firebaseUpdate = update;
 window.firebasePush = push;
 window.firebaseRemove = remove;
-window.firebaseChild = child;
 window.firebaseOnValue = onValue;
 window.firebaseOnChildAdded = onChildAdded;
 window.firebaseOnDisconnect = onDisconnect;
