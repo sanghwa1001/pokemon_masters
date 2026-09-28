@@ -1806,6 +1806,17 @@ function mpDoResync() {
 // 돌아온 쪽: 스냅샷으로 화면 복원 — 파티 선택·로딩은 기존 흐름에 그대로 다시 들어가고, 배틀 중간·결과
 // 화면은 등장 연출 없이 바로 그림. 복원하면 true
 mpOnSnapshot = (s) => {
+    // 복원 도중 오류가 나면(스냅샷 이상 등) 반쯤 그린 대결 화면을 치움 — 실패하면 호출한 쪽이 방을 나가고
+    // 시작화면을 띄우는데, 그 위에 대결·결과 화면이 겹쳐 남지 않게
+    try {
+        return mpApplySnapshot(s);
+    } catch (e) {
+        if (battlePreviewActive) resetBattlePreview();
+        throw e;
+    }
+};
+
+function mpApplySnapshot(s) {
     if (!s || !s.phase) return false;
     // 결과 화면에서 이미 눌러 둔 다시하기 — 아래에서 화면을 다시 그리기 전에 먼저 읽어 둠
     const pendingRematch = s.phase === 'result' ? mpLoadPendingRematch() : null;
@@ -1829,11 +1840,12 @@ mpOnSnapshot = (s) => {
         beginBattle(mpSanitizeParty(s.me.party));
         return true;
     }
-    return mpRestoreBattle(s, remain);
-};
+    return mpRestoreBattle(s, remain, pendingRematch);
+}
 
 // 돌아온 쪽: 배틀 중간/결과 화면 복원(스냅샷의 me/opp는 보낸 쪽 기준이라 뒤집어서 씀)
-function mpRestoreBattle(s, remain) {
+// pendingRematch: 결과 화면에서 이미 눌러 둔 다시하기(탭 저장소, mpLoadPendingRematch) — 있으면 "대기 중"으로 복원
+function mpRestoreBattle(s, remain, pendingRematch) {
     const mine = s.opp;
     const theirs = s.me;
     const idxOk = (side) => Number.isInteger(side.active) && side.active >= 0 && side.active < 3;
