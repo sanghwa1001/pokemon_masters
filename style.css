@@ -619,7 +619,7 @@ html, body {
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
     white-space: nowrap;
     font-family: var(--pixel-font);
     line-height: var(--battle-name-line);
@@ -880,7 +880,7 @@ html, body {
 /* 대결 화면 상대 이름표 — 내 쪽(#battle-back-info-text/#battle-back-name)과 같은 15px·줄높이·간격.
    포획 게임 이름표(16px + CP)는 이 클래스가 안 붙으므로 그대로(pokemon_battle.js가 대결 진입/종료 때 토글) */
 #monster-info-text.battle-info-style {
-    gap: 8px;
+    gap: 5px;
     line-height: var(--battle-name-line);
 }
 
@@ -897,6 +897,10 @@ html, body {
     background-image: url('images/pokemon/layout/types_short.png');
     background-size: 18px 360px; /* 20줄 x 18px */
     background-repeat: no-repeat;
+    /* 한글 글자 윤곽은 줄 상자 안에서 약간 위쪽에 그려져서(15px 기준 윤곽 가운데 18.28 vs 줄 가운데 19),
+       상자끼리 가운데 맞춤만 하면 아이콘이 글자보다 0.7px 낮아 보임 — 그림만 1px 올려 글자 가운데에 맞춤
+       (배치엔 영향 없음, 소수 픽셀 이동은 픽셀 아이콘이 흐려져서 정수로) */
+    transform: translateY(-1px);
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
     image-rendering: crisp-edges;
