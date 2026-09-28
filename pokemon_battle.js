@@ -459,7 +459,6 @@ let mpPendingResync = false;        // 상대가 돌아와 재동기화를 요�
 let battleLastDidWin = null;        // 마지막 대전 승패(결과 화면 복원용)
 const MP_RESUME_MIN_MS = 10000;     // 재접속 후 이어서 주는 제한시간의 최소값(화면을 다시 볼 시간)
 const MP_PENDING_SUBMISSION_KEY = 'mpPendingSubmission'; // 새로고침해도 이미 낸 행동을 복구하려고 탭 저장소에 둠
-const MP_PENDING_REMATCH_KEY = 'mpPendingRematch';       // 새로고침해도 이미 누른 다시하기(대기 만료 시각)를 복구하려고 탭 저장소에 둠
 // 선택창 끊김 안내(버튼 글자라 즉시 다 보임)를 보여준 뒤 시작화면으로 넘어가기까지의 시간(ms) — 사용자 지정으로
 // 승패·배틀 중 끊김 멘트의 머무는 시간(BATTLE_SCREEN_TRANSITION_HOLD, 1초)과 별개로 1.5초
 const MP_PICKER_DISCONNECT_HOLD_MS = 1500;
@@ -1682,7 +1681,6 @@ function mpReachSafePoint() {
 // 선택창)에 맞게 안내함
 mpOnTerminal = (info) => {
     window.mpClearDeadlineTimer();
-    mpClearPendingRematch();
     if (battleMode === 'pvp' && battlePreviewActive) {
         // 상대가 없으니 재대결 불가 — 다시하기는 회색 비활성화(처음으로만 가능). 다시하기를 눌러
         // 상대를 기다리던 중이었다면 버튼의 "대기 중"을 종료 안내로 바꿈
@@ -1749,24 +1747,6 @@ function mpClearPendingSubmission() {
     try { sessionStorage.removeItem(MP_PENDING_SUBMISSION_KEY); } catch (e) { /* 무시 */ }
 }
 
-// 결과 화면에서 누른 다시하기도 같은 원칙 — 한 번 누르면 확정이고 대기 시계는 계속 흐름. 대기 시간은 내가 누른
-// 순간부터 흐르는 내 개인 시계라(상대 스냅샷에는 없음) 만료 시각을 직접 저장해 두고, 돌아오면 남은 시간부터 이어 셈
-function mpSavePendingRematch(endAt) {
-    try {
-        sessionStorage.setItem(MP_PENDING_REMATCH_KEY, JSON.stringify({ code: mp.roomCode, role: window.mpMyRole(), endAt }));
-    } catch (e) { /* 저장소를 못 쓰면 복구만 못 할 뿐 */ }
-}
-function mpLoadPendingRematch() {
-    try {
-        const v = JSON.parse(sessionStorage.getItem(MP_PENDING_REMATCH_KEY) || 'null');
-        if (v && v.code === mp.roomCode && v.role === window.mpMyRole() && typeof v.endAt === 'number') return v;
-    } catch (e) { /* 무시 */ }
-    return null;
-}
-function mpClearPendingRematch() {
-    try { sessionStorage.removeItem(MP_PENDING_REMATCH_KEY); } catch (e) { /* 무시 */ }
-}
-
 // 지금 어느 단계인지(스냅샷 기준)
 function mpCurrentPhase() {
     if (dexPickerMode) return 'picker';
@@ -1798,6 +1778,10 @@ function mpBuildSnapshot() {
     snap.selfPassStreak = mpSelfPassStreak;
     if (phase === 'result') {
         snap.didWin = battleLastDidWin;
+        // 상대(돌아온 쪽)가 나가기 전에 누른 다시하기가 아직 내 대기열에 있으면, 그 요청의 남은 시간을 돌려줌 —
+        // 내가 받은 뒤 지난 시간으로 계산(기기 시계가 달라도 맞도록 "몇 초 남음"으로 주고받음). 상대는 "대기 중"으로 복원
+        const rematchAge = window.mpInboxAge('rematch');
+        if (rematchAge !== null) snap.yourRematchRemainingMs = Math.max(0, MP_REMATCH_TIMEOUT_MS - rematchAge);
         return snap;
     }
     if (phase === 'battle') {
@@ -1851,11 +1835,6 @@ mpOnSnapshot = (s) => {
 
 function mpApplySnapshot(s) {
     if (!s || !s.phase) return false;
-    // 결과 화면에서 이미 눌러 둔 다시하기 — 아래에서 화면을 다시 그리기 전에 먼저 읽어 둠
-    const pendingRematch = s.phase === 'result' ? mpLoadPendingRematch() : null;
-    // 결과 화면이 아닌 단계로 복원되면 눌러 둔 다시하기는 이미 처리됐거나(동의 → 선택창) 의미가 없어짐 — 남겨 두면
-    // 다음 판 결과 화면에서 재접속할 때 누르지 않은 다시하기가 "대기 중"으로 되살아남
-    if (s.phase !== 'result') mpClearPendingRematch();
     const remain = (fallback) => Math.max(MP_RESUME_MIN_MS, typeof s.remainingMs === 'number' ? s.remainingMs : fallback);
     const validParty = (list) => Array.isArray(list) && list.length === 3 && list.every(p => p && POKEMON_DATA[p.id]);
 
@@ -1876,12 +1855,11 @@ function mpApplySnapshot(s) {
         beginBattle(mpSanitizeParty(s.me.party));
         return true;
     }
-    return mpRestoreBattle(s, remain, pendingRematch);
+    return mpRestoreBattle(s, remain);
 }
 
 // 돌아온 쪽: 배틀 중간/결과 화면 복원(스냅샷의 me/opp는 보낸 쪽 기준이라 뒤집어서 씀)
-// pendingRematch: 결과 화면에서 이미 눌러 둔 다시하기(탭 저장소, mpLoadPendingRematch) — 있으면 "대기 중"으로 복원
-function mpRestoreBattle(s, remain, pendingRematch) {
+function mpRestoreBattle(s, remain) {
     const mine = s.opp;
     const theirs = s.me;
     const idxOk = (side) => Number.isInteger(side.active) && side.active >= 0 && side.active < 3;
@@ -1929,8 +1907,9 @@ function mpRestoreBattle(s, remain, pendingRematch) {
         battleLastDidWin = (s.didWin === true || s.didWin === false) ? !s.didWin : null;
         battleTurnBusy = true;
         battleResultOverlayEl.classList.remove('hidden');
-        // 다시하기를 눌러 둔 채 나갔다 왔으면 "대기 중" 그대로 — 새 채널로 다시 요청하고 남은 시간부터 이어 셈
-        if (pendingRematch) mpStartRematchWait(Math.max(MP_RESUME_MIN_MS, pendingRematch.endAt - Date.now()));
+        // 다시하기를 눌러 둔 채 나갔다 왔으면(새로고침·창 닫기·다른 기기 모두) "대기 중" 그대로 — 남은 쪽이 대기열에
+        // 받아 둔 내 요청의 남은 시간을 스냅샷에 담아 줌(mpBuildSnapshot). 새 채널로 다시 요청하고 그 시간부터 이어 셈
+        if (typeof s.yourRematchRemainingMs === 'number') mpStartRematchWait(Math.max(MP_RESUME_MIN_MS, s.yourRematchRemainingMs));
         return true;
     }
 
@@ -2401,7 +2380,6 @@ function prepareBattleScreen() {
 // 배틀이면 pickAiTeam(), 함께하기면 상대가 보낸 파티({id, isShiny, hp, fainted, known})
 function beginBattle(opponentParty) {
     battleMode = mp.active ? 'pvp' : 'ai';
-    mpClearPendingRematch(); // 새 대결 — 이전 판 결과 화면의 다시하기 요청은 더 이상 쓰이지 않음
     mpPartyLocked = false;
     mpTurn = 0;
     mpMissStreak = 0;
@@ -2623,7 +2601,6 @@ function resetBattlePreview() {
     battleMode = 'ai';
     // 혼자하기 타이머 정리(함께하기는 연결 정리 mpTeardown/재대결 흐름이 따로 관리 — 재대결 대기 타이머를 지우면 안 됨)
     if (!mp.active) window.mpClearDeadlineTimer();
-    mpClearPendingRematch(); // 다시하기 대기는 선택창으로 넘어가거나(동의) 나가면 끝남
     window.mpClearSignalFreeze(); // 종료된 함께하기의 고정 신호 아이콘은 대결 화면을 떠나면 숨김
     mpTurn = 0;
     mpPartyLocked = false;
@@ -2732,7 +2709,6 @@ battleResultHomeBtn.addEventListener('click', leaveBattleToHome);
 battleResultRetryBtn.addEventListener('click', () => {
     if (battleMode === 'pvp') {
         if (!mp.active || mpRematchWaiting) return;
-        mpSavePendingRematch(Date.now() + MP_REMATCH_TIMEOUT_MS);
         mpStartRematchWait(MP_REMATCH_TIMEOUT_MS);
         return;
     }
@@ -2750,7 +2726,6 @@ function mpStartRematchWait(durationMs) {
     window.mpStartDeadline(battleTurnTimerEl, durationMs, () => {
         if (!mpRematchWaiting) return;
         mpRematchWaiting = false;
-        mpClearPendingRematch();
         battleResultRetryBtn.textContent = '상대가 응답하지 않습니다';
         mpLeave();
         window.mpFreezeSignalIcon('lost'); // 상대 응답 없음 — 결과 화면을 나갈 때까지 끊김 아이콘

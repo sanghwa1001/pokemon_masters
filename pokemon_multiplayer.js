@@ -337,6 +337,13 @@ window.mpPeekInbox = function(type) {
     return m ? m.data : undefined;
 }
 
+// 대기열에 있는 해당 메시지를 받은 뒤 지난 시간(ms) — 없으면 null. 재동기화 스냅샷에서 상대 요청의 남은 시간을
+// "몇 초 남음"으로 계산할 때 씀(기기 시계가 달라도 맞음)
+window.mpInboxAge = function(type) {
+    const m = window.mpInbox.find(x => x.type === type);
+    return m ? Math.max(0, Date.now() - m.at) : null;
+}
+
 window.mpMyRole = function() { return myRole; }
 
 window.mpWaitFor = function(type, cb) {
@@ -368,7 +375,7 @@ function mpHandleMessage(msg) {
         w.cb(msg.data);
         return;
     }
-    window.mpInbox.push({ type: msg.type, data: msg.data });
+    window.mpInbox.push({ type: msg.type, data: msg.data, at: Date.now() }); // at: 받은 시각(내 기기 시계) — mpInboxAge
 }
 
 // ---------------- 공정성: commit-reveal용 해시/난수 ----------------
