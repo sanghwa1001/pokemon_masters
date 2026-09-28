@@ -772,6 +772,8 @@ dexCloseBtn.addEventListener('click', () => {
         if (mp.active) mpLeave();
         else window.mpClearDeadlineTimer();
         window.mpClearSignalFreeze(); // 종료 안내 중에 ×로 닫았으면 고정해 둔 신호 아이콘도 숨김
+        // 선택창은 보통 시작화면 위에 뜨지만, 재접속으로 복원된 경우엔 시작화면이 꺼진 채라 직접 켬(흰 화면 방지)
+        startScreen.classList.remove('hidden');
     }
 });
 

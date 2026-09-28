@@ -1683,6 +1683,8 @@ mpOnTerminal = (info) => {
             dexBattleRandomBtn.classList.remove('hidden');
             battleSlotController.stopAll();
             window.mpClearSignalFreeze();
+            // 재접속으로 복원된 선택창이면 뒤의 시작화면이 꺼져 있음 — 직접 켜서 흰 화면이 남지 않게
+            startScreen.classList.remove('hidden');
         }, MP_PICKER_DISCONNECT_HOLD_MS);
         return;
     }
