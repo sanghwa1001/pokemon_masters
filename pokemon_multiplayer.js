@@ -652,6 +652,22 @@ function mpClearActiveRoom() {
 }
 window.mpClearActiveRoom = mpClearActiveRoom;
 
+// 이번 턴에 이미 낸 행동(턴·행동·비밀값)을 진행 중 대전 기록 안에 둠 — 창을 닫거나 다른 기기로 재접속해도 내가
+// 고른 행동을 되살려 공개(reveal)할 수 있게 함(서버가 행동을 보관해 주는 업계 표준 방식을 흉내 냄). 본인 계정
+// 공간이라 상대는 읽을 수 없어 commit-reveal의 공정성은 그대로. 대전이 끝나면 activeRoom과 함께 지워짐
+window.mpSaveRemotePending = function(pending) {
+    const uid = mpMyUid();
+    if (!uid || !window.mp.active) return;
+    window.firebaseSet(getFirebaseRef(`students/${uid}/activeRoom/pending`), pending).catch(() => {});
+}
+window.mpClearRemotePending = function() {
+    const uid = mpMyUid();
+    if (!uid || !window.mp.active) return;
+    window.firebaseRemove(getFirebaseRef(`students/${uid}/activeRoom/pending`)).catch(() => {});
+}
+// 재접속할 때 로그인에서 읽어 온 기록(activeRoom.pending) — 스냅샷으로 화면을 복원할 때 한 번 씀
+window.mpRejoinPending = null;
+
 // 이 자리(역할)를 지금 쓰는 페이지로 등록하고, 다른 페이지가 이 자리를 가져가면 조용히 물러남
 // (가장 최근 접속만 남김 — 같은 계정으로 두 곳에서 동시에 조작하면 대전이 꼬이기 때문)
 function mpClaimSeat(code) {
@@ -734,6 +750,7 @@ window.mpTryRejoin = async function(pointer) {
         mpClearActiveRoom();
         return false;
     }
+    window.mpRejoinPending = (pointer.pending && typeof pointer.pending === 'object') ? pointer.pending : null;
 
     currentRoomRef = getFirebaseRef(`rooms/${code}`);
     myRoomCode = code;
@@ -759,6 +776,7 @@ window.mpTryRejoin = async function(pointer) {
             settled = true;
             if (mpResyncTimer) { clearTimeout(mpResyncTimer); mpResyncTimer = null; }
             if (unsubscribeResync) { unsubscribeResync(); unsubscribeResync = null; }
+            window.mpRejoinPending = null;
             resolve(ok);
         };
         // 제시간에 스냅샷을 못 받으면 방을 나감(상대는 기존 끊김 안내를 봄) — 돌아온 쪽은 조용히 시작화면

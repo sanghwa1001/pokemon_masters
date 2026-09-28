@@ -1726,25 +1726,31 @@ mpOnTerminal = (info) => {
 //    행동을 복구함. 복구할 수 없는데 상대가 이미 내 commit을 받았다면 그 턴은 패스(바꿀 수 없음)
 //  - 연속 시간 초과 횟수도 그대로 이어받음
 
-// 이미 낸 행동을 탭 저장소(sessionStorage — 새로고침해도 남고 탭을 닫으면 지워짐)에 둠
+// 이미 낸 행동을 탭 저장소(sessionStorage — 새로고침해도 남고 탭을 닫으면 지워짐)와 내 계정의 진행 중 대전 기록
+// (activeRoom/pending — 창을 닫거나 다른 기기로 들어와도 남음, 본인만 읽을 수 있음) 두 곳에 둠
 function mpSavePendingSubmission() {
     if (!mpPendingSubmission) return;
+    const record = { code: mp.roomCode, role: window.mpMyRole(), ...mpPendingSubmission };
     try {
-        sessionStorage.setItem(MP_PENDING_SUBMISSION_KEY, JSON.stringify({
-            code: mp.roomCode, role: window.mpMyRole(), ...mpPendingSubmission
-        }));
+        sessionStorage.setItem(MP_PENDING_SUBMISSION_KEY, JSON.stringify(record));
     } catch (e) { /* 저장소를 못 쓰면 복구만 못 할 뿐 게임은 진행됨 */ }
+    window.mpSaveRemotePending(record);
 }
+// 복원 순서: 탭 저장소(새로고침) → 로그인 때 읽어 온 계정 기록(창 닫기·다른 기기). 방·역할이 맞아야 씀
+// (턴 번호는 쓰는 쪽이 확인)
 function mpLoadPendingSubmission() {
+    const valid = (v) => v && v.code === mp.roomCode && v.role === window.mpMyRole() && typeof v.nonce === 'string';
     try {
         const v = JSON.parse(sessionStorage.getItem(MP_PENDING_SUBMISSION_KEY) || 'null');
-        if (v && v.code === mp.roomCode && v.role === window.mpMyRole() && typeof v.nonce === 'string') return v;
+        if (valid(v)) return v;
     } catch (e) { /* 무시 */ }
-    return null;
+    return valid(window.mpRejoinPending) ? window.mpRejoinPending : null;
 }
 function mpClearPendingSubmission() {
+    const had = !!mpPendingSubmission;
     mpPendingSubmission = null;
     try { sessionStorage.removeItem(MP_PENDING_SUBMISSION_KEY); } catch (e) { /* 무시 */ }
+    if (had) window.mpClearRemotePending(); // 턴이 진행되면 계정 기록도 지움(낸 행동이 있었을 때만 — 쓰기 횟수 절약)
 }
 
 // 지금 어느 단계인지(스냅샷 기준)
