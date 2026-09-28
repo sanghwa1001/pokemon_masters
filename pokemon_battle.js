@@ -2549,7 +2549,6 @@ const PICKER_PRELOAD_SRCS = [
     'images/pokemon/layout/icon_nosignal.png'
 ];
 // 파티 선택 화면 열기 — "포켓몬 배틀" 버튼과 다시하기가 같이 씀
-
 function openBattlePartyPicker(partyDeadlineMs = BATTLE_PARTY_TIMEOUT_MS) {
     PICKER_PRELOAD_SRCS.forEach(src => { loadImage(src); });
     dexPickerMode = true;

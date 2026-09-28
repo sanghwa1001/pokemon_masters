@@ -72,7 +72,7 @@ const SHINY_FRAME_COUNT       = 31;
 const SHINY_NATIVE_WIDTH      = 23901;
 const SHINY_FRAME_INTERVAL_MS = 30; // 원본 gif의 실제 프레임(1~28번) 재생 속도와 동일하게 맞춤
 
-// CP 합계를 k 단위(소수 첫째자리)로 표시 (예: 1234 → "1.2k")
+// CP 합계를 천 단위 쉼표로 표시 (예: 1234 → "1,234")
 function formatCpTotal(cp) {
     return Math.round(cp).toLocaleString('ko-KR');
 }
