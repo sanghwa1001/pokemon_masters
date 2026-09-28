@@ -2319,7 +2319,7 @@ function prepareBattleScreen() {
 
     // hp바 디자인은 배틀 프리뷰에서만 overlay_hp_back/overlay_hp로 교체
     monsterInfo.classList.add('battle-hp-style');
-    monsterInfoText.classList.add('battle-info-style'); // 이름 14px·줄높이 18px(내 쪽 이름표와 같게)
+    monsterInfoText.classList.add('battle-info-style'); // 이름 15px·줄높이 18px(내 쪽 이름표와 같게)
     monsterHpFillEl.classList.remove('hidden');
 
     battlePreviewScreen.classList.remove('hidden');
