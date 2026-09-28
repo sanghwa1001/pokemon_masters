@@ -2767,7 +2767,19 @@ function mpStartRematchWait(durationMs) {
 // "포켓몬 배틀" 버튼 — 전용 목록 대신 도감(#dex-modal)을 선택 모드로 염
 // "포켓몬 배틀" 버튼과 배틀 결과 화면의 "다시하기" 버튼이 공유하는 로직으로 분리 —
 // 다시하기는 시작화면으로 돌아가지 않고 곧바로 파티 선택 화면부터 다시 시작함
+// 슬롯 선택 창에서 나중에 필요해지는 작은 그림 — 창이 열릴 때 뒤에서 받아 둠(기다리지 않음, 실패해도 무관).
+// 타입 뱃지·메가/거다이맥스 표시는 슬롯을 채울 때 처음 쓰이고, 끊김 아이콘은 연결이 끊기는 순간(그땐 받지 못할 수
+// 있음) 처음 쓰여서 미리 받아 두는 게 확실함. 불러오기 단계(MP_PRELOAD_UI_SRCS)는 이 창 뒤라 여기서 받음
+const PICKER_PRELOAD_SRCS = [
+    'images/pokemon/layout/types.png',
+    'images/pokemon/pokedex/icon_mega.png',
+    'images/pokemon/pokedex/icon_dynamax.png',
+    'images/pokemon/layout/icon_signal.png',
+    'images/pokemon/layout/icon_nosignal.png'
+];
+
 function openBattlePartyPicker(partyDeadlineMs = MP_PARTY_TIMEOUT_MS) {
+    PICKER_PRELOAD_SRCS.forEach(src => { new Image().src = src; });
     dexPickerMode = true;
     battleParty = [];
     mpPartyLocked = false;
