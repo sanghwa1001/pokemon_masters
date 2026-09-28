@@ -79,6 +79,9 @@ let currentBackSpriteToken = 0; // 재생 도중 다른 포켓몬으로 바뀌�
 // 갱신함. 기절 연출(playPlayerFaintAnimation)이 상대(AI) 쪽과 동일한 방식으로 땅 라인/하강
 // 거리를 계산하는 데 재사용함
 let currentBackContentHeight = 0;
+// 애니메이션 중 0번 프레임보다 가장 위로 솟는 높이(화면 px, BACK_SPRITE_OFFSETS topSafety × 배율) — 기절 연출이
+// 이만큼 더 내려가야 솟는 프레임이 땅 라인 위로 튀어나오지 않음
+let currentBackRiseHeight = 0;
 // 현재 내 포켓몬(뒷모습)의 이펙트 크기(px) — getEffectSize(off.effectW, off.effectH, 표시 배율), displayBackSprite()가
 // 갱신함. 이로치 등장 이펙트와 칼춤/HP회복 이펙트가 같은 값을 씀
 let currentBackEffectSize = 0;
@@ -214,6 +217,7 @@ function displayBackSprite(boxEl, spriteEl, id, isShiny) {
 
             // 기절 연출에서 상대(AI) 쪽과 동일하게 재사용할 수 있도록, 이로치 여부와 상관없이 항상 저장
             currentBackContentHeight = (off.h || frameH) * pixelScale;
+            currentBackRiseHeight = (off.topSafety || 0) * pixelScale;
             currentBackEffectSize = getEffectSize(off.effectW || off.w || frameW, off.effectH || off.h || frameH, pixelScale);
             currentBackEffectBodyHeight = (off.effectH || off.h || frameH) * pixelScale;
 
@@ -681,13 +685,16 @@ const WILD_FAINT_MAX_DURATION = 900;   // ms
 
 // 기절 연출 공통 로직 — boxEl(바깥 박스)의 그림 최하단 픽셀에 clip-path로 땅 라인을 고정하고
 // spriteEl(안쪽 그림)만 그 아래로 일정 속도로 미끄러뜨림. contentHeightOnScreen: 그림(투명 제외)의
-// 화면상 실제 높이(px) — 박스 정중앙에 그림 중심이 오도록 배치되어 있다는 전제로 땅 라인을 계산함
-function playFaintSink(boxEl, spriteEl, contentHeightOnScreen, onComplete) {
+// 화면상 실제 높이(px) — 박스 정중앙에 그림 중심이 오도록 배치되어 있다는 전제로 땅 라인을 계산함.
+// riseOnScreen: 스프라이트 애니메이션 중 0번 프레임보다 가장 위로 솟는 높이(화면 px, topSafety × 배율) —
+// 내려가는 거리에 더해서, 솟는 프레임이 나와도 땅 라인 위로 튀어나오지 않게 함(예: 두파팡은 약 137px 솟음).
+// 다 내려간 뒤엔 stopAnim으로 보이지 않는 그림의 애니메이션을 멈춤(다음 포켓몬이 나올 때 새로 재생됨)
+function playFaintSink(boxEl, spriteEl, contentHeightOnScreen, riseOnScreen, stopAnim, onComplete) {
     const boxHeight = boxEl.clientHeight || parseFloat(getComputedStyle(boxEl).height) || 0;
     const artworkBottomY = (boxHeight / 2) + (contentHeightOnScreen / 2);
     const groundClipInset = Math.max(0, boxHeight - artworkBottomY);
 
-    const travelDistance = contentHeightOnScreen + WILD_FAINT_CLEAR_BUFFER;
+    const travelDistance = contentHeightOnScreen + (riseOnScreen || 0) + WILD_FAINT_CLEAR_BUFFER;
     const duration = Math.min(WILD_FAINT_MAX_DURATION,
         Math.max(WILD_FAINT_MIN_DURATION, travelDistance / WILD_FAINT_SPEED));
 
@@ -698,7 +705,10 @@ function playFaintSink(boxEl, spriteEl, contentHeightOnScreen, onComplete) {
     void spriteEl.offsetHeight;
     spriteEl.style.transform = `${restoreTransform} translateY(${travelDistance}px)`;
 
-    setTimeout(battleCallback(onComplete), duration);
+    setTimeout(battleCallback(() => {
+        stopAnim();
+        onComplete();
+    }), duration);
 }
 
 // 상대(AI) 포켓몬 기절 연출 — #monster 기준, 그림 높이는 SPRITE_OFFSETS 실측값(0번 프레임) × 표시 배율
@@ -709,7 +719,8 @@ function playAiFaintAnimation(onComplete) {
     const off = getFrontSpriteMetrics(currentMonsterId, currentIsShiny) || {};
     const contentH = off.h || currentMonsterFrameSize;
     const pixelScale = currentMonsterFrameSize > 0 ? (currentMonsterDisplaySize / currentMonsterFrameSize) : 1;
-    playFaintSink(monster, monster.querySelector('#monster-sprite'), contentH * pixelScale, onComplete);
+    playFaintSink(monster, monster.querySelector('#monster-sprite'), contentH * pixelScale,
+        (off.topSafety || 0) * pixelScale, stopSpriteAnimation, onComplete);
 }
 
 // 내 포켓몬(뒷모습) 기절 연출 — 그림 높이는 displayBackSprite()가 저장해 둔 currentBackContentHeight
@@ -717,7 +728,8 @@ function playAiFaintAnimation(onComplete) {
 function playPlayerFaintAnimation(onComplete) {
     stopBackShinyAnimation();
     battleBackShinyEffectEl.classList.add('hidden');
-    playFaintSink(battleBackSpriteBoxEl, battleBackSpriteEl, currentBackContentHeight || 0, onComplete);
+    playFaintSink(battleBackSpriteBoxEl, battleBackSpriteEl, currentBackContentHeight || 0,
+        currentBackRiseHeight || 0, stopBackSpriteAnimation, onComplete);
 }
 
 // ===================== 공격 연출 =====================
