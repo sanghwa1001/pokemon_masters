@@ -120,12 +120,26 @@ function mpWithTimeout(promise, ms) {
 }
 
 // ---------------- 연결 상태 표시(신호 아이콘) ----------------
+// 연결 중이면 실시간(신호 ↔ 끊김). 함께하기가 종료되면(mpFinish 등) 그 순간 모습으로 고정해 두고, 시작화면으로
+// 나갈 때(pokemon_battle.js/pokemon_pokedex.js가 mpClearSignalFreeze) 숨김 — 대전 화면에 있는 동안은 항상 보임
+let mpSignalFrozen = null; // null | 'ok'(신호) | 'lost'(끊김)
 function mpUpdateSignalIcon() {
-    const lost = !mpConnected || peerOffline;
+    const show = window.mp.active || mpSignalFrozen !== null;
+    const lost = window.mp.active ? (!mpConnected || peerOffline) : mpSignalFrozen === 'lost';
     mpSignalIconEls.forEach(el => {
-        el.classList.toggle('hidden', !window.mp.active);
+        el.classList.toggle('hidden', !show);
         el.classList.toggle('mp-signal-lost', lost);
     });
+}
+// 종료된 함께하기의 마지막 표시로 고정 — 연결 문제로 끝났으면 끊김, 기권(규칙상 종료)이면 신호
+window.mpFreezeSignalIcon = function(state) {
+    mpSignalFrozen = state === 'lost' ? 'lost' : 'ok';
+    mpUpdateSignalIcon();
+}
+window.mpClearSignalFreeze = function() {
+    if (mpSignalFrozen === null) return;
+    mpSignalFrozen = null;
+    mpUpdateSignalIcon();
 }
 
 // ---------------- 내 연결 감시 ----------------
@@ -538,6 +552,7 @@ function mpTeardown(superseded) {
 // 대전 종료 확정 — 이 순간 구독을 끊어서 이후 상대 메시지/타이머는 전부 무시됨
 function mpFinish(info, removeRoom) {
     if (!window.mp.active) return;
+    mpSignalFrozen = info.reason === 'forfeit' ? 'ok' : 'lost'; // 아래 mpTeardown이 이 값으로 아이콘을 고정 표시
     const roomRef = currentRoomRef;
     mpTeardown();
     if (removeRoom && roomRef) window.firebaseRemove(roomRef).catch(() => {});
@@ -716,6 +731,7 @@ window.mpTryRejoin = async function(pointer) {
     currentRoomRef = getFirebaseRef(`rooms/${code}`);
     myRoomCode = code;
     myRole = role;
+    mpSignalFrozen = null;
     window.mp.active = true;
     window.mp.isHost = role === 'host';
     window.mp.partnerId = role === 'host' ? room.guest : room.host;
@@ -774,6 +790,7 @@ window.mpTryRejoin = async function(pointer) {
 }
 
 function mpStartMatchListeners(code) {
+    mpSignalFrozen = null;
     mpMatchNo = 0;
     mpSubscribeMatchChannel(code);
     mpWatchPeerPresence(code);

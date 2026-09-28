@@ -771,6 +771,7 @@ dexCloseBtn.addEventListener('click', () => {
         // 함께하기 선택창을 닫으면 방을 나간 것으로 처리(상대는 끊김 알림을 봄), 혼자하기는 선택 제한시간만 정리
         if (mp.active) mpLeave();
         else window.mpClearDeadlineTimer();
+        window.mpClearSignalFreeze(); // 종료 안내 중에 ×로 닫았으면 고정해 둔 신호 아이콘도 숨김
     }
 });
 

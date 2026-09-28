@@ -1682,6 +1682,7 @@ mpOnTerminal = (info) => {
             mpPickerEndText = null;
             dexBattleRandomBtn.classList.remove('hidden');
             battleSlotController.stopAll();
+            window.mpClearSignalFreeze();
         }, MP_PICKER_DISCONNECT_HOLD_MS);
         return;
     }
@@ -1820,6 +1821,9 @@ function mpApplySnapshot(s) {
     if (!s || !s.phase) return false;
     // 결과 화면에서 이미 눌러 둔 다시하기 — 아래에서 화면을 다시 그리기 전에 먼저 읽어 둠
     const pendingRematch = s.phase === 'result' ? mpLoadPendingRematch() : null;
+    // 결과 화면이 아닌 단계로 복원되면 눌러 둔 다시하기는 이미 처리됐거나(동의 → 선택창) 의미가 없어짐 — 남겨 두면
+    // 다음 판 결과 화면에서 재접속할 때 누르지 않은 다시하기가 "대기 중"으로 되살아남
+    if (s.phase !== 'result') mpClearPendingRematch();
     const remain = (fallback) => Math.max(MP_RESUME_MIN_MS, typeof s.remainingMs === 'number' ? s.remainingMs : fallback);
     const validParty = (list) => Array.isArray(list) && list.length === 3 && list.every(p => p && POKEMON_DATA[p.id]);
 
@@ -2365,6 +2369,7 @@ function prepareBattleScreen() {
 // 배틀이면 pickAiTeam(), 함께하기면 상대가 보낸 파티({id, isShiny, hp, fainted, known})
 function beginBattle(opponentParty) {
     battleMode = mp.active ? 'pvp' : 'ai';
+    mpClearPendingRematch(); // 새 대결 — 이전 판 결과 화면의 다시하기 요청은 더 이상 쓰이지 않음
     mpPartyLocked = false;
     mpTurn = 0;
     mpMissStreak = 0;
@@ -2587,6 +2592,7 @@ function resetBattlePreview() {
     // 혼자하기 타이머 정리(함께하기는 연결 정리 mpTeardown/재대결 흐름이 따로 관리 — 재대결 대기 타이머를 지우면 안 됨)
     if (!mp.active) window.mpClearDeadlineTimer();
     mpClearPendingRematch(); // 다시하기 대기는 선택창으로 넘어가거나(동의) 나가면 끝남
+    window.mpClearSignalFreeze(); // 종료된 함께하기의 고정 신호 아이콘은 대결 화면을 떠나면 숨김
     mpTurn = 0;
     mpPartyLocked = false;
     mpRematchWaiting = false;
@@ -2715,6 +2721,7 @@ function mpStartRematchWait(durationMs) {
         mpClearPendingRematch();
         battleResultRetryBtn.textContent = '상대가 응답하지 않습니다';
         mpLeave();
+        window.mpFreezeSignalIcon('lost'); // 상대 응답 없음 — 결과 화면을 나갈 때까지 끊김 아이콘
     });
     mpWaitFor('rematch', battleCallback(() => {
         window.mpClearDeadlineTimer();
