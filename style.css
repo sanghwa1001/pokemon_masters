@@ -1623,6 +1623,17 @@ html, body {
     border-radius: 50%;
 }
 
+/* 목록 줄(학습 데이터 선택)의 ✓는 도감 종 칸의 포획 아이콘(.dex-owned-badge)과 같은 자리·크기 —
+   칸 위에 띄우지 않고 줄 맨 끝 요소로 놓아 오른쪽 끝·세로 가운데에 16px로 정렬 */
+.admin-row.is-current::after {
+    position: static;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    line-height: 16px;
+    font-size: 11px;
+}
+
 .dex-form-sprite-box {
     position: relative;
     width: 100%;
@@ -2171,7 +2182,6 @@ html, body {
        같은 칸 크기로 맞춤 — 이 목록들은 아이콘이 없어 내용만으로는 그보다 짧아지므로 min-height로
        강제하고, 내용은 이미 align-items:center라 가운데에 그대로 정렬됨 */
     min-height: 48px;
-    position: relative; /* 지금 쓰는 학습 데이터 표시(.is-current ✓ 배지)의 위치 기준 */
 }
 
 /* 학습 데이터 선택 목록(학생용)처럼 줄 전체가 클릭 대상일 때 — 도감 칸(.dex-row)과 같은
