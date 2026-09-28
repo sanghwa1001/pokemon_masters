@@ -1597,8 +1597,26 @@ function mpLoadImage(src) {
         setTimeout(() => resolve(false), MP_PRELOAD_TIMEOUT_MS);
     });
 }
+// 포켓몬 그림 말고도 대결 화면에서 쓰는 그림(CSS 배경·이펙트) — 처음 화면에 필요해지는 순간 받으면 첫 대결에서
+// 상성 아이콘·HP 바·이펙트가 늦게 뜰 수 있어서 불러오기 단계에서 같이 받음(합쳐서 약 55KB)
+const MP_PRELOAD_UI_SRCS = [
+    'images/pokemon/layout/judgment.png',         // 상성 아이콘(기술 버튼·상태 확인 창)
+    'images/pokemon/layout/types_short.png',      // 이름표·교체 메뉴 타입 아이콘
+    'images/pokemon/layout/types.png',            // 상태 확인 창 타입 뱃지
+    'images/pokemon/layout/overlay_hp_back.png',  // HP 바
+    'images/pokemon/layout/overlay_hp.png',
+    'images/pokemon/layout/action_box.png',       // 액션박스 테두리
+    'images/pokemon/layout/left_arrow.png',       // 기술·교체 메뉴 뒤로가기
+    'images/pokemon/layout/icon_signal.png',      // 신호 아이콘
+    'images/pokemon/layout/icon_nosignal.png',
+    BATTLE_EFFECTS.SWORDS_DANCE.src,              // 랭크업·회복 이펙트
+    BATTLE_EFFECTS.RECOVER.src
+];
 function mpPreloadBattleAssets() {
     const jobs = [mpLoadImage(STATUS_UNKNOWN_SPRITE_SRC)];
+    MP_PRELOAD_UI_SRCS.forEach(src => jobs.push(mpLoadImage(src)));
+    // 이로치 반짝임(shiny.png)은 약 900KB라 양쪽 파티에 이로치가 있을 때만
+    if (battleParty.concat(aiParty).some(entry => entry && entry.isShiny)) jobs.push(mpLoadImage(SHINY_EFFECT_SRC));
     battleParty.forEach(entry => {
         const info = backSpriteInfo(entry.id, entry.isShiny);
         if (info) {
