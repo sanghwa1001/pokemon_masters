@@ -440,30 +440,38 @@ document.getElementById('btn-admin-logout').addEventListener('click', logout);
 
 // ===================== 관리자: 학생 등록 =====================
 
-const EMAIL_RE = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
+// 영문·숫자 이메일만 허용(구글 계정 이메일은 ASCII) — 한글·전각 쉼표(，) 등이 붙은 줄이 이메일로
+// 잘못 저장되지 않게 함
+const EMAIL_RE = /^[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 const studentCreateFeedbackEl = document.getElementById('admin-student-create-feedback');
-const studentRegisterEmailEl = document.getElementById('student-register-email');
-const studentRegisterNameEl = document.getElementById('student-register-name');
-const studentRegisterBtn = document.getElementById('btn-register-student');
+const studentRegisterInputEl = document.getElementById('student-register-input');
+const studentRegisterBtn = document.getElementById('btn-register-students');
+const studentRegisterExcelBtn = document.getElementById('btn-register-students-excel');
 const studentRegisterFileEl = document.getElementById('student-register-file');
+
+function setRegisterInput(text, hasError) {
+    studentRegisterInputEl.value = text;
+    studentRegisterInputEl.classList.toggle('has-error', hasError);
+}
 
 document.getElementById('btn-admin-create-student').addEventListener('click', () => {
     setFieldFeedback(studentCreateFeedbackEl, '');
-    studentRegisterEmailEl.value = '';
-    studentRegisterNameEl.value = '';
+    setRegisterInput('', false);
     showModal(adminStudentCreateModal);
-    studentRegisterEmailEl.focus();
+    studentRegisterInputEl.focus();
 });
 
-// [이메일, 이름?] 목록을 allowedStudents에 추가하고 { added, duplicate, invalid }를 돌려줌 —
-// 형식 오류·목록 안 중복·이미 등록된 이메일은 건너뜀. 한 명 등록과 엑셀 일괄 등록이 같이 씀
-async function addStudents(pairs) {
+// [{ email, name, raw }] 목록을 allowedStudents에 추가하고 { added, duplicate, invalidRaws }를 돌려줌 —
+// 목록 안 중복·이미 등록된 이메일은 건너뛰고, 형식 오류 줄은 원문(raw)을 모아 돌려줌(머리글 줄도
+// 따로 판별하지 않고 형식 오류로 처리 — 입력 상자에 남으니 무엇인지 바로 보임)
+async function addStudents(entries) {
     const existing = (await get(ref(db, 'allowedStudents'))).val() || {};
     const updates = {};
-    let invalid = 0, duplicate = 0;
+    const invalidRaws = [];
+    let duplicate = 0;
     const now = Date.now();
-    pairs.forEach(([email, name]) => {
-        if (!EMAIL_RE.test(email)) { invalid++; return; }
+    entries.forEach(({ email, name, raw }) => {
+        if (!EMAIL_RE.test(email)) { invalidRaws.push(raw); return; }
         const key = emailKeyOf(email);
         if (existing[key] || updates[key]) { duplicate++; return; }
         const entry = { email: email.toLowerCase(), addedAt: now };
@@ -472,65 +480,29 @@ async function addStudents(pairs) {
     });
     const added = Object.keys(updates).length;
     if (added) await update(ref(db, 'allowedStudents'), updates);
-    return { added, duplicate, invalid };
+    return { added, duplicate, invalidRaws };
 }
 
-// 한 명 등록 — 성공하면 입력칸을 비우고 이메일 칸으로 돌아가서 다음 학생을 바로 입력할 수 있게 함
-async function registerOneStudent() {
-    const email = studentRegisterEmailEl.value.trim();
-    const name = studentRegisterNameEl.value.trim();
-    if (!email) {
-        setFieldFeedback(studentCreateFeedbackEl, '이메일을 입력해주세요', 'error');
-        studentRegisterEmailEl.focus();
-        return;
-    }
-    if (!EMAIL_RE.test(email)) {
-        setFieldFeedback(studentCreateFeedbackEl, '올바르지 않은 이메일입니다', 'error');
-        studentRegisterEmailEl.focus();
-        return;
-    }
-    studentRegisterBtn.disabled = true;
-    setFieldFeedback(studentCreateFeedbackEl, '등록 중...');
-    try {
-        const { added } = await addStudents([[email, name]]);
-        if (added) {
-            setFieldFeedback(studentCreateFeedbackEl, '학생이 등록되었습니다', 'success');
-            studentRegisterEmailEl.value = '';
-            studentRegisterNameEl.value = '';
-        } else {
-            setFieldFeedback(studentCreateFeedbackEl, '이미 등록된 이메일입니다', 'error');
-        }
-    } catch (e) {
-        console.error(e);
-        setFieldFeedback(studentCreateFeedbackEl, '등록하지 못했습니다', 'error');
-    }
-    studentRegisterBtn.disabled = false;
-    studentRegisterEmailEl.focus();
+// 한 줄(또는 엑셀 한 행)의 칸 배열 → { email, name, raw } — 첫 칸 이메일, 둘째 칸 이름(셋째 칸부터 무시),
+// 칸마다 앞뒤 공백 제거. 모든 칸이 비어 있으면 null(빈 줄은 무시)
+function toStudentEntry(cells, raw) {
+    const [email, name] = [String(cells[0] ?? '').trim(), String(cells[1] ?? '').trim()];
+    if (!cells.some(c => String(c ?? '').trim() !== '')) return null;
+    return { email, name, raw };
 }
 
-studentRegisterBtn.addEventListener('click', registerOneStudent);
-// 이메일 칸에서 Enter → 이름 칸으로, 이름 칸에서 Enter → 등록
-studentRegisterEmailEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); studentRegisterNameEl.focus(); }
-});
-studentRegisterNameEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); registerOneStudent(); }
-});
-
-// 엑셀 일괄 등록 — 결과를 "추가 N명, 이미 등록 N명, 형식 오류 N건"으로 집계. 첫 줄이 이메일이
-// 아니면(머리글 "이메일, 이름" 등) 오류로 세지 않고 조용히 건너뜀
-async function registerStudentsFromRows(rows) {
-    const pairs = rows
-        .map(r => [String(r[0] ?? '').trim(), String(r[1] ?? '').trim()])
-        .filter(([email]) => email !== '');
-    if (pairs.length && !EMAIL_RE.test(pairs[0][0])) pairs.shift();
-    if (!pairs.length) {
+// 입력 상자와 엑셀 공용 — 결과를 "N명이 등록되었습니다 (중복 N, 오류 N)"으로 알리고, 형식이 틀린 줄만
+// 입력 상자에 빨간 글자로 남김(등록·중복 줄은 지움). 저장 실패 시 상자는 그대로 둬서 다시 누를 수 있게 함
+async function registerStudentEntries(entries) {
+    if (!entries.length) {
         setFieldFeedback(studentCreateFeedbackEl, '등록할 이메일이 없습니다', 'error');
         return;
     }
+    studentRegisterBtn.disabled = studentRegisterExcelBtn.disabled = true;
     setFieldFeedback(studentCreateFeedbackEl, '등록 중...');
     try {
-        const { added, duplicate, invalid } = await addStudents(pairs);
+        const { added, duplicate, invalidRaws } = await addStudents(entries);
+        const invalid = invalidRaws.length;
         // 치트 코드 안내처럼 결과만 한 문장으로 — 건너뛴 줄이 있으면 괄호로 개수만 덧붙임
         const skipped = [duplicate ? `중복 ${duplicate}` : '', invalid ? `오류 ${invalid}` : ''].filter(Boolean).join(', ');
         if (added) {
@@ -538,14 +510,35 @@ async function registerStudentsFromRows(rows) {
         } else {
             setFieldFeedback(studentCreateFeedbackEl, invalid ? `등록된 학생이 없습니다 (${skipped})` : '이미 등록된 이메일입니다', 'error');
         }
+        setRegisterInput(invalidRaws.join('\n'), invalid > 0);
     } catch (e) {
         console.error(e);
         setFieldFeedback(studentCreateFeedbackEl, '등록하지 못했습니다', 'error');
     }
+    studentRegisterBtn.disabled = studentRegisterExcelBtn.disabled = false;
 }
 
-// 엑셀 — 첫 번째 시트의 첫 열 이메일, 둘째 열 이름(학습 데이터 업로드와 같은 XLSX 라이브러리)
-document.getElementById('btn-register-students-excel').addEventListener('click', () => {
+// 입력 상자 — 한 줄에 한 명, 쉼표·탭으로 칸 구분(엑셀 두 열을 복사해 붙여넣으면 탭으로 들어옴)
+studentRegisterBtn.addEventListener('click', () => {
+    const entries = studentRegisterInputEl.value.split(/\r?\n/)
+        .map(line => toStudentEntry(line.split(/[,\t]/), line))
+        .filter(Boolean);
+    registerStudentEntries(entries);
+});
+
+// 상자 안에서 Tab 키 → 다음 버튼으로 넘어가는 대신 탭 문자 입력(이메일 [Tab] 이름으로 직접 입력 가능)
+studentRegisterInputEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || e.shiftKey || e.isComposing) return;
+    e.preventDefault();
+    studentRegisterInputEl.setRangeText('\t', studentRegisterInputEl.selectionStart, studentRegisterInputEl.selectionEnd, 'end');
+    studentRegisterInputEl.classList.remove('has-error');
+});
+// 남은 오류 줄을 고치기 시작하면 빨간 글자 해제
+studentRegisterInputEl.addEventListener('input', () => studentRegisterInputEl.classList.remove('has-error'));
+
+// 엑셀 — 첫 번째 시트의 첫 열 이메일, 둘째 열 이름(학습 데이터 업로드와 같은 XLSX 라이브러리).
+// 형식이 틀린 행은 "이메일 [탭] 이름" 줄로 입력 상자에 채워짐
+studentRegisterExcelBtn.addEventListener('click', () => {
     studentRegisterFileEl.value = '';
     studentRegisterFileEl.click();
 });
@@ -554,14 +547,19 @@ studentRegisterFileEl.addEventListener('change', (e) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
+        let entries;
         try {
             const workbook = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
             const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
-            registerStudentsFromRows(rows.filter(Array.isArray));
+            entries = rows.filter(Array.isArray)
+                .map(r => toStudentEntry(r, r.map(c => String(c ?? '').trim()).join('\t').replace(/\t+$/, '')))
+                .filter(Boolean);
         } catch (err) {
             console.error(err);
             setFieldFeedback(studentCreateFeedbackEl, '파일을 읽을 수 없습니다', 'error');
+            return;
         }
+        registerStudentEntries(entries);
     };
     reader.readAsArrayBuffer(file);
 });
