@@ -19,6 +19,7 @@ let currentScale = 1; // getThrowTargetBottom() 등 화면 좌표 기반 계산�
 
 const gameFrame = document.getElementById('game-frame');
 
+// index.html의 인라인 스크립트가 같은 계산으로 첫 화면 배율을 먼저 적용함 — 계산을 바꾸면 그쪽도 같이 바꿀 것
 function applyResponsiveScale() {
     if (!gameFrame) return;
     const scale = gameFrame.clientWidth / BASE_WIDTH;

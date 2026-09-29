@@ -433,6 +433,13 @@
     </div>
     </div>
 
+    <script>
+    // 첫 화면부터 맞는 크기로 — 아래 큰 데이터 파일을 받기 전에 먼저 적용(script.js의 applyResponsiveScale과 같은 계산, 370은 BASE_WIDTH)
+    (function () {
+        var f = document.getElementById('game-frame'), c = document.getElementById('game-container');
+        if (f && c && f.clientWidth) c.style.transform = 'scale(' + f.clientWidth / 370 + ')';
+    })();
+    </script>
     <script type="module" src="firebase_config.js"></script>
     <script type="module" src="auth_manager.js"></script>
     <script src="pokemon_data.js"></script>
