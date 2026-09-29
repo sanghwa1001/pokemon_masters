@@ -1,4 +1,4 @@
-// ===================== pokemon_battle.js (3v3 AI 트레이너 배틀) =====================
+// ===================== pokemon_battle.js (3v3 대결 — 혼자하기(AI)·함께하기(pvp) 공통 엔진) =====================
 // pokemon_pokedex.js(openDexModal/dexPickerMode)와 pokemon_catch.js(initGame)를 그대로
 // 가져다 쓰므로 가장 마지막에 로드되어야 함.
 
@@ -344,13 +344,14 @@ let selfPassStreak = 0;    // 내가 연속으로 자동 패스한 횟수 — 2�
                               // (상대 감지를 기다리면 그 사이 상대 화면에 턴이 진행되는 것처럼 보임)
 let mpAwaitingOpponentAction = false; // 내 행동을 보내고 상대 메시지를 기다리는 중인지 — 이 상태로
                                        // 제한시간이 다 되면 여유를 더 준 뒤 끊김 여부를 판정
-// 대기 제한시간(ms) — 모두 "할 일이 생긴 쪽의 개인 시간"이라 그쪽이 스스로 처리함.
+// 대기 제한시간(ms, 혼자하기·함께하기 공통) — 모두 "할 일이 생긴 쪽의 개인 시간"이라 그쪽이 스스로 처리함.
 // 액션: 놓치면 패스, 연속 2번째면 기권. 강제 교체: 놓치면 기권. 파티 선택: 선택 완료해도 리셋 안 됨.
-// 기다리는 쪽은 같은 시간 + 여유(MP_PEER_SLACK_MS)가 지나도 응답이 없을 때만 끊김으로 판정
+// 불러오기: 시간 초과는 누구 탓도 아니라 승패 없는 종료(끊김 멘트).
+// 함께하기에서 기다리는 쪽은 같은 시간 + 여유(MP_PEER_SLACK_MS)가 지나도 응답이 없을 때만 끊김으로 판정
 const BATTLE_ACTION_TIMEOUT_MS = 60000;
 const BATTLE_FORCED_SWITCH_TIMEOUT_MS = 60000;
 const BATTLE_PARTY_TIMEOUT_MS = 100000;
-const MP_LOADED_TIMEOUT_MS = 100000;
+const BATTLE_LOADED_TIMEOUT_MS = 100000;
 const MP_REMATCH_TIMEOUT_MS = 60000; // 다시하기를 누르고 상대를 기다리는 최대 시간
 let mpPartyLocked = false;   // 함께하기 선택창에서 "선택 완료"를 누르고 상대를 기다리는 중(파티 수정 불가)
 let mpMyLoadSent = false;    // 내 배틀 에셋 로딩을 끝내고 'loaded' 신호를 이미 보냈는지(상대
@@ -1289,8 +1290,7 @@ function handlePlayerMoveChosen(actionType) {
     startPlayerTurn(actionType);
 }
 
-// ===================== 함께하기(pvp) 동기화 =====================
-// 액션박스를 타이핑 없는 고정 문구(통신 대기 중/불러오는 중)로 바꿈 — 다음 멘트가 덮어씀
+// 액션박스를 타이핑 없는 고정 문구(불러오는 중 — 혼자하기·함께하기 공통, 통신 대기 중 — 함께하기)로 바꿈 — 다음 멘트가 덮어씀
 function showBattleWaiting(text) {
     cancelTypeMessage(battleMessageBoxEl);
     battleMainMenuEl.classList.add('hidden');
@@ -1300,6 +1300,7 @@ function showBattleWaiting(text) {
     battleMessageBoxEl.textContent = text;
 }
 
+// ===================== 함께하기(pvp) 동기화 =====================
 // 이번 턴의 랜덤 판정 — 양쪽이 공개한 난수를 합쳐서 정하므로 결과가 같고 어느 쪽도 조작할 수 없음
 function mpRollTurn(hostNonce, guestNonce, turn) {
     const u = window.mpSeededUniforms(`${hostNonce}|${guestNonce}|${turn}`);
@@ -2233,7 +2234,7 @@ function beginBattle(opponentParty) {
     // 등장 연출 전에 이번 배틀 그림을 전부 받아 둠(제한시간은 혼자하기·함께하기 공통) —
     // 함께하기는 양쪽 다 받을 때까지 기다림
     showBattleWaiting('불러오는 중...');
-    startBattleTimer(battleTurnTimerEl, MP_LOADED_TIMEOUT_MS, () => {
+    startBattleTimer(battleTurnTimerEl, BATTLE_LOADED_TIMEOUT_MS, () => {
         // 혼자하기: 불러오기 지연은 플레이어 탓이 아니므로 항복이 아니라 함께하기와 같은 승패 없는 종료
         if (!isPvpBattle()) {
             clearBattleTimer();
