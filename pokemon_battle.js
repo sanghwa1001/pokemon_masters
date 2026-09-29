@@ -1456,13 +1456,13 @@ function mpWaitForcedSwitch(onDone) {
     }));
 }
 
-// 함께하기 배틀 시작 전 프리로드 — 내 3마리 뒷모습(폼 전용이 없으면 종 기준형), 내/상대 6마리
+// 배틀 시작 전 프리로드(혼자하기·함께하기 공통) — 내 3마리 뒷모습(폼 전용이 없으면 종 기준형), 내/상대 6마리
 // 앞모습(상대 등장·상태 확인 창), 상태 확인 창의 물음표 이미지. 실패·시간초과여도 진행은 막지 않음
-const MP_PRELOAD_TIMEOUT_MS = 8000;
-const mpLoadImage = (src) => loadImage(src, MP_PRELOAD_TIMEOUT_MS);
+const BATTLE_PRELOAD_TIMEOUT_MS = 8000;
+const battleLoadImage = (src) => loadImage(src, BATTLE_PRELOAD_TIMEOUT_MS);
 // 포켓몬 그림 말고도 대결 화면에서 쓰는 그림(CSS 배경·이펙트) — 처음 화면에 필요해지는 순간 받으면 첫 대결에서
 // 상성 아이콘·HP 바·이펙트가 늦게 뜰 수 있어서 불러오기 단계에서 같이 받음(합쳐서 약 55KB)
-const MP_PRELOAD_UI_SRCS = [
+const BATTLE_PRELOAD_UI_SRCS = [
     'images/pokemon/layout/judgment.png',         // 상성 아이콘(기술 버튼·상태 확인 창)
     'images/pokemon/layout/types_short.png',      // 이름표·교체 메뉴 타입 아이콘
     'images/pokemon/layout/types.png',            // 상태 확인 창 타입 뱃지
@@ -1475,21 +1475,21 @@ const MP_PRELOAD_UI_SRCS = [
     BATTLE_EFFECTS.SWORDS_DANCE.src,              // 랭크업·회복 이펙트
     BATTLE_EFFECTS.RECOVER.src
 ];
-function mpPreloadBattleAssets() {
-    const jobs = [mpLoadImage(STATUS_UNKNOWN_SPRITE_SRC)];
-    MP_PRELOAD_UI_SRCS.forEach(src => jobs.push(mpLoadImage(src)));
+function preloadBattleAssets() {
+    const jobs = [battleLoadImage(STATUS_UNKNOWN_SPRITE_SRC)];
+    BATTLE_PRELOAD_UI_SRCS.forEach(src => jobs.push(battleLoadImage(src)));
     // 이로치 반짝임(shiny.png)은 약 900KB라 양쪽 파티에 이로치가 있을 때만
-    if (battleParty.concat(aiParty).some(entry => entry && entry.isShiny)) jobs.push(mpLoadImage(SHINY_EFFECT_SRC));
+    if (battleParty.concat(aiParty).some(entry => entry && entry.isShiny)) jobs.push(battleLoadImage(SHINY_EFFECT_SRC));
     battleParty.forEach(entry => {
         const info = backSpriteInfo(entry.id, entry.isShiny);
         if (info) {
-            jobs.push(mpLoadImage(info.src).then(ok => {
+            jobs.push(battleLoadImage(info.src).then(ok => {
                 const fallback = !ok && baseBackSpriteInfo(entry.id, entry.isShiny);
-                return fallback ? mpLoadImage(fallback.src) : ok;
+                return fallback ? battleLoadImage(fallback.src) : ok;
             }));
         }
     });
-    battleParty.concat(aiParty).forEach(entry => jobs.push(mpLoadImage(frontSpriteSrc(entry.id, entry.isShiny))));
+    battleParty.concat(aiParty).forEach(entry => jobs.push(battleLoadImage(frontSpriteSrc(entry.id, entry.isShiny))));
     return Promise.all(jobs);
 }
 
@@ -2228,26 +2228,25 @@ function beginBattle(opponentParty) {
 
     prepareBattleScreen();
 
-    // 함께하기는 등장 연출 전에 이번 배틀 스프라이트를 전부 받아두고, 양쪽 다 받을 때까지 기다림
+    // 등장 연출 전에 이번 배틀 그림을 전부 받아 둠 — 함께하기는 양쪽 다 받을 때까지 기다림
+    showBattleWaiting('불러오는 중...');
     if (battleMode === 'pvp') {
-        showBattleWaiting('불러오는 중...');
         startBattleTimer(battleTurnTimerEl, MP_LOADED_TIMEOUT_MS, () => {
             // 신호를 이미 보내서(mpMyLoadSent) 상대 신호를 기다리는 중이면 여유를 더 준 뒤 판정하고,
             // 아직 내 로딩 자체가 안 끝난 거면(이미지마다 8초 제한이 있어 사실상 없음) 곧바로 끊김 처리
             if (mpMyLoadSent) { window.mpPeerSlackThenJudge(); return; }
             window.mpForceDisconnect();
         });
-        mpPreloadBattleAssets().then(battleCallback(() => {
-            mpMyLoadSent = true;
-            mpSend('loaded');
-            mpWaitFor('loaded', battleCallback(() => {
-                clearBattleTimer();
-                playBattleIntro();
-            }));
-        }));
-        return;
     }
-    playBattleIntro();
+    preloadBattleAssets().then(battleCallback(() => {
+        if (battleMode !== 'pvp') { playBattleIntro(); return; }
+        mpMyLoadSent = true;
+        mpSend('loaded');
+        mpWaitFor('loaded', battleCallback(() => {
+            clearBattleTimer();
+            playBattleIntro();
+        }));
+    }));
 }
 
 // 상대 첫 포켓몬 등장 — 교체 연출(switchAiToIndex)을 그대로 씀
