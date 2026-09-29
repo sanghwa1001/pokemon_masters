@@ -864,7 +864,6 @@ html, body {
     font-size: 16px;
     font-weight: bold;
     letter-spacing: 0.5px;
-    color: #000;
     white-space: nowrap;
     cursor: pointer;
     /* <button> 기본 룩 리셋 */
@@ -1789,11 +1788,6 @@ html, body {
 
 .battle-status-cell {
     min-width: 0;
-}
-
-/* 이 오버레이의 슬롯은 누를 수 없는 표시 전용 칸 */
-#battle-status-box .battle-slot:not(.empty) {
-    cursor: default;
 }
 
 /* 내/상대 어느 칸이든 눌러서 빨간 칸(.active)을 옮기며 그 포켓몬 입장의 반대편 상성을 볼 수 있음 */
