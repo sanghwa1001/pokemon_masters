@@ -102,15 +102,16 @@ function getFrontSpriteMetrics(id, isShiny) {
         : { x: o.x, y: o.y, w: o.w, h: o.h, topSafety: o.topSafety, effectW: o.effectW, effectH: o.effectH };
 }
 
-// 이미지를 미리 받아 캐시에 올림 — 받으면 true, 실패하거나 timeoutMs가 지나면 false(진행은 막지 않음)
+// 이미지를 미리 받아 캐시에 올림 — 받으면 true, 오류(파일 없음 등)면 false, timeoutMs 안에 못 받으면 null
+// (시간 초과여도 받기는 계속되고 진행은 막지 않음 — 호출하는 쪽이 "없는 그림"과 "느린 그림"을 구분할 수 있게)
 const PRELOAD_TIMEOUT_MS = 1000;
 function loadImage(src, timeoutMs = PRELOAD_TIMEOUT_MS) {
     return new Promise((resolve) => {
         const img = new Image();
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
+        const timer = setTimeout(() => resolve(null), timeoutMs);
+        img.onload = () => { clearTimeout(timer); resolve(true); };
+        img.onerror = () => { clearTimeout(timer); resolve(false); };
         img.src = src;
-        setTimeout(() => resolve(false), timeoutMs);
     });
 }
 

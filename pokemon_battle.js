@@ -1486,7 +1486,8 @@ function preloadBattleAssets() {
         const info = backSpriteInfo(entry.id, entry.isShiny);
         if (info) {
             jobs.push(battleLoadImage(info.src).then(ok => {
-                const fallback = !ok && baseBackSpriteInfo(entry.id, entry.isShiny);
+                // 대체 그림은 파일이 없을 때(false)만 — 느려서 시간 초과(null)면 같은 그림을 계속 받는 중이므로 기다리지 않음
+                const fallback = ok === false && baseBackSpriteInfo(entry.id, entry.isShiny);
                 return fallback ? battleLoadImage(fallback.src) : ok;
             }));
         }
