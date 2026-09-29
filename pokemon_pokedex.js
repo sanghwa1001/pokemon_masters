@@ -158,31 +158,12 @@ function matchesDexSearch(species) {
     return info.name.toLowerCase().includes(q.toLowerCase());
 }
 
-// 목록 아이콘은 화면에 보일 때(위아래 여유 포함)만 받음 — 1,025개를 한꺼번에 요청하지 않게.
-// 행 높이는 그림과 무관하게 고정이라 받는 동안 레이아웃이 흔들리지 않음
-let dexIconObserver = null;
-function observeDexIcon(icon, imageUrl) {
-    if (!dexIconObserver) { icon.style.backgroundImage = imageUrl; return; }
-    icon.dataset.bg = imageUrl;
-    dexIconObserver.observe(icon);
-}
-
 // 도감 목록 — 조건에 맞는 종만 번호순으로, 안 잡은 종은 실루엣. 상단 카운트는 필터와 무관하게 전체 기준
 function renderDexList() {
     dexTotalCountEl.textContent = String(DEX_SPECIES_ORDER.length);
     dexCaughtCountEl.textContent = String(DEX_SPECIES_ORDER.filter(isSpeciesColored).length);
 
     dexListEl.innerHTML = '';
-    if (dexIconObserver) dexIconObserver.disconnect();
-    dexIconObserver = 'IntersectionObserver' in window
-        ? new IntersectionObserver((entries, observer) => {
-            entries.forEach((entry) => {
-                if (!entry.isIntersecting) return;
-                entry.target.style.backgroundImage = entry.target.dataset.bg;
-                observer.unobserve(entry.target);
-            });
-        }, { root: dexListEl, rootMargin: '150px 0px' })
-        : null;
 
     // 배틀 선택 모드(dexPickerMode)에서는 "잡음" 체크박스 상태와 무관하게 항상 잡은 종만 보임
     // (어차피 못 잡은 건 슬롯에 등록할 수 없으므로)
@@ -226,7 +207,7 @@ function renderDexList() {
         // (치트 DexAll) 흑백(grayscale)으로, 실제로(또는 치트 CaughtAll로) 잡은 종은 원래 색으로 표시
         const icon = document.createElement('div');
         icon.className = colored ? 'dex-icon' : (unlocked ? 'dex-icon grayed' : 'dex-icon locked');
-        observeDexIcon(icon, `url(${capturedIconSrc(repId, 'normal', false)})`);
+        icon.style.backgroundImage = `url(${capturedIconSrc(repId, 'normal', false)})`;
 
         const name = document.createElement('span');
         name.className = 'dex-name';
