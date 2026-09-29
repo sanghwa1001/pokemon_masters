@@ -2232,7 +2232,12 @@ function beginBattle(opponentParty) {
     // 함께하기는 양쪽 다 받을 때까지 기다림
     showBattleWaiting('불러오는 중...');
     startBattleTimer(battleTurnTimerEl, MP_LOADED_TIMEOUT_MS, () => {
-        if (battleMode !== 'pvp') { battleTimeoutForfeit(); return; }
+        // 혼자하기: 불러오기 지연은 플레이어 탓이 아니므로 항복이 아니라 함께하기와 같은 승패 없는 종료
+        if (battleMode !== 'pvp') {
+            clearBattleTimer();
+            if (battlePreviewActive && !battleEnded) mpShowBattleTerminal({ reason: 'disconnect' });
+            return;
+        }
         // 신호를 이미 보내서(mpMyLoadSent) 상대 신호를 기다리는 중이면 여유를 더 준 뒤 판정하고,
         // 아직 내 로딩 자체가 안 끝난 거면(이미지마다 8초 제한이 있어 사실상 없음) 곧바로 끊김 처리
         if (mpMyLoadSent) { window.mpPeerSlackThenJudge(); return; }
