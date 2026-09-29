@@ -1459,8 +1459,10 @@ function mpWaitForcedSwitch(onDone) {
 }
 
 // 배틀 시작 전 프리로드(혼자하기·함께하기 공통) — 내 3마리 뒷모습(폼 전용이 없으면 종 기준형), 내/상대 6마리
-// 앞모습(상대 등장·상태 확인 창), 상태 확인 창의 물음표 이미지. 실패·시간초과여도 진행은 막지 않음
-const BATTLE_PRELOAD_TIMEOUT_MS = 8000;
+// 앞모습(상대 등장·상태 확인 창), 상태 확인 창의 물음표 이미지. 그림별 제한은 두지 않고 전체 불러오기 제한시간
+// (BATTLE_LOADED_TIMEOUT_MS, 넘으면 승패 없는 끊김 종료)이 기준 — 느린 그림은 도착할 때까지 기다리고,
+// 파일이 없거나 오류로 받지 못한 그림(false)만 기다리지 않고 넘어감. 아래 값은 전체 제한보다 살짝 길게 잡은 안전값
+const BATTLE_PRELOAD_TIMEOUT_MS = BATTLE_LOADED_TIMEOUT_MS + 5000;
 const battleLoadImage = (src) => loadImage(src, BATTLE_PRELOAD_TIMEOUT_MS);
 // 포켓몬 그림 말고도 대결 화면에서 쓰는 그림(CSS 배경·이펙트) — 처음 화면에 필요해지는 순간 받으면 첫 대결에서
 // 상성 아이콘·HP 바·이펙트가 늦게 뜰 수 있어서 불러오기 단계에서 같이 받음(합쳐서 약 55KB)
@@ -2243,7 +2245,7 @@ function beginBattle(opponentParty) {
             return;
         }
         // 신호를 이미 보내서(mpMyLoadSent) 상대 신호를 기다리는 중이면 여유를 더 준 뒤 판정하고,
-        // 아직 내 로딩 자체가 안 끝난 거면(이미지마다 8초 제한이 있어 사실상 없음) 곧바로 끊김 처리
+        // 아직 내 그림을 다 못 받은 거면(네트워크가 너무 느림) 곧바로 끊김 처리
         if (mpMyLoadSent) { window.mpPeerSlackThenJudge(); return; }
         window.mpForceDisconnect();
     });
