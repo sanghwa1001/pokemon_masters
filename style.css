@@ -223,6 +223,12 @@ html, body {
     z-index: 5;
 }
 
+/* 파티 선택 화면은 왼쪽 위에 뒤로가기(‹)가 뜨므로 타이머는 가로 가운데(높이는 그대로) */
+#dex-wait-timer {
+    left: 50%;
+    transform: translateX(-50%);
+}
+
 /* 함께하기 연결 상태 아이콘 — 닫기(×) 바로 왼쪽에 같은 크기, 끊기면 .mp-signal-lost */
 .mp-signal-icon {
     position: absolute;
