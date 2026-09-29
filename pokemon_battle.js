@@ -337,6 +337,7 @@ let pendingForcedSwitchCallback = null; // 강제 교체가 끝나면 이어서 
 // 'ai' = 혼자하기(AI 트레이너), 'pvp' = 함께하기(상대가 사람, pokemon_multiplayer.js) — beginBattle()이 정함.
 // pvp에서도 상대 쪽 상태는 AI와 같은 변수(aiParty/activeAiIndex/aiRank, side 'ai')를 그대로 씀
 let battleMode = 'ai';
+const isPvpBattle = () => battleMode === 'pvp'; // 함께하기 여부 — 모드 분기는 이 함수로만 확인
 let mpTurn = 0;              // 함께하기 턴 번호 — 양쪽이 같은 턴의 행동끼리 짝지어졌는지 확인용
 let mpMissStreak = 0;        // 상대가 연속으로 제한시간을 넘겨 패스된 횟수 — 2번이면 상대 기권으로 처리(안전장치)
 let selfPassStreak = 0;    // 내가 연속으로 자동 패스한 횟수 — 2번째면 턴을 시작하지 않고 바로 기권
@@ -884,7 +885,7 @@ function handleFaint(side, onDone) {
                 return;
             }
             // 함께하기: 다음 포켓몬은 상대가 직접 고름(상대 화면의 강제 교체 메뉴) — 그 선택이 올 때까지 대기
-            if (battleMode === 'pvp') { mpWaitForcedSwitch(onDone); return; }
+            if (isPvpBattle()) { mpWaitForcedSwitch(onDone); return; }
             autoSwitchAiNext(onDone);
         } else {
             battleParty[activePartyIndex].fainted = true;
@@ -1225,7 +1226,7 @@ function startMyActionDeadline(durationMs = BATTLE_ACTION_TIMEOUT_MS) {
         if (!battlePreviewActive || battleEnded) return;
         // 함께하기에서 내가 이미 행동을 보내고 상대 메시지를 기다리는 중(mpAwaitingOpponentAction)이면,
         // 상대 시계는 연출 길이 차이만큼 늦게 시작했을 수 있으므로 여유를 더 준 뒤 생존 여부를 판정
-        if (battleMode === 'pvp' && mpAwaitingOpponentAction) { window.mpPeerSlackThenJudge(); return; }
+        if (isPvpBattle() && mpAwaitingOpponentAction) { window.mpPeerSlackThenJudge(); return; }
         // 연속 2번째 시간 초과면 그 턴을 시작하지 않고 곧바로 기권(상대 화면에 턴이 진행되지 않음)
         selfPassStreak++;
         if (selfPassStreak >= 2) { battleTimeoutForfeit(); return; }
@@ -1257,13 +1258,13 @@ function startPlayerTurn(playerAction) {
     if (playerAction !== 'pass') selfPassStreak = 0;
     // 혼자하기는 AI가 그 자리에서 응답하므로 기다릴 상대가 없음 — 턴 연출 중에 타이머가 만료되지 않게 바로 지움
     // (다음 메뉴가 뜰 때 finishTurn이 새로 시작)
-    if (battleMode !== 'pvp') clearBattleTimer();
+    if (!isPvpBattle()) clearBattleTimer();
     battleTurnBusy = true;
     battleMoveMenuEl.classList.add('hidden');
     battleSwitchInlineMenuEl.classList.add('hidden');
 
     // 상대가 사람이면 AI 대신 상대의 선택을 네트워크로 기다림(mpSubmitTurnAction)
-    if (battleMode === 'pvp') { mpAwaitingOpponentAction = true; mpSubmitTurnAction(playerAction); return; }
+    if (isPvpBattle()) { mpAwaitingOpponentAction = true; mpSubmitTurnAction(playerAction); return; }
 
     const aiEntry = aiParty[activeAiIndex];
     const playerHp = battleParty[activePartyIndex].hp;
@@ -1530,7 +1531,7 @@ function showBattleTerminal(info) {
 // 미뤄 둔 종료가 있으면 메뉴를 여는 대신 종료 멘트를 띄우고 true를 돌려줌(호출한 쪽은 그대로 멈춤)
 function reachSafePoint() {
     battleAnimating = false;
-    if (battleMode !== 'pvp') return false;
+    if (!isPvpBattle()) return false;
     if (mpPendingTerminal) {
         showBattleTerminal(mpPendingTerminal);
         return true;
@@ -1545,7 +1546,7 @@ function reachSafePoint() {
 // 혼자하기 선택창의 시간 초과도 직접 부름) — 지금 화면(배틀·결과 화면 / 선택창)에 맞게 안내함
 function onBattleTerminal(info) {
     clearBattleTimer();
-    if (battleMode === 'pvp' && battlePreviewActive) {
+    if (isPvpBattle() && battlePreviewActive) {
         // 상대가 없으니 다시하기 비활성화, 대기 중이었다면 종료 안내로 바꿈
         battleResultRetryBtn.disabled = true;
         if (mpRematchWaiting) battleResultRetryBtn.textContent = battleTerminalText(info);
@@ -1614,7 +1615,7 @@ function mpClearPendingSubmission() {
 // 지금 어느 단계인지(스냅샷 기준)
 function mpCurrentPhase() {
     if (dexPickerMode) return 'picker';
-    if (!battlePreviewActive || battleMode !== 'pvp') return null;
+    if (!battlePreviewActive || !isPvpBattle()) return null;
     if (battleEnded) return 'result';
     if (mpLoadingPhase) return 'loading';
     return 'battle';
@@ -1907,7 +1908,7 @@ function renderBattleSwitchInlineMenu() {
                 battleSwitchForced = false;
                 battleSwitchInlineMenuEl.classList.add('hidden');
                 clearBattleTimer();
-                if (battleMode === 'pvp') {
+                if (isPvpBattle()) {
                     mpSend('forcedSwitch', { idx });
                     battleAnimating = true; // 이미 보낸 선택의 연출은 끝까지 재생
                 }
@@ -2204,14 +2205,14 @@ function beginBattle(opponentParty) {
     mpMyLoadSent = false;
     battleAnimating = false;
     mpPendingTerminal = null;
-    mpLoadingPhase = battleMode === 'pvp';
+    mpLoadingPhase = isPvpBattle();
     mpAwaitingForcedSwitch = false;
     mpPeerCommitTurn = -1;
     battleLastDidWin = null;
     mpClearPendingSubmission();
     clearBattleTimer();
     // 배틀(결과 화면 포함) 중에는 상대 presence가 끊긴 채 유예를 넘기면 끊김 판정
-    if (battleMode === 'pvp') window.mpSetPresenceGrace(true);
+    if (isPvpBattle()) window.mpSetPresenceGrace(true);
     battleParty.forEach(p => { p.hp = BATTLE_MON_MAX_HP; p.fainted = false; p.shown = false; });
     aiParty = opponentParty;
     activeAiIndex = 0;
@@ -2234,7 +2235,7 @@ function beginBattle(opponentParty) {
     showBattleWaiting('불러오는 중...');
     startBattleTimer(battleTurnTimerEl, MP_LOADED_TIMEOUT_MS, () => {
         // 혼자하기: 불러오기 지연은 플레이어 탓이 아니므로 항복이 아니라 함께하기와 같은 승패 없는 종료
-        if (battleMode !== 'pvp') {
+        if (!isPvpBattle()) {
             clearBattleTimer();
             if (battlePreviewActive && !battleEnded) showBattleTerminal({ reason: 'disconnect' });
             return;
@@ -2245,7 +2246,7 @@ function beginBattle(opponentParty) {
         window.mpForceDisconnect();
     });
     preloadBattleAssets().then(battleCallback(() => {
-        if (battleMode !== 'pvp') { clearBattleTimer(); playBattleIntro(); return; }
+        if (!isPvpBattle()) { clearBattleTimer(); playBattleIntro(); return; }
         mpMyLoadSent = true;
         mpSend('loaded');
         mpWaitFor('loaded', battleCallback(() => {
@@ -2258,7 +2259,7 @@ function beginBattle(opponentParty) {
 // 상대 첫 포켓몬 등장 — 교체 연출(switchAiToIndex)을 그대로 씀
 function playBattleIntro() {
     mpLoadingPhase = false;
-    if (battleMode === 'pvp') battleAnimating = true;
+    if (isPvpBattle()) battleAnimating = true;
     switchAiToIndex(0, () => {
         // 이어서 내 포켓몬 등장 — "가랏! ~!" 멘트 후 applyPlayerSwitch()로 뒷모습을 페이드인시킴
         // (applyPlayerSwitch가 뒷모습/이름/타입/hp바까지 전부 알아서 채워줌)
@@ -2506,14 +2507,14 @@ function resetBattlePreview() {
 // 함께하기 중 ×/처음으로 = 방을 나감(상대는 끊김 알림을 봄) — 다시하기만 연결을 유지함
 // 배틀을 완전히 접고 시작화면으로 — ×(닫기)와 결과 화면 "처음으로"가 같이 씀
 function leaveBattleToHome() {
-    if (battleMode === 'pvp' && mp.active) mpLeave();
+    if (isPvpBattle() && mp.active) mpLeave();
     resetBattlePreview();
 }
 battlePreviewCloseBtn.addEventListener('click', leaveBattleToHome);
 battleResultHomeBtn.addEventListener('click', leaveBattleToHome);
 // 다시하기 — 곧바로 파티 선택 화면으로. 함께하기는 둘 다 누르면 이동(그 전엔 "대기 중")
 battleResultRetryBtn.addEventListener('click', () => {
-    if (battleMode === 'pvp') {
+    if (isPvpBattle()) {
         if (!mp.active || mpRematchWaiting) return;
         mpStartRematchWait(MP_REMATCH_TIMEOUT_MS);
         return;
