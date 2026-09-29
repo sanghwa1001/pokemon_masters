@@ -2228,18 +2228,18 @@ function beginBattle(opponentParty) {
 
     prepareBattleScreen();
 
-    // 등장 연출 전에 이번 배틀 그림을 전부 받아 둠 — 함께하기는 양쪽 다 받을 때까지 기다림
+    // 등장 연출 전에 이번 배틀 그림을 전부 받아 둠(제한시간은 혼자하기·함께하기 공통) —
+    // 함께하기는 양쪽 다 받을 때까지 기다림
     showBattleWaiting('불러오는 중...');
-    if (battleMode === 'pvp') {
-        startBattleTimer(battleTurnTimerEl, MP_LOADED_TIMEOUT_MS, () => {
-            // 신호를 이미 보내서(mpMyLoadSent) 상대 신호를 기다리는 중이면 여유를 더 준 뒤 판정하고,
-            // 아직 내 로딩 자체가 안 끝난 거면(이미지마다 8초 제한이 있어 사실상 없음) 곧바로 끊김 처리
-            if (mpMyLoadSent) { window.mpPeerSlackThenJudge(); return; }
-            window.mpForceDisconnect();
-        });
-    }
+    startBattleTimer(battleTurnTimerEl, MP_LOADED_TIMEOUT_MS, () => {
+        if (battleMode !== 'pvp') { battleTimeoutForfeit(); return; }
+        // 신호를 이미 보내서(mpMyLoadSent) 상대 신호를 기다리는 중이면 여유를 더 준 뒤 판정하고,
+        // 아직 내 로딩 자체가 안 끝난 거면(이미지마다 8초 제한이 있어 사실상 없음) 곧바로 끊김 처리
+        if (mpMyLoadSent) { window.mpPeerSlackThenJudge(); return; }
+        window.mpForceDisconnect();
+    });
     preloadBattleAssets().then(battleCallback(() => {
-        if (battleMode !== 'pvp') { playBattleIntro(); return; }
+        if (battleMode !== 'pvp') { clearBattleTimer(); playBattleIntro(); return; }
         mpMyLoadSent = true;
         mpSend('loaded');
         mpWaitFor('loaded', battleCallback(() => {
