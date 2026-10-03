@@ -1864,9 +1864,37 @@ html, body {
     height: 13px;
     background-size: 30px 260px;
 }
-/* 이름 밑에 타입 줄이 늘어난 만큼 칸을 세로로 키워 스프라이트 박스 높이를 유지함(정사각 1:1 → 5:6) */
+/* 이름 밑에 타입 줄·체력 막대가 늘어난 만큼 칸을 세로로 키워 스프라이트 박스 높이를 유지함(5:6 → 4:5) */
 #battle-status-box .battle-slot {
-    aspect-ratio: 5 / 6;
+    aspect-ratio: 4 / 5;
+}
+
+/* 이름 밑 체력 막대 — 전투 화면과 같은 그림(overlay_hp_back.png 틀 + overlay_hp.png 채움)과 같은 색 기준.
+   가로는 타입 뱃지 2개 줄(30+2+30=62px)에 맞추고 세로는 그림 비율(138:14)을 따름.
+   이름(글자)–막대 간격 3px(음수 마진은 이름 줄 상자 아래 여백 보정), 막대–타입 간격 2px */
+.battle-status-hp {
+    position: relative;
+    width: 62px;
+    aspect-ratio: 138 / 14;
+    margin: -1.5px auto 0;
+    background-image: url('images/pokemon/layout/overlay_hp_back.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    flex-shrink: 0;
+    visibility: hidden; /* 빈 칸·모르는 상대는 숨기되 줄 높이는 유지 */
+}
+.battle-status-hp.shown { visibility: visible; }
+/* 채움 좌표는 전투 화면 체력바(#battle-back-hp-fill)와 같은 비율 — 폭·색은 applyHpFill()이 지정 */
+.battle-status-hp-fill {
+    position: absolute;
+    left: 23.1884%;   /* 32/138 */
+    top: 14.2857%;    /* 2/14 */
+    height: 57.1429%; /* 8/14 */
+    background-image: url('images/pokemon/layout/overlay_hp.png');
+    background-size: 100% 300%;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
 }
 
 .bs-icon {
@@ -1879,6 +1907,8 @@ html, body {
     image-rendering: pixelated;
     image-rendering: crisp-edges;
 }
+/* 글자 윤곽이 줄 상자 안에서 위쪽에 그려져서 아이콘을 1px 올려야 글자 세로 가운데와 맞음 */
+.battle-status-namerow .bs-icon { transform: translateY(-1px); }
 .bs-icon.good { display: block; background-position: 0 0; }      /* 굉장 / 매우 굉장 */
 .bs-icon.none { display: block; background-position: -12px 0; } /* 효과 없음 */
 .bs-icon.bad  { display: block; background-position: -24px 0; } /* 별로 / 매우 별로 */

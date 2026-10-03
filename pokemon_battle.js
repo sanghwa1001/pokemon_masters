@@ -569,18 +569,23 @@ function pickAiTurnAction(aiEntry, defenderId, defenderHp) {
 // ===================== hp바 표시/애니메이션 (상대 · 나 공통) =====================
 // 색 기준(50%/25%)과 선형 애니메이션은 Pokemon Essentials의 hp바와 같음
 
+// hp 비율(0~1)을 채움 요소의 폭과 색(overlay_hp.png 초록/노랑/빨강 3단의 위치)에 반영 —
+// 전투 화면 hp바와 상태 확인 창의 막대가 같이 씀
+function applyHpFill(fillEl, frac) {
+    fillEl.style.width = `${(96 / 138) * frac * 100}%`;
+    let bandY = '0%';
+    if (frac <= 0.25) bandY = '100%';
+    else if (frac <= 0.5) bandY = '50%';
+    fillEl.style.backgroundPosition = `0% ${bandY}`;
+}
+
 // hp바 하나 — animate(from, to, onDone), reset(hp), cancel()
 function createHpBarController(fillEl) {
     let displayedHp = BATTLE_MON_MAX_HP;
     let animId = null;
 
     function render() {
-        const frac = Math.max(0, Math.min(1, displayedHp / BATTLE_MON_MAX_HP));
-        fillEl.style.width = `${(96 / 138) * frac * 100}%`;
-        let bandY = '0%';
-        if (frac <= 0.25) bandY = '100%';
-        else if (frac <= 0.5) bandY = '50%';
-        fillEl.style.backgroundPosition = `0% ${bandY}`;
+        applyHpFill(fillEl, Math.max(0, Math.min(1, displayedHp / BATTLE_MON_MAX_HP)));
     }
 
     function cancel() {
@@ -2321,7 +2326,9 @@ function renderBattleStatusSlots(slotEls, controller, party) {
         const entry = party[idx];
         const typesEl = slotEl.querySelector('.battle-status-types');
         slotEl.classList.remove('fainted', 'unknown');
-        typesEl.innerHTML = ''; // 빈 칸/모르는 상대는 타입을 보여주지 않음(정체가 드러나므로)
+        typesEl.innerHTML = ''; // 빈 칸/모르는 상대는 타입을 보여주지 않음(정체가 드러나므로) — 체력 막대도 같음
+        const hpEl = slotEl.querySelector('.battle-status-hp');
+        hpEl.classList.remove('shown');
         if (!entry) { controller.clear(idx); return; }
         if (isStatusUnknown(entry)) {
             // 정체를 가리고 스프라이트 대신 물음표 정지 이미지만 보여줌(크기는 .unknown CSS가 지정)
@@ -2335,6 +2342,8 @@ function renderBattleStatusSlots(slotEls, controller, party) {
         slotEl.classList.remove('empty');
         slotEl.querySelector('.battle-slot-name').textContent = (POKEMON_DATA[entry.id] || {}).name || '???';
         slotEl.classList.toggle('fainted', !!entry.fainted);
+        applyHpFill(hpEl.querySelector('.battle-status-hp-fill'), entry.fainted ? 0 : Math.max(0, Math.min(1, entry.hp / BATTLE_MON_MAX_HP)));
+        hpEl.classList.add('shown');
         renderTypeBadges(typesEl, (POKEMON_DATA[entry.id] || {}).types, STATUS_TYPE_BADGE_HEIGHT);
         // 정체가 드러난 포켓몬만 폼 아이콘 표시(아직 모르는 상대는 위에서 clear()로 숨겨짐)
         setBattleSlotFormIcon(slotEl, (POKEMON_DATA[entry.id] || {}).category);
