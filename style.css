@@ -1,3 +1,13 @@
+/* 픽셀 글꼴(네오둥근모 1.530, SIL OFL 1.1 — fonts/NEODGM-LICENSE.txt) — 외부 사이트에 의존하지 않도록 직접 보관.
+   버전을 고정한 이유: 글자 크기·간격을 픽셀 단위로 맞춰 둬서 글꼴이 바뀌면 화면 정렬이 어긋남 */
+@font-face {
+    font-family: 'NeoDunggeunmo';
+    font-weight: normal;
+    font-style: normal;
+    font-display: block;
+    src: url('fonts/neodgm.woff2') format('woff2');
+}
+
 /* 게임 화면 기본 설정 */
 :root {
     --monster-size: 288px; /* 몬스터 & shiny 이펙트가 공유하는 크기 */
