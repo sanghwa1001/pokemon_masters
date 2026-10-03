@@ -2066,8 +2066,8 @@ function renderBattleSlots() {
         // 이로치여도 포획 게임 화면(monsterNameEl)과 똑같이 이름만 표시 — "✨" 표시 안 함
         slotEl.querySelector('.battle-slot-name').textContent = info.name;
         // 이름 아래 타입 뱃지 — 상태 확인 화면(renderBattleStatusSlots)과 완전히 같은 디자인
-        // (.battle-status-types, STATUS_TYPE_BADGE_HEIGHT)을 그대로 재사용
-        renderTypeBadges(slotEl.querySelector('.battle-status-types'), info.types, STATUS_TYPE_BADGE_HEIGHT);
+        // (.battle-status-types, TYPE_BADGE_SMALL_HEIGHT)을 그대로 재사용
+        renderTypeBadges(slotEl.querySelector('.battle-status-types'), info.types, TYPE_BADGE_SMALL_HEIGHT);
         setBattleSlotFormIcon(slotEl, info.category);
         battleSlotController.render(idx, entry.id, entry.isShiny);
     });
@@ -2319,7 +2319,6 @@ function attackEffPreview(mult) {
 // 아직 전장에 나오지 않아 플레이어가 모르는 상대 포켓몬인지(내 파티 엔트리엔 known 필드가 없어 해당 없음)
 const isStatusUnknown = (entry) => !!entry && entry.known === false;
 const STATUS_UNKNOWN_SPRITE_SRC = 'images/pokemon/layout/random.png'; // 상태 확인 창 물음표 그림
-const STATUS_TYPE_BADGE_HEIGHT = 13; // px, .battle-status-types .type-badge(style.css)와 반드시 일치
 
 function renderBattleStatusSlots(slotEls, controller, party) {
     slotEls.forEach((slotEl, idx) => {
@@ -2344,7 +2343,7 @@ function renderBattleStatusSlots(slotEls, controller, party) {
         slotEl.classList.toggle('fainted', !!entry.fainted);
         applyHpFill(hpEl.querySelector('.battle-status-hp-fill'), entry.fainted ? 0 : Math.max(0, Math.min(1, entry.hp / BATTLE_MON_MAX_HP)));
         hpEl.classList.add('shown');
-        renderTypeBadges(typesEl, (POKEMON_DATA[entry.id] || {}).types, STATUS_TYPE_BADGE_HEIGHT);
+        renderTypeBadges(typesEl, (POKEMON_DATA[entry.id] || {}).types, TYPE_BADGE_SMALL_HEIGHT);
         // 정체가 드러난 포켓몬만 폼 아이콘 표시(아직 모르는 상대는 위에서 clear()로 숨겨짐)
         setBattleSlotFormIcon(slotEl, (POKEMON_DATA[entry.id] || {}).category);
         controller.render(idx, entry.id, entry.isShiny);

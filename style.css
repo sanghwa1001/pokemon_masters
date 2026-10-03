@@ -10,6 +10,8 @@
 
 /* 게임 화면 기본 설정 */
 :root {
+    --select-border: #ff4757; /* 선택(강조)된 칸 — 상태 확인 창 칸·도감 폼 칸 공용 */
+    --select-bg:     #fff4f4;
     --monster-size: 288px; /* 몬스터 & shiny 이펙트가 공유하는 크기 */
     --pixel-font: 'NeoDunggeunmo', 'Malgun Gothic', sans-serif;
     --container-height: 600px;
@@ -411,9 +413,9 @@ html, body {
     padding: 0 4px;
 }
 
-/* 이름 아래 타입 뱃지 줄만큼 세로로 키운 5:6 비율 — 스프라이트 박스가 줄어들지 않게 */
+/* 이름 아래 타입 뱃지 줄만큼 세로로 키운 비율(80×97) — 스프라이트 박스(56px)가 줄어들지 않게 */
 #dex-battle-slot-row .battle-slot {
-    aspect-ratio: 5 / 6;
+    aspect-ratio: 80 / 97;
 }
 
 .battle-slot {
@@ -493,7 +495,7 @@ html, body {
     width: 100%;
     flex-shrink: 0;
     font-size: 10px;
-    line-height: 11px;
+    line-height: 12px; /* 상태 확인 창·도감 폼 칸 이름과 같은 줄높이 */
     letter-spacing: 0.2px;
     color: #000;
     text-align: center;
@@ -1518,8 +1520,8 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 6px 4px 5px;
+    gap: 2px;
+    padding: 4px; /* 선택창 슬롯·상태 확인 창 칸과 같은 여백·간격 */
     box-sizing: border-box;
     background-color: #f0f0f0;
     border: 2px solid #1a1a1a;
@@ -1527,18 +1529,10 @@ html, body {
                         같은 클릭이 슬롯 등록/해제도 겸함(별도 추가/빼기 버튼 없음) */
 }
 
-.dex-form-cell:hover {
-    background-color: #e6e6e6;
-}
-
-.dex-form-cell:active {
-    transform: translate(1px, 1px);
-}
-
 /* 지금 위쪽 큰 카드에 표시 중인 폼 강조 표시(미리보기 중 — 슬롯 소속 여부와는 별개 개념) */
 .dex-form-cell.selected {
-    border-color: #e6392f;
-    background-color: #fbe9e7;
+    border-color: var(--select-border);
+    background-color: var(--select-bg);
 }
 
 /* 배틀 선택 모드에서 이 폼이 지금 배틀 슬롯에 등록되어 있음을 표시하는 체크 배지
@@ -1573,7 +1567,8 @@ html, body {
 .dex-form-sprite-box {
     position: relative;
     width: 100%;
-    aspect-ratio: 1 / 1;
+    height: 56px; /* 선택창 슬롯의 스프라이트 박스와 같은 높이 */
+    flex-shrink: 0;
 }
 
 /* 폼 그리드 칸은 전부 가벼운 정지 아이콘(32x32)만 사용함 — 움직이는 애니메이션은 위쪽 큰 카드
@@ -1607,8 +1602,8 @@ html, body {
 .dex-form-name {
     width: 100%;
     font-size: 10px;
-    line-height: 11px;
-    height: 33px;
+    line-height: 12px; /* 슬롯·상태 확인 창과 같은 줄높이 */
+    height: 36px;      /* 최대 3줄 */
     letter-spacing: 0.2px;
     color: #000;
     text-align: center;
@@ -1775,7 +1770,7 @@ html, body {
    기절/현재 출전 표시만 덧붙임(배경 자체는 위쪽 공용 모달 배경 규칙 참고) */
 
 #battle-status-box {
-    width: 320px;
+    width: 288px; /* 칸 폭 80px — 선택창 슬롯·도감 폼 칸과 같음 */
     padding: 30px 12px 12px;
     text-align: center;
 }
@@ -1824,8 +1819,8 @@ html, body {
 }
 
 #battle-status-box .battle-slot.active {
-    border-color: #ff4757;
-    background-color: #fff4f4;
+    border-color: var(--select-border);
+    background-color: var(--select-bg);
 }
 
 /* 상대 슬롯의 이름 줄 — 판정 아이콘(judgment.png: O / X / △ 32px 3칸)을 이름 왼쪽에 붙임 */
@@ -1849,8 +1844,10 @@ html, body {
     line-height: 12px;
 }
 
-/* 이름 밑 타입 뱃지 줄 — 배틀 화면과 같은 비율로 30x13, 뱃지가 없는 칸도 높이가 같게 줄 높이 고정 */
-.battle-status-types {
+/* 이름 밑 타입 뱃지 줄 — 상태 확인 창·선택창 슬롯·도감 폼 칸 공용. 배틀 화면과 같은 비율로 30x13,
+   뱃지가 없는 칸도 높이가 같게 줄 높이 고정(높이는 script.js의 TYPE_BADGE_SMALL_HEIGHT와 같아야 함) */
+.battle-status-types,
+.dex-form-types {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -1859,14 +1856,19 @@ html, body {
     height: 13px;
     flex-shrink: 0;
 }
-.battle-status-types .type-badge {
+.battle-status-types .type-badge,
+.dex-form-types .type-badge {
     width: 30px;
     height: 13px;
     background-size: 30px 260px;
 }
-/* 이름 밑에 타입 줄·체력 막대가 늘어난 만큼 칸을 세로로 키워 스프라이트 박스 높이를 유지함(5:6 → 4:5) */
+/* 도감 폼 칸은 이름 줄 수가 달라도 타입 줄이 칸 맨 아래에 가지런히 놓이게 */
+.dex-form-types {
+    margin-top: auto;
+}
+/* 이름 밑에 타입 줄·체력 막대가 늘어난 만큼 칸을 세로로 키워 스프라이트 박스 높이(56px, 선택창 슬롯과 같음)를 유지함 */
 #battle-status-box .battle-slot {
-    aspect-ratio: 4 / 5;
+    aspect-ratio: 10 / 13;
 }
 
 /* 이름 밑 체력 막대 — 전투 화면과 같은 그림(overlay_hp_back.png 틀 + overlay_hp.png 채움)과 같은 색 기준.

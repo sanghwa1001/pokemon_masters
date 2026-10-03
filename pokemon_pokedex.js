@@ -398,6 +398,12 @@ function renderDexFormGrid(species, repId) {
         }
         cell.appendChild(label);
 
+        // 타입 뱃지 줄 — 이름이 공개된 칸만(못 잡은 "???" 칸은 숨기되 줄 높이는 유지해 칸 높이를 맞춤)
+        const typesEl = document.createElement('div');
+        typesEl.className = 'dex-form-types type-badges';
+        if (unlocked) renderTypeBadges(typesEl, formInfo.types, TYPE_BADGE_SMALL_HEIGHT);
+        cell.appendChild(typesEl);
+
         dexInfoFormGridEl.appendChild(cell);
     });
 

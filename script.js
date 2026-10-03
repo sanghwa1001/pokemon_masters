@@ -256,6 +256,7 @@ const TYPE_ICON_ORDER = ["NORMAL", "FIGHTING", "FLYING", "POISON", "GROUND", "RO
 const TYPE_ICON_INDEX = {};
 TYPE_ICON_ORDER.forEach((t, i) => { TYPE_ICON_INDEX[t] = i; });
 const TYPE_BADGE_HEIGHT = 21; // px, .type-badge와 반드시 일치
+const TYPE_BADGE_SMALL_HEIGHT = 13; // px, 상태 확인 창·선택창 슬롯·도감 폼 칸의 작은 뱃지(.battle-status-types .type-badge, .dex-form-types .type-badge)와 반드시 일치
 
 // 컨테이너를 types 개수만큼의 .type-badge로 채움. badgeHeight: CSS에서 다른 높이를 쓰는 곳이 넘겨줌
 function renderTypeBadges(container, types, badgeHeight = TYPE_BADGE_HEIGHT) {
