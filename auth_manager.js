@@ -792,6 +792,12 @@ bindExcelPicker(dataRegisterExcelBtn, dataRegisterFileEl, dataRegisterFeedbackEl
 });
 
 let unsubscribeAdminLearningData = null;
+
+// 학습 데이터 목록 정렬 — 제목 가나다순, 숫자는 크기로 비교(1과 < 2과 < 10과). 관리자 목록·학생 선택 목록 공용(화면 정렬만, 저장 순서는 그대로)
+function compareLearningDataTitle(a, b) {
+    return String(a.data.title || '').localeCompare(String(b.data.title || ''), 'ko', { numeric: true });
+}
+
 function stopAdminLearningDataListener() {
     if (unsubscribeAdminLearningData) {
         unsubscribeAdminLearningData();
@@ -820,6 +826,7 @@ function loadLearningDataForAdmin() {
         snapshot.forEach((childSnapshot) => {
             entries.push({ id: childSnapshot.key, data: childSnapshot.val() });
         });
+        entries.sort(compareLearningDataTitle);
         dataCountEl.textContent = `${entries.length}개`;
         renderAdminList(dataListContainer, entries, '등록된 학습 데이터가 없습니다.', ({ id, data }) =>
             renderTwoLineRow({
@@ -878,6 +885,7 @@ document.getElementById('btn-select-learning-data').addEventListener('click', ()
         snapshot.forEach((childSnapshot) => {
             entries.push({ id: childSnapshot.key, data: childSnapshot.val() });
         });
+        entries.sort(compareLearningDataTitle);
         studentDataCountEl.textContent = `${entries.length}개`;
         renderAdminList(studentDataListContainer, entries, '등록된 학습 데이터가 없습니다. 선생님께 문의하세요.', ({ id, data }) =>
             renderTwoLineRow({
