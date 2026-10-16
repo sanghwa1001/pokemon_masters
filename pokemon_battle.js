@@ -642,7 +642,8 @@ function playFaintSink(boxEl, spriteEl, contentHeightOnScreen, riseOnScreen, sto
     const duration = Math.min(WILD_FAINT_MAX_DURATION,
         Math.max(WILD_FAINT_MIN_DURATION, travelDistance / WILD_FAINT_SPEED));
 
-    boxEl.style.clipPath = `inset(0 0 ${groundClipInset}px 0)`;
+    // 땅 라인(아래쪽)만 자르고 위·좌·우는 박스 밖으로 나간 그림도 그대로 보이게 크게 넓힘(overflow: visible과 짝)
+    boxEl.style.clipPath = `inset(-9999px -9999px ${groundClipInset}px -9999px)`;
 
     const restoreTransform = spriteEl.style.transform || '';
     spriteEl.style.transition = `transform ${duration}ms ease-in`;

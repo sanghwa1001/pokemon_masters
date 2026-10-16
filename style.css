@@ -537,7 +537,7 @@ html, body {
     transform: translateX(-50%);
     width: var(--monster-size);
     height: var(--monster-size);
-    overflow: hidden;
+    overflow: visible; /* #monster와 같은 이유 — 그림 보정으로 박스 밖에 나가는 부분을 자르지 않음 */
     transition: opacity 0.4s ease-in; /* 교체 시 상대(#monster)와 동일한 페이드 효과 */
 }
 
@@ -921,7 +921,7 @@ html, body {
     height: var(--monster-size); /* 바깥 박스는 항상 이 고정 크기 — 포획/탈출 애니메이션은 전부 이 박스 기준 */
     z-index: 1;
     transition: opacity 0.4s ease-in, transform 0.4s ease-in;
-    overflow: hidden; /* 안쪽 스프라이트 레이어가 이 박스보다 커질 일은 없지만 안전장치로 유지 */
+    overflow: visible; /* 위치 보정(x/y)으로 안쪽 그림이 박스 밖으로 나가는 종이 있어(두파팡 머리 비행 등) 자르지 않음 — 바깥은 #game-container가 막음 */
 }
 
 /* 배틀 화면 전용 — 상대 포켓몬을 중앙에서 오른쪽으로 고정 오프셋(원본 게임처럼 그림 크기와 무관) */
