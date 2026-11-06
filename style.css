@@ -551,7 +551,7 @@ html, body {
 
 /* 내 데이터 박스(databox_thin.png 260×62, 이름·타입·hp바 통합) — 왼쪽 끝 42px(상대 박스 오른쪽 여백과 대칭),
    아래쪽은 액션창 위 6px(상대 박스 위 여백 6px과 같음). 이름·아이콘 줄은 박스 위 12px에서 시작해 박스 테두리 아래(y4)와
-   hp바 위(y36)의 가운데(y20)에 오게 함. 박스 안 좌표는 이미지 픽셀 그대로(트랙 x118·y40, 96×6, 글자 시작 x24) */
+   hp바 위(y36)의 가운데(y20)에 오게 함. 박스 안 좌표는 이미지 픽셀 그대로(트랙 x118·y40, 96×6, 글자 시작 x10) */
 #battle-back-info {
     position: absolute;
     bottom: calc(15px + var(--action-box-height) + 6px);
@@ -581,11 +581,12 @@ html, body {
     image-rendering: pixelated;
 }
 
-/* 내 포켓몬 이름/타입 — 박스 안 줄(높이 18px)이 박스 위 12px에서 시작. 가로는 박스 왼쪽 끝 + 24px(원작: spriteBaseX 16 + 8) */
+/* 내 포켓몬 이름/타입 — 박스 안 줄(높이 18px)이 박스 위 12px에서 시작. 가로는 평평한 왼쪽 가장자리(x0)에서 10px 떨어진
+   박스 x10 고정(상대 박스와 같은 여백 10px) — 가장 긴 이름(무한다이맥스 무한다이노)도 오른쪽 한계 안에 들어오는 위치 */
 #battle-back-info-text {
     position: absolute;
     bottom: calc(15px + var(--action-box-height) + 6px + 62px - 12px - var(--battle-name-line));
-    left: calc(42px + 24px);
+    left: calc(42px + 10px);
     z-index: 6;
     display: flex;
     flex-direction: row;
@@ -769,7 +770,7 @@ html, body {
 
 /* 배틀 화면 상대 데이터 박스(databox_thin_foe.png 260×62, 이름·타입·hp바 통합) — 위쪽 끝 6px(닫기 ×와 같음),
    오른쪽 끝 320px(닫기 × 왼쪽 끝 330px과 10px 간격). 포획 게임 hp바에는 붙지 않음. 박스 안 좌표는 이미지 픽셀 그대로
-   (트랙 x136·y40, 96×6, 글자 시작 x42) */
+   (트랙 x136·y40, 96×6, 글자 시작 x32) */
 #monster-info.battle-hp-style {
     top: 6px;
     left: 60px;
@@ -847,10 +848,11 @@ html, body {
 #monster-info-text.battle-info-style {
     gap: 5px;
     line-height: var(--battle-name-line);
-    /* 상대 데이터 박스 안 — 박스 위 12px(= 6 + 12), 왼쪽 끝 + 42px(60 + 42) */
+    /* 상대 데이터 박스 안 — 박스 위 12px(= 6 + 12). 왼쪽은 패널 왼쪽 가장자리(이름 줄 높이에서 x22)에서 10px 떨어진 박스 x32
+       (= 60 + 32) 고정 — 가장 긴 이름(무한다이맥스 무한다이노)도 오른쪽 한계 안에 들어오는 위치 */
     top: 18px;
     bottom: auto;
-    left: 102px;
+    left: 92px;
     transform: none;
 }
 
