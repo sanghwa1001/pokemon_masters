@@ -219,6 +219,11 @@ html, body {
     background-color: #ff6b81;
 }
 
+/* 포획 게임 화면의 닫기(×) — 타이머·CP(z-index 6)와 같은 층, 위 .quiz-close-btn 자리(오른쪽 위 6px)를 그대로 씀 */
+#game-close-btn {
+    z-index: 6;
+}
+
 /* 대결 제한시간 카운트다운(battle-turn-timer·dex-wait-timer 공용) — 닫기(×)와 대칭인 좌측 상단,
    포획 게임 #game-timer 모양에 이름표와 같은 15px. 대기 중일 때만 표시 */
 #battle-turn-timer,

@@ -11,6 +11,7 @@ const pokeball    = document.getElementById('pokeball');
 const captureMessageEl = document.getElementById('capture-message');
 const gameTimerEl = document.getElementById('game-timer');
 const cpTotalEl   = document.getElementById('cp-total');
+const gameCloseBtn = document.getElementById('game-close-btn');
 
 // 학습 데이터 업로드 / 시작 화면 요소
 const resultScreen   = document.getElementById('result-screen');
@@ -188,6 +189,7 @@ function showResultScreen() {
     monsterInfoText.classList.add('hidden');
     gameTimerEl.classList.add('hidden');
     cpTotalEl.classList.add('hidden');
+    gameCloseBtn.classList.add('hidden');
     pokeball.classList.add('hidden');
     controlPanel.classList.add('hidden');
 
@@ -642,6 +644,7 @@ function startGame() {
     updateCpTotalDisplay();
     gameTimerEl.classList.remove('hidden');
     cpTotalEl.classList.remove('hidden');
+    gameCloseBtn.classList.remove('hidden');
     startGameTimer();
 }
 
@@ -702,11 +705,23 @@ function renderCapturedList() {
 
 startBtn.addEventListener('click', startGame);
 retryBtn.addEventListener('click', startGame);
-resultHomeBtn.addEventListener('click', () => {
-    // showResultScreen()에서 이미 몬스터/포켓볼/컨트롤패널 등 게임 진행 요소는 다 hidden 처리돼
-    // 있고 타이머도 멈춰있는 상태라, 결과창 대신 시작화면만 다시 보여주면 됨
+// showResultScreen()에서 이미 몬스터/포켓볼/컨트롤패널 등 게임 진행 요소는 다 hidden 처리돼
+// 있고 타이머도 멈춰있는 상태라, 결과창 대신 시작화면만 다시 보여주면 됨
+function goHomeFromResult() {
     resultScreen.classList.add('hidden');
     startScreen.classList.remove('hidden');
+}
+resultHomeBtn.addEventListener('click', goHomeFromResult);
+
+// 게임 중 오른쪽 위 닫기(×) — 배틀 화면의 ×와 같이 결과 화면 없이 바로 시작 화면으로.
+// 포획한 포켓몬은 잡는 즉시 도감에 저장돼 있어 잃는 것이 없음. 타이머 클릭(일시정지)과 같은 조건에서만 동작
+gameCloseBtn.addEventListener('click', () => {
+    if (gameTimeUp || isAnimating) return; // 몬스터볼/도망치다 애니메이션 도중엔 무시
+    if (!quizModal.classList.contains('hidden') || !capturedModal.classList.contains('hidden') || !pauseModal.classList.contains('hidden')) return;
+    pauseGameTimer();
+    gameTimeUp = true;       // 이 판은 끝난 상태 — 타이머가 다시 돌지 않게
+    finishGameToResult();    // 게임 요소 숨김·정리(결과 화면을 거치는 기존 종료 경로 그대로)
+    goHomeFromResult();      // 결과 화면은 건너뛰고 시작 화면
 });
 
 capturedListBtn.addEventListener('click', () => {
