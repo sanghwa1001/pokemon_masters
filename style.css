@@ -1,11 +1,13 @@
-/* 픽셀 글꼴(네오둥근모 1.530, SIL OFL 1.1 — fonts/NEODGM-LICENSE.txt) — 외부 사이트에 의존하지 않도록 직접 보관.
-   버전을 고정한 이유: 글자 크기·간격을 픽셀 단위로 맞춰 둬서 글꼴이 바뀌면 화면 정렬이 어긋남 */
+/* 픽셀 글꼴(Pokémon Emerald Pro, crystalwalrein, CC BY-SA 3.0 — fonts/EMERALD-LICENSE.txt) — 외부 사이트에 의존하지 않도록 직접 보관.
+   fonts/emerald.woff2는 원본을 수정한 파일: 쓰는 글자만 남기고(서브셋), 이전 글꼴(네오둥근모)과 같은 글자 크기·세로 위치가 되도록
+   em 크기(145%)와 세로 메트릭을 파일 안에 반영함(CSS size-adjust/ascent-override는 Safari가 일부 지원하지 않아 쓰지 않음).
+   글자 크기·간격을 픽셀 단위로 맞춰 둬서 글꼴이 바뀌면 화면 정렬이 어긋나므로 교체 시 화면 비교 필수 */
 @font-face {
-    font-family: 'NeoDunggeunmo';
+    font-family: 'PokemonEmeraldPro';
     font-weight: normal;
     font-style: normal;
     font-display: block;
-    src: url('fonts/neodgm.woff2') format('woff2');
+    src: url('fonts/emerald.woff2') format('woff2');
 }
 
 /* 게임 화면 기본 설정 */
@@ -13,7 +15,7 @@
     --select-border: #ff4757; /* 선택(강조)된 칸 — 상태 확인 창 칸·도감 폼 칸 공용 */
     --select-bg:     #fff4f4;
     --monster-size: 288px; /* 몬스터 & shiny 이펙트가 공유하는 크기 */
-    --pixel-font: 'NeoDunggeunmo', 'Malgun Gothic', sans-serif;
+    --pixel-font: 'PokemonEmeraldPro', 'Malgun Gothic', sans-serif;
     --container-height: 600px;
 
     /* 이름/종족값 표시창 치수 (아래 #monster-info 규칙과 동일하게 유지) */

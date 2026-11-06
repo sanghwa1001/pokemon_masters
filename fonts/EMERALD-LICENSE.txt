@@ -1,0 +1,32 @@
+Pokémon Emerald Pro (fonts/emerald.woff2)
+
+Original work: "Pokémon Emerald Pro" by crystalwalrein
+Copyright crystalwalrein 2013
+Source: https://fontstruct.com/fontstructions/show/832818/pok_mon_emerald_pro
+Designer: https://fontstruct.com/fontstructors/show/387548/crystalwalrein
+Built with FontStruct (https://fontstruct.com)
+
+License: Creative Commons Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)
+  Deed:       https://creativecommons.org/licenses/by-sa/3.0/
+  Legal code: https://creativecommons.org/licenses/by-sa/3.0/legalcode
+
+This file (emerald.woff2) is a MODIFIED version of that font and is distributed
+under the same license (CC BY-SA 3.0). Modifications:
+  - Glyph set reduced (subset) to the characters this game uses: ASCII/Latin-1,
+    general punctuation, arrows, geometric shapes, miscellaneous symbols,
+    CJK punctuation, Hangul syllables (U+AC00-D7A3) and Hangul jamo, full-width forms.
+    Kerning ('kern') feature kept; hinting removed.
+  - Converted from TrueType to WOFF2.
+  - units-per-em changed from 1024 to 706 (glyph outlines and advance widths are
+    unchanged, so glyphs render about 145% larger at the same CSS font-size) and
+    the vertical metrics (ascender/descender/line gap) were reset, so that text
+    keeps the size and baseline position of the previously used pixel font.
+  - Font family name in CSS is 'PokemonEmeraldPro'.
+
+Note on Hangul glyphs: the Hangul glyphs were not part of the original FontStruct
+release; they were already included in the font file supplied to this project, which the
+project owner confirmed as open source. Details of that source will be added here
+when confirmed.
+
+"Pokémon" is a trademark of its respective owners; this font is a fan-made
+recreation of a game typeface and is not affiliated with or endorsed by them.
