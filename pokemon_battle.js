@@ -183,7 +183,7 @@ function displayBackSprite(boxEl, spriteEl, id, isShiny) {
             const bottomSafety = off.bottomSafety || 0;
             // 이름표 상단이 "그림이 원래 닿는 지점"이지만, BACK_INFO_GAP만큼 위로 더 띄워서
             // 그림과 정보블록 사이 5px 간격을 유지함
-            const targetY = battleBackInfoTextEl.offsetTop - BACK_INFO_GAP;
+            const targetY = battleBackInfoEl.offsetTop - BACK_INFO_GAP; // 데이터 박스 위쪽 끝에서 BACK_INFO_GAP 위
             boxEl.style.top = `${targetY - artworkBottomY - bottomSafety * pixelScale}px`;
 
             // 기절 연출에서 상대(AI) 쪽과 동일하게 재사용할 수 있도록, 이로치 여부와 상관없이 항상 저장
@@ -211,13 +211,11 @@ function displayBackSprite(boxEl, spriteEl, id, isShiny) {
     if (info) renderFrom(info, false);
 }
 
-// 상대 쪽 배치는 내 쪽을 위아래로 뒤집은 대칭 — [화면 상단]-15px-[이름표]-3px-[hp바]-[스프라이트, 아래로 자람].
-// #monster의 top은 그림 위쪽 끝(SPRITE_OFFSETS 실측)이 hp바 바로 아래에 닿도록 역산함
-const WILD_INFO_TOP = 15; // px, #game-container 상단 기준 — 이름표 상단 여백(내 쪽 액션박스-hp바 15px 여백과 대응)
-const WILD_INFO_NAME_BLOCK_HEIGHT = 21; // px — 이름표 줄높이(18, CSS --battle-name-line) + hp바와의 여백(3), 이름표 바로 아래에 hp바가 옴
-const WILD_INFO_GAP = 5; // px — 정보블록(이름표+hp바)을 스프라이트에서 위로 띄우는 간격
-// 이름표 줄 높이가 타입 아이콘 때문에 가정보다 커질 때 hp바 여백을 맞추는 보정값(지금은 0)
-const WILD_INFO_TEXT_ROW_CORRECTION = 0;
+// 상대 쪽은 오른쪽 위 데이터 박스(위 6px) 아래에 스프라이트가 아래로 자람. 내 쪽은 왼쪽 아래 데이터 박스 위에 스프라이트가 서 있음.
+// #monster의 top은 그림 위쪽 끝(SPRITE_OFFSETS 실측)이 상대 데이터 박스 바로 아래에 닿도록 역산함
+const FOE_DATABOX_TOP = 6;     // px, #game-container 상단 기준 — style.css #monster-info.battle-hp-style의 top과 같아야 함
+const DATABOX_HEIGHT = 62;     // px, databox_thin*.png 높이
+const WILD_INFO_GAP = 5;       // px — 데이터 박스와 상대 스프라이트 사이 간격
 function alignWildMonsterTopToHpBar(picked) {
     // 이 콜백이 예약된 뒤(이미지 로딩 등으로 지연되는 사이) 배틀 프리뷰가 이미 닫혔으면, 지금은
     // #monster가 실제 포획 게임 용도로 쓰이고 있는 것이므로 절대 위치를 건드리면 안 됨
@@ -232,9 +230,8 @@ function alignWildMonsterTopToHpBar(picked) {
     // 다른 프레임이 0번보다 위로 더 솟아도 간격이 WILD_INFO_GAP 이상이 되게 topSafety만큼 아래로 내림
     const topSafety = off.topSafety || 0;
 
-    // 정보블록은 이미 WILD_INFO_GAP만큼 올라가 있으므로, 올리기 전 자리 기준으로 계산해야 간격이 생김
-    const nominalHpBarBottom = WILD_INFO_TOP + WILD_INFO_NAME_BLOCK_HEIGHT + monsterInfo.offsetHeight;
-    monster.style.top = `${nominalHpBarBottom - artworkTopY + topSafety * pixelScale}px`;
+    const databoxBottom = FOE_DATABOX_TOP + DATABOX_HEIGHT;
+    monster.style.top = `${databoxBottom + WILD_INFO_GAP - artworkTopY + topSafety * pixelScale}px`;
     // 가로 위치는 .battle-side-right(CSS, 고정 오프셋)로 처리 — 원본 게임(PLAYER_BASE_X/FOE_BASE_X)과
     // 동일하게 계산 없는 고정값
 }
@@ -326,9 +323,13 @@ function getDamageBonus(bst, category) {
 let aiParty = [];
 let activeAiIndex = 0;
 
+// hp 트랙(96px)이 채움 요소의 부모 폭에서 차지하는 비율 — applyHpFill()의 trackRatio
+const HP_TRACK_RATIO_FRAME = 96 / 138;    // 상태 확인 창 막대(overlay_hp_back.png 틀 138px)
+const HP_TRACK_RATIO_DATABOX = 96 / 260;  // 배틀 데이터 박스(databox_thin*.png 260px)
+
 // 상대/내 hp바 — 같은 공통 로직(createHpBarController)을 채움 요소만 다르게 해서 씀
-const aiHpBar = createHpBarController(monsterHpFillEl);
-const playerHpBar = createHpBarController(battleBackHpFillEl);
+const aiHpBar = createHpBarController(monsterHpFillEl, HP_TRACK_RATIO_DATABOX);
+const playerHpBar = createHpBarController(battleBackHpFillEl, HP_TRACK_RATIO_DATABOX);
 
 let battleTurnBusy = false;     // 공격 상호작용 연출 진행 중 — 다른 입력을 막음
 let battleEnded = false;        // 승패가 결정된 뒤(결과 오버레이가 떠 있는 동안) 남은 처리를 막음
@@ -571,8 +572,10 @@ function pickAiTurnAction(aiEntry, defenderId, defenderHp) {
 
 // hp 비율(0~1)을 채움 요소의 폭과 색(overlay_hp.png 초록/노랑/빨강 3단의 위치)에 반영 —
 // 전투 화면 hp바와 상태 확인 창의 막대가 같이 씀
-function applyHpFill(fillEl, frac) {
-    fillEl.style.width = `${(96 / 138) * frac * 100}%`;
+// trackRatio: 채움 요소의 부모 폭 대비 hp 트랙(96px) 폭 — 상태 확인 창 막대는 138px 틀(96/138),
+// 배틀 데이터 박스는 260px 박스(96/260). 상수는 아래 aiHpBar/playerHpBar보다 먼저 선언돼야 함(const 초기화 순서)
+function applyHpFill(fillEl, frac, trackRatio = HP_TRACK_RATIO_FRAME) {
+    fillEl.style.width = `${trackRatio * frac * 100}%`;
     let bandY = '0%';
     if (frac <= 0.25) bandY = '100%';
     else if (frac <= 0.5) bandY = '50%';
@@ -580,12 +583,12 @@ function applyHpFill(fillEl, frac) {
 }
 
 // hp바 하나 — animate(from, to, onDone), reset(hp), cancel()
-function createHpBarController(fillEl) {
+function createHpBarController(fillEl, trackRatio = HP_TRACK_RATIO_FRAME) {
     let displayedHp = BATTLE_MON_MAX_HP;
     let animId = null;
 
     function render() {
-        applyHpFill(fillEl, Math.max(0, Math.min(1, displayedHp / BATTLE_MON_MAX_HP)));
+        applyHpFill(fillEl, Math.max(0, Math.min(1, displayedHp / BATTLE_MON_MAX_HP)), trackRatio);
     }
 
     function cancel() {
@@ -1471,13 +1474,15 @@ function mpWaitForcedSwitch(onDone) {
 const BATTLE_PRELOAD_TIMEOUT_MS = BATTLE_LOADED_TIMEOUT_MS + 5000;
 const battleLoadImage = (src) => loadImage(src, BATTLE_PRELOAD_TIMEOUT_MS);
 // 포켓몬 그림 말고도 대결 화면에서 쓰는 그림(CSS 배경·이펙트) — 처음 화면에 필요해지는 순간 받으면 첫 대결에서
-// 상성 아이콘·HP 바·이펙트가 늦게 뜰 수 있어서 불러오기 단계에서 같이 받음(합쳐서 약 55KB)
+// 상성 아이콘·HP 바·이펙트가 늦게 뜰 수 있어서 불러오기 단계에서 같이 받음(합쳐서 약 60KB)
 const BATTLE_PRELOAD_UI_SRCS = [
     'images/pokemon/layout/judgment.png',         // 상성 아이콘(기술 버튼·상태 확인 창)
     'images/pokemon/layout/types_short.png',      // 이름표·교체 메뉴 타입 아이콘
     'images/pokemon/layout/types.png',            // 상태 확인 창 타입 뱃지
-    'images/pokemon/layout/overlay_hp_back.png',  // HP 바
-    'images/pokemon/layout/overlay_hp.png',
+    'images/pokemon/layout/databox_thin_foe.png', // 상대 데이터 박스(이름·타입·HP 바)
+    'images/pokemon/layout/databox_thin.png',     // 내 데이터 박스
+    'images/pokemon/layout/overlay_hp_back.png',  // 상태 확인 창 HP 바
+    'images/pokemon/layout/overlay_hp.png',       // HP 채움(색 띠)
     'images/pokemon/layout/action_box.png',       // 액션박스 테두리
     'images/pokemon/layout/left_arrow.png',       // 기술·교체 메뉴 뒤로가기
     'images/pokemon/layout/icon_signal.png',      // 신호 아이콘
@@ -2187,17 +2192,11 @@ function prepareBattleScreen() {
     // 포획 게임 쪽 기본(중앙) 위치는 이 클래스가 안 붙으므로 그대로 유지됨
     monster.classList.add('battle-side-right');
 
-    // 상대 hp바+이름표를 화면 우측 상단(내 쪽과 비례하는 자리)에 고정 배치
-    monsterInfoText.style.left = 'calc(50% + var(--battle-side-offset) + var(--battle-hp-width) / 2)';
-    monsterInfoText.style.transform = 'translateX(-100%)';
-    monsterInfoText.style.top = `${WILD_INFO_TOP - WILD_INFO_GAP - WILD_INFO_TEXT_ROW_CORRECTION}px`;
-    monsterInfoText.style.bottom = 'auto';
-    monsterInfo.style.left = 'calc(50% + var(--battle-side-offset))';
-    monsterInfo.style.top = `${WILD_INFO_TOP - WILD_INFO_GAP + WILD_INFO_NAME_BLOCK_HEIGHT}px`;
+    // 상대 데이터 박스·이름표 위치는 CSS(#monster-info.battle-hp-style, #monster-info-text.battle-info-style)가 정함
 
-    // hp바 디자인은 배틀 프리뷰에서만 overlay_hp_back/overlay_hp로 교체
+    // 데이터 박스 디자인(databox_thin_foe.png + 96×6 hp 트랙)은 배틀 프리뷰에서만 적용
     monsterInfo.classList.add('battle-hp-style');
-    monsterInfoText.classList.add('battle-info-style'); // 이름 15px·줄높이 18px(내 쪽 이름표와 같게)
+    monsterInfoText.classList.add('battle-info-style'); // 이름 15px·줄높이 18px, 데이터 박스 안 위치(내 쪽 이름표와 같은 규칙)
     monsterHpFillEl.classList.remove('hidden');
 
     battlePreviewScreen.classList.remove('hidden');
@@ -2475,7 +2474,7 @@ function resetBattlePreview() {
     // alignWildMonsterTopToHpBar()가 인라인으로 덮어쓴 위치를 원래(CSS 기본값)로 복원
     monster.style.top = '';
     monsterInfo.classList.add('hidden');
-    // 배틀 프리뷰 전용 hp바 디자인(overlay_hp_back/overlay_hp)을 원래(hp_bar.png)로 복원 —
+    // 배틀 프리뷰 전용 데이터 박스 디자인(databox_thin_foe.png)을 원래(hp_bar.png)로 복원 —
     // 그대로 두면 다음에 실제 포획 게임을 시작할 때도 이 디자인이 남아있게 됨
     monsterInfo.classList.remove('battle-hp-style');
     monsterInfoText.classList.remove('battle-info-style');
@@ -2493,11 +2492,6 @@ function resetBattlePreview() {
     shinyEffect.style.left = '';
     // 대각선 배치용 좌우 고정 클래스/인라인 위치도 원상복구
     monster.classList.remove('battle-side-right');
-    monsterInfo.style.left = '';
-    monsterInfo.style.top = '';
-    monsterInfoText.style.left = '';
-    monsterInfoText.style.transform = '';
-    monsterInfoText.style.top = '';
     monsterInfoText.style.bottom = '';
 
     // 액션박스를 기본 메뉴 상태로 복원
