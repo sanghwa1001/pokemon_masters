@@ -211,6 +211,30 @@ function displayBackSprite(boxEl, spriteEl, id, isShiny) {
     if (info) renderFrom(info, false);
 }
 
+// 데이터 박스 안 이름 줄(이름 + 타입 아이콘)이 박스 패널 오른쪽 가장자리를 넘으면 줄 전체를 왼쪽 여백으로 옮김
+// (원작 게임도 긴 이름은 왼쪽으로 밀어서 그림). 글자 크기는 그대로 15px. 이름 줄 위치는 CSS가 고정(왼쪽 끝)이라
+// 오른쪽 끝(offsetLeft + offsetWidth)으로 비교하고 transform으로만 옮겨 레이아웃 값은 바뀌지 않음.
+// 왼쪽 여백을 다 써도 넘치면(지금 데이터엔 없음) 마지막 수단으로 이름 글자 크기를 줄임(15px → 최소 11px)
+const BATTLE_NAME_FONT_MAX = 15;
+const BATTLE_NAME_FONT_MIN = 11;
+const FOE_NAME_ROW_RIGHT = 316;  // px(게임창 안쪽 기준) — 상대 박스 오른쪽 끝 320 − 여백 4
+const FOE_NAME_ROW_LEFT_MIN = 86;  // 상대 박스 패널 왼쪽의 비스듬한 가장자리(x≈60+22) + 여백 4
+const ME_NAME_ROW_RIGHT  = 275;  // px — 내 박스 패널의 비스듬한 오른쪽 가장자리(이름 줄 높이에서 x≈279) − 여백 4
+const ME_NAME_ROW_LEFT_MIN  = 48;  // 내 박스 왼쪽 끝(42) + 여백 6
+const BATTLE_NAME_EXTRA_SHIFT = 5; // 넘친 만큼에 더해 왼쪽으로 더 옮기는 여유(px) — 한계 가장자리에 딱 붙어 보이지 않게
+function fitBattleName(nameEl, rowEl, maxRight, minLeft) {
+    nameEl.style.fontSize = '';
+    rowEl.style.transform = '';
+    const overflow = rowEl.offsetLeft + rowEl.offsetWidth - maxRight;
+    if (overflow <= 0) return;
+    const shift = Math.ceil(Math.min(overflow + BATTLE_NAME_EXTRA_SHIFT, Math.max(0, rowEl.offsetLeft - minLeft)));
+    if (shift > 0) rowEl.style.transform = `translateX(${-shift}px)`;
+    for (let size = BATTLE_NAME_FONT_MAX - 0.5; size >= BATTLE_NAME_FONT_MIN; size -= 0.5) {
+        if (rowEl.offsetLeft - shift + rowEl.offsetWidth <= maxRight) break;
+        nameEl.style.fontSize = `${size}px`;
+    }
+}
+
 // 상대 쪽은 오른쪽 위 데이터 박스(위 6px) 아래에 스프라이트가 아래로 자람. 내 쪽은 왼쪽 아래 데이터 박스 위에 스프라이트가 서 있음.
 // #monster의 top은 그림 위쪽 끝(SPRITE_OFFSETS 실측)이 상대 데이터 박스 바로 아래에 닿도록 역산함
 const FOE_DATABOX_TOP = 6;     // px, #game-container 상단 기준 — style.css #monster-info.battle-hp-style의 top과 같아야 함
@@ -954,6 +978,7 @@ function switchAiToIndex(targetIndex, onDone) {
                 if (monsterObj.isShiny) playShinyEffect();
             });
             updateMonsterInfo(monsterObj);
+            fitBattleName(monsterNameEl, monsterInfoText, FOE_NAME_ROW_RIGHT, FOE_NAME_ROW_LEFT_MIN);
             // 체력바는 opacity를 올리기 전에 세팅해야 늦게 채워지지 않음
             aiHpBar.reset(entry.hp);
 
@@ -1048,6 +1073,7 @@ function applyPlayerSwitch(targetIndex, onDone) {
         const backInfo = POKEMON_DATA[selectedBattleId] || { name: '???' };
         battleBackNameEl.textContent = backInfo.name;
         renderShortTypeIcons(battleBackTypesEl, backInfo.types);
+        fitBattleName(battleBackNameEl, battleBackInfoTextEl, ME_NAME_ROW_RIGHT, ME_NAME_ROW_LEFT_MIN);
         playerHpBar.reset(battleParty[activePartyIndex].hp);
 
         battleBackSpriteBoxEl.style.opacity = '1';
@@ -1847,6 +1873,7 @@ function renderBattleActivesInstant() {
         if (monsterObj.isShiny && !foe.fainted) playShinyEffect();
     }));
     updateMonsterInfo(monsterObj);
+    fitBattleName(monsterNameEl, monsterInfoText, FOE_NAME_ROW_RIGHT, FOE_NAME_ROW_LEFT_MIN);
     aiHpBar.reset(foe.hp);
 
     const me = battleParty[activePartyIndex];
@@ -1858,6 +1885,7 @@ function renderBattleActivesInstant() {
     const info = POKEMON_DATA[me.id] || { name: '???' };
     battleBackNameEl.textContent = info.name;
     renderShortTypeIcons(battleBackTypesEl, info.types);
+    fitBattleName(battleBackNameEl, battleBackInfoTextEl, ME_NAME_ROW_RIGHT, ME_NAME_ROW_LEFT_MIN);
     playerHpBar.reset(me.hp);
     battleBackSpriteBoxEl.style.opacity = me.fainted ? '0' : '';
     battleBackInfoEl.style.opacity = '';
@@ -2478,6 +2506,10 @@ function resetBattlePreview() {
     // 그대로 두면 다음에 실제 포획 게임을 시작할 때도 이 디자인이 남아있게 됨
     monsterInfo.classList.remove('battle-hp-style');
     monsterInfoText.classList.remove('battle-info-style');
+    monsterNameEl.style.fontSize = '';
+    battleBackNameEl.style.fontSize = '';
+    monsterInfoText.style.transform = '';
+    battleBackInfoTextEl.style.transform = '';
     // hp가 깎이는 도중(애니메이션 진행 중)에 닫혔을 수도 있으니 타이머를 반드시 정리
     aiHpBar.cancel();
     playerHpBar.cancel();
