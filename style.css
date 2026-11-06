@@ -23,7 +23,6 @@
     --info-width:  calc(var(--monster-size) * 0.8 * 0.9); /* hp_bar.png 표시 가로 크기 (포켓몬 이미지 가로 크기의 80%에서 다시 90% 축소) */
     --info-height: calc(var(--info-width) * 247 / 1596); /* hp_bar.png 원본 비율(1596x247) 유지 */
     --info-gap:    20px; /* 표시창 하단 ~ 포켓볼 정점 사이 여백 */
-    --side-gap:    17px; /* hp_bar 좌우 테두리 ~ 타이머/CP 텍스트 사이 간격 (양쪽 동일) */
 
     /* 대결 화면 양쪽 hp바/이름표/스프라이트 치수 — 이름표 15px에 맞춰 hp바도 같은 비율(0.9375)로 줄이고,
        중앙에서 양쪽까지 거리를 30px로 좁혀 상대 이름표가 신호 아이콘·타이머와 겹치지 않게 함 */
@@ -754,37 +753,28 @@ html, body {
 /* 몬스터 이름 / 종족값 오버레이 — hp_bar.png 이미지를 그대로 표시창으로 사용 */
 #monster-info {
     position: absolute;
-    top: var(--info-top);
-    left: 50%;
-    transform: translateX(-50%);
+    top: 6px;
+    left: 45px; /* 포획 게임: 데이터 박스 이미지 왼쪽 12px이 투명이라 보이는 그림 기준으로 가로 가운데((362 − 248)/2 − 12) */
     z-index: 6;
-    width: var(--info-width);
-    height: var(--info-height);
-    background-image: url('images/pokemon/layout/hp_bar.png');
+    width: 260px;
+    height: 62px;
+    background-image: url('images/pokemon/layout/databox_thin_foe.png');
     background-size: 100% 100%;
+    background-position: 0% 0%;
     background-repeat: no-repeat;
     image-rendering: pixelated;
     pointer-events: none;
     transition: opacity 0.4s ease-in; /* 몬스터(#monster)와 동일한 페이드 속도 */
 }
 
-/* 배틀 화면 상대 데이터 박스(databox_thin_foe.png 260×62, 이름·타입·hp바 통합) — 위쪽 끝 6px(닫기 ×와 같음),
-   오른쪽 끝 320px(닫기 × 왼쪽 끝 330px과 10px 간격). 포획 게임 hp바에는 붙지 않음. 박스 안 좌표는 이미지 픽셀 그대로
-   (트랙 x136·y40, 96×6, 글자 시작 x32) */
+/* 배틀 화면 상대 데이터 박스 — 포획 게임과 같은 이미지·크기·높이(위 6px)이고 가로만 다름: 오른쪽 끝 320px(닫기 × 왼쪽 끝 330px과
+   10px 간격)이 되도록 왼쪽 60px. 박스 안 좌표는 이미지 픽셀 그대로(트랙 x136·y40, 96×6, 글자 시작 x32) */
 #monster-info.battle-hp-style {
-    top: 6px;
     left: 60px;
-    transform: none;
-    width: 260px;
-    height: 62px;
-    background-image: url('images/pokemon/layout/databox_thin_foe.png');
-    background-size: 100% 100%;
-    background-position: 0% 0%;
-    image-rendering: pixelated;
 }
 
-/* 상대 hp 트랙(데이터 박스 이미지의 빈 트랙 x136·y40, 96×6px) — 배틀 화면에서만 보임(포획 게임에선 .hidden).
-   width/background-position은 pokemon_battle.js의 hp바 공통 로직(createHpBarController)이 hp 비율에 따라 매번 갱신 */
+/* 상대 hp 트랙(데이터 박스 이미지의 빈 트랙 x136·y40, 96×6px) — 포획 게임에선 항상 가득 찬 초록(초기값 그대로),
+   배틀에선 width/background-position을 pokemon_battle.js의 hp바 공통 로직(createHpBarController)이 hp 비율에 따라 매번 갱신 */
 #monster-hp-fill {
     position: absolute;
     left: 136px;
@@ -800,35 +790,34 @@ html, body {
     image-rendering: pixelated;
 }
 
-/* 이름/종족값 텍스트: #game-container 기준 좌표로 가로는 화면 전체 폭 기준 중앙정렬(긴 이름이
-   hp바 폭 밖으로 잘리는 문제 방지), 세로는 --info-top 기준 3px 위 위치 유지 */
+/* 이름/종족값 텍스트 — 데이터 박스 안(박스 위 12px = 6 + 12, 박스 x32 → 45 + 32 = 77px). 배틀(.battle-info-style)은 박스가
+   오른쪽에 있어 왼쪽만 92px로 다름. 줄이 한계를 넘으면 pokemon_battle.js fitBattleName이 글자를 줄임 */
 #monster-info-text {
     position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: calc(var(--container-height) - 4px - var(--info-top) + 3px); /* -4px: #game-container 테두리(border: 4px solid) 보정 */
+    top: 18px;
+    left: 77px;
     z-index: 6;
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
+    line-height: var(--battle-name-line);
     white-space: nowrap;
     font-family: var(--pixel-font);
-    line-height: 20px;
     transition: opacity 0.4s ease-in; /* #monster-info와 동일한 페이드 속도 유지 */
 }
 
 /* 배틀 화면에서 상대 hp바/이름표 위치는 JS가 WILD_INFO_TOP 기준 인라인으로 지정 */
 
 #monster-name {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: bold;
     letter-spacing: 0.5px;
     color: #000;
 }
 
 #monster-bst {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: bold;
     letter-spacing: 0.5px;
     color: #e67e00;
@@ -843,21 +832,10 @@ html, body {
     gap: 3px;
 }
 
-/* 대결 화면 상대 이름표 — 내 쪽(#battle-back-info-text/#battle-back-name)과 같은 15px·줄높이·간격.
-   포획 게임 이름표(16px + CP)는 이 클래스가 안 붙으므로 그대로(pokemon_battle.js가 대결 진입/종료 때 토글) */
+/* 대결 화면 상대 이름표 — 포획 게임과 같은 줄(15px·줄높이 18px·간격 5px)이고 왼쪽만 다름: 가장 긴 이름
+   (무한다이맥스 무한다이노)도 오른쪽 한계 안에 들어오는 박스 x32 = 60 + 32 = 92px에 고정(pokemon_battle.js가 대결 진입/종료 때 토글) */
 #monster-info-text.battle-info-style {
-    gap: 5px;
-    line-height: var(--battle-name-line);
-    /* 상대 데이터 박스 안 — 박스 위 12px(= 6 + 12). 왼쪽은 패널 왼쪽 가장자리(이름 줄 높이에서 x22)에서 10px 떨어진 박스 x32
-       (= 60 + 32) 고정 — 가장 긴 이름(무한다이맥스 무한다이노)도 오른쪽 한계 안에 들어오는 위치 */
-    top: 18px;
-    bottom: auto;
     left: 92px;
-    transform: none;
-}
-
-#monster-info-text.battle-info-style #monster-name {
-    font-size: 15px;
 }
 
 /* 대결 이름표의 짧은 타입 아이콘 — types_short.png(28x560, types.png와 같은 20줄 순서, 정사각형)를
@@ -888,17 +866,18 @@ html, body {
     image-rendering: crisp-edges;
 }
 
-/* 제한시간 타이머 / 포획 CP 합계 — hp_bar와 같은 세로 라인, 좌우 여백에 배치해 hp_bar와 겹치지 않음 */
+/* 제한시간 타이머 / 포획 CP 합계 — 타이머는 배틀 화면 타이머(#battle-turn-timer)와 같은 자리·모양(왼쪽 위 6px·6px, 15px, 높이 26px),
+   CP 합계는 타이머 10px 아래에 왼쪽을 타이머와 맞춤 */
 #game-timer,
 #cp-total {
     position: absolute;
-    top: var(--info-top);
-    height: var(--info-height);
+    left: 6px;
+    height: 26px;
     display: flex;
     align-items: center;
     z-index: 6;
     font-family: var(--pixel-font);
-    font-size: 16px;
+    font-size: 15px;
     font-weight: bold;
     letter-spacing: 0.5px;
     white-space: nowrap;
@@ -916,13 +895,13 @@ html, body {
 }
 
 #game-timer {
-    right: calc(50% + var(--info-width) / 2 + var(--side-gap));
-    text-align: right;
+    top: 6px;
+    text-align: left;
     color: #ff4757;
 }
 
 #cp-total {
-    left: calc(50% + var(--info-width) / 2 + var(--side-gap));
+    top: 42px; /* 6 + 26 + 10 */
     text-align: left;
     color: #27ae60;
 }

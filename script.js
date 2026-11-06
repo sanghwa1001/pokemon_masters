@@ -308,6 +308,8 @@ function updateMonsterInfo(picked) {
     monsterOwnedBadgeEl.classList.toggle('hidden', battlePreviewActive || !alreadyOwnedExact);
     monsterInfo.classList.remove('hidden');
     monsterInfoText.classList.remove('hidden');
+    // 포획 게임: 이름 줄(포획 아이콘 + 이름 + CP)이 데이터 박스 오른쪽 한계를 넘으면 글자를 줄임(보이는 상태에서 재야 하므로 hidden 해제 뒤)
+    if (!battlePreviewActive) fitBattleName(monsterNameEl, monsterInfoText, CATCH_NAME_ROW_RIGHT, [monsterBstEl]);
 }
 
 // shiny 등장 이펙트 재생 타이머(연속으로 shiny가 나올 때 이전 재생을 안전하게 정리하기 위해 필요)

@@ -216,13 +216,17 @@ function displayBackSprite(boxEl, spriteEl, id, isShiny) {
 // 이름 글자 크기를 줄임(15px → 최소 11px, 0.5px씩). 비교는 줄 오른쪽 끝(offsetLeft + offsetWidth) 기준
 const BATTLE_NAME_FONT_MAX = 15;
 const BATTLE_NAME_FONT_MIN = 11;
-const FOE_NAME_ROW_RIGHT = 316;  // px(게임창 안쪽 기준) — 상대 박스 오른쪽 끝 320 − 여백 4
+const NAME_ROW_RIGHT_IN_BOX = 256; // px — 상대(포획 포함) 데이터 박스 안 이름 줄 오른쪽 한계(박스 x256 = 박스 오른쪽 끝 260 − 여백 4)
+const FOE_NAME_ROW_RIGHT = 60 + NAME_ROW_RIGHT_IN_BOX;   // 316 — 배틀 상대 박스 왼쪽 60px 기준(게임창 안쪽 좌표)
+const CATCH_NAME_ROW_RIGHT = 45 + NAME_ROW_RIGHT_IN_BOX; // 301 — 포획 박스 왼쪽 45px 기준
 const ME_NAME_ROW_RIGHT  = 275;  // px — 내 박스 패널의 비스듬한 오른쪽 가장자리(이름 줄 높이에서 x≈279) − 여백 4
-function fitBattleName(nameEl, rowEl, maxRight) {
-    nameEl.style.fontSize = '';
+// extraEls: 같은 줄에서 함께 줄여야 하는 글자(포획 게임의 CP 값 등). 이름과 같은 크기로 같이 줄임
+function fitBattleName(nameEl, rowEl, maxRight, extraEls = []) {
+    const els = [nameEl, ...extraEls];
+    els.forEach(el => { el.style.fontSize = ''; });
     for (let size = BATTLE_NAME_FONT_MAX - 0.5; size >= BATTLE_NAME_FONT_MIN; size -= 0.5) {
         if (rowEl.offsetLeft + rowEl.offsetWidth <= maxRight) break;
-        nameEl.style.fontSize = `${size}px`;
+        els.forEach(el => { el.style.fontSize = `${size}px`; });
     }
 }
 
@@ -2498,11 +2502,11 @@ function resetBattlePreview() {
     monsterInfo.classList.remove('battle-hp-style');
     monsterInfoText.classList.remove('battle-info-style');
     monsterNameEl.style.fontSize = '';
+    monsterBstEl.style.fontSize = '';
     battleBackNameEl.style.fontSize = '';
     // hp가 깎이는 도중(애니메이션 진행 중)에 닫혔을 수도 있으니 타이머를 반드시 정리
     aiHpBar.cancel();
     playerHpBar.cancel();
-    monsterHpFillEl.classList.add('hidden');
     monsterHpFillEl.style.width = '';
     monsterHpFillEl.style.backgroundPosition = '';
     monsterInfoText.classList.add('hidden');
