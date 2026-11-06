@@ -2054,16 +2054,18 @@ html, body {
     touch-action: pan-y !important;
 }
 
-/* 게임 로고 — 홈 계열 화면(.home-screen) 전부 같은 크기·같은 자리. 실제 파일 비율(logo.webp 843×414)을 미리
+/* 게임 로고 — 홈 계열 화면(.home-screen) 전부 같은 크기·같은 자리. 실제 파일 비율(logo.png 2880×1416)을 미리
    잡아 둬서(찌그러짐 없이), 이미지가 늦게 불러와져도 아래 버튼들이 밀려 내려가며 흔들리지 않음.
-   로고 높이는 폭×414/843, 로고와 첫 버튼 사이는 48px(= .home-screen의 gap 20px + 아래 margin-bottom 28px, 8px 격자) */
+   로고 높이는 폭×1416/2880, 로고와 첫 버튼 사이는 48px(= .home-screen의 gap 20px + 아래 margin-bottom 28px, 8px 격자).
+   logo.png는 240×118 픽셀 아트를 12배 키운 그림이라 image-rendering: pixelated로 줄여야 가장자리가 번지지 않음 */
 .home-logo {
     width: 85%;
     max-width: 320px;
     height: auto;
-    aspect-ratio: 843 / 414;
+    aspect-ratio: 2880 / 1416;
     flex-shrink: 0;
     margin-bottom: 28px;
+    image-rendering: pixelated;
 }
 
 /* =====================================================
