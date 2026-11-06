@@ -2217,10 +2217,9 @@ function prepareBattleScreen() {
 
     // 상대 데이터 박스·이름표 위치는 CSS(#monster-info.battle-hp-style, #monster-info-text.battle-info-style)가 정함
 
-    // 데이터 박스 디자인(databox_thin_foe.png + 96×6 hp 트랙)은 배틀 프리뷰에서만 적용
+    // 데이터 박스 이미지·크기·높이는 포획 게임과 같고 배틀에서는 가로 위치만 오른쪽으로 바꿈(박스 left 60px, 이름 줄 left 92px)
     monsterInfo.classList.add('battle-hp-style');
-    monsterInfoText.classList.add('battle-info-style'); // 이름 15px·줄높이 18px, 데이터 박스 안 위치(내 쪽 이름표와 같은 규칙)
-    monsterHpFillEl.classList.remove('hidden');
+    monsterInfoText.classList.add('battle-info-style');
 
     battlePreviewScreen.classList.remove('hidden');
 }
@@ -2497,8 +2496,8 @@ function resetBattlePreview() {
     // alignWildMonsterTopToHpBar()가 인라인으로 덮어쓴 위치를 원래(CSS 기본값)로 복원
     monster.style.top = '';
     monsterInfo.classList.add('hidden');
-    // 배틀 프리뷰 전용 데이터 박스 디자인(databox_thin_foe.png)을 원래(hp_bar.png)로 복원 —
-    // 그대로 두면 다음에 실제 포획 게임을 시작할 때도 이 디자인이 남아있게 됨
+    // 배틀 전용 가로 위치(박스 오른쪽, 이름 줄 x92)를 포획 게임 기본(가운데)으로 복원 —
+    // 그대로 두면 다음에 실제 포획 게임을 시작할 때도 박스가 오른쪽에 남아있게 됨
     monsterInfo.classList.remove('battle-hp-style');
     monsterInfoText.classList.remove('battle-info-style');
     monsterNameEl.style.fontSize = '';
@@ -2517,7 +2516,6 @@ function resetBattlePreview() {
     shinyEffect.style.left = '';
     // 대각선 배치용 좌우 고정 클래스/인라인 위치도 원상복구
     monster.classList.remove('battle-side-right');
-    monsterInfoText.style.bottom = '';
 
     // 액션박스를 기본 메뉴 상태로 복원
     battleMoveMenuEl.classList.add('hidden');

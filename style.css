@@ -19,9 +19,9 @@
     --container-height: 600px;
 
     /* 이름/종족값 표시창 치수 (아래 #monster-info 규칙과 동일하게 유지) */
-    --info-top:    36px; /* 텍스트(줄높이 20px) + hp바 사이 3px 여백을 두고, 상단 여백 15px = 하단(#control-panel) 여백과 동일하게 유지 */
-    --info-width:  calc(var(--monster-size) * 0.8 * 0.9); /* hp_bar.png 표시 가로 크기 (포켓몬 이미지 가로 크기의 80%에서 다시 90% 축소) */
-    --info-height: calc(var(--info-width) * 247 / 1596); /* hp_bar.png 원본 비율(1596x247) 유지 */
+    --info-top:    36px; /* 옛 hp_bar 표시창 기준 치수 — 지금은 몬스터 위치(--monster-top)와 --battle-hp-width 계산에만 씀(데이터 박스 자체 위치는 #monster-info 규칙) */
+    --info-width:  calc(var(--monster-size) * 0.8 * 0.9); /* 옛 hp_bar.png 표시 가로 크기 (포켓몬 이미지 가로 크기의 80%에서 다시 90% 축소) */
+    --info-height: calc(var(--info-width) * 247 / 1596); /* 옛 hp_bar.png 원본 비율(1596x247) 유지 */
     --info-gap:    20px; /* 표시창 하단 ~ 포켓볼 정점 사이 여백 */
 
     /* 대결 화면 양쪽 hp바/이름표/스프라이트 치수 — 이름표 15px에 맞춰 hp바도 같은 비율(0.9375)로 줄이고,
@@ -750,7 +750,7 @@ html, body {
 /* 숨김 */
 .hidden { display: none !important; }
 
-/* 몬스터 이름 / 종족값 오버레이 — hp_bar.png 이미지를 그대로 표시창으로 사용 */
+/* 몬스터 이름 / 종족값 데이터 박스(databox_thin_foe.png 260×62) — 포획 게임 기본 위치, 배틀은 아래 .battle-hp-style이 가로만 바꿈 */
 #monster-info {
     position: absolute;
     top: 6px;
@@ -806,8 +806,6 @@ html, body {
     font-family: var(--pixel-font);
     transition: opacity 0.4s ease-in; /* #monster-info와 동일한 페이드 속도 유지 */
 }
-
-/* 배틀 화면에서 상대 hp바/이름표 위치는 JS가 WILD_INFO_TOP 기준 인라인으로 지정 */
 
 #monster-name {
     font-size: 15px;
