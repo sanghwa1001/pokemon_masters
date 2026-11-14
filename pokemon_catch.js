@@ -313,18 +313,10 @@ function initGame(preselected, onSpriteReady) {
 
     // 몬스터 + hp바를 투명한 상태로 초기화한 뒤, 도망치기와 동일한 페이드인 효과로 나타나게 함
     monster.classList.remove('captured', 'hidden');
-    monster.style.transition = 'none';
+    monster.style.transition = 'none'; // transform을 되돌릴 때 이동 트랜지션이 재생되지 않게 먼저 끔
     monster.style.transform  = '';
-    monster.style.opacity    = '0';
-    monsterInfo.style.transition = 'none';
-    monsterInfoText.style.transition = 'none';
-    monsterInfo.style.opacity    = '0';
-    monsterInfoText.style.opacity    = '0';
-    void monster.offsetHeight;
-    monster.style.transition = '';
+    hideInstantly([monster, monsterInfo, monsterInfoText]);
     monster.style.opacity    = '1';
-    monsterInfo.style.transition = '';
-    monsterInfoText.style.transition = '';
     monsterInfo.style.opacity    = '1';
     monsterInfoText.style.opacity    = '1';
 

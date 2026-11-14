@@ -154,10 +154,10 @@ html, body {
     gap: 12px;
 }
 
-/* 화면 전체를 덮는 반투명 모달 배경 공용 — z-index만 아래에 따로(.mp-modal은 도감 위에 떠야 해서 한 단계 높음) */
+/* 화면 전체를 덮는 반투명 모달 배경 공용 — z-index만 아래에 따로(.mp-modal은 도감 위에 떠야 해서 한 단계 높음).
+   도감(#dex-modal)은 어두운 배경 없는 전체 화면이라 이 규칙을 쓰지 않고 아래 도감 부분에서 따로 정의함 */
 #quiz-modal,
 #captured-modal,
-#dex-modal,
 #battle-status-modal,
 .mp-modal {
     position: absolute;
@@ -178,10 +178,10 @@ html, body {
     z-index: 40;
 }
 
-/* 모달 박스 뼈대 공용(흰 배경 + 검정 테두리 + 픽셀 폰트) — 크기·레이아웃은 아래에 각자 */
+/* 모달 박스 뼈대 공용(흰 배경 + 검정 테두리 + 픽셀 폰트) — 크기·레이아웃은 아래에 각자(도감 #dex-box는 테두리 없는
+   전체 화면이라 이 규칙을 쓰지 않음) */
 #quiz-box,
 #captured-box,
-#dex-box,
 #battle-status-box,
 .mp-box {
     position: relative;
@@ -1015,15 +1015,22 @@ html, body {
    테두리는 #game-container의 것을 씀(icon_own.png는 포획 완료 배지에 씀)
    ===================================================== */
 #dex-modal {
-    align-items: stretch;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
     background-color: #ffffff;
 }
 
 #dex-box {
+    position: relative;
+    box-sizing: border-box;
     width: 100%;
     height: 100%;
-    border: none;
-    border-radius: 0;
+    background-color: #ffffff;
+    font-family: var(--pixel-font);
     /* 위쪽 34px — 모서리의 닫기/뒤로가기 버튼(top 6 + 26px)이 검색창과 겹치지 않게 */
     padding: 34px 14px 18px;
     display: flex;

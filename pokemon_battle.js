@@ -939,15 +939,6 @@ function handleFaint(side, onDone) {
     }
 }
 
-// 보이지 않는 상태(첫 등장 전·기절해 땅 밑으로 내려간 뒤)로 등장하는 쪽의 요소들을 즉시 투명으로 만듦 — 눈에 보이는
-// 교체처럼 400ms 페이드아웃을 기다리면 화면은 안 바뀌는 빈 시간만 생겨 선언 멘트와 등장 사이 간격이 길어짐.
-// 트랜지션을 잠깐 끄고 한 프레임을 강제로 그려 둬야 나중에 opacity 1로 바꿀 때 페이드인이 정상 재생됨
-function hideInstantly(els) {
-    els.forEach(el => { el.style.transition = 'none'; el.style.opacity = '0'; });
-    void els[0].offsetHeight;
-    els.forEach(el => { el.style.transition = ''; });
-}
-
 // 상대(AI)를 지정한 포켓몬으로 내보냄 — 기절 교체와 자진 교체가 같이 씀.
 // fromHidden: 지금 전장에 상대가 보이지 않는 상태(첫 등장·기절 뒤)라 페이드아웃 없이 바로 등장 준비
 function switchAiToIndex(targetIndex, onDone, fromHidden = false) {

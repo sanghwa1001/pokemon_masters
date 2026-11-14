@@ -115,6 +115,15 @@ function loadImage(src, timeoutMs = PRELOAD_TIMEOUT_MS) {
     });
 }
 
+// 요소들을 즉시 투명으로 만들어 두는 페이드인 준비 — 포획 게임의 다음 몬스터 등장과 배틀의 첫 등장·기절 뒤 등장이 같이 씀.
+// 트랜지션을 잠깐 끄고 한 프레임을 강제로 그려 둬야(offsetHeight 읽기) 나중에 opacity를 올릴 때 페이드인이 정상 재생됨.
+// 눈에 보이는 교체처럼 페이드아웃을 기다리면 화면은 안 바뀌는 빈 시간만 생기므로, 이미 안 보이는 쪽은 이 함수로 건너뜀
+function hideInstantly(els) {
+    els.forEach(el => { el.style.transition = 'none'; el.style.opacity = '0'; });
+    void els[0].offsetHeight;
+    els.forEach(el => { el.style.transition = ''; });
+}
+
 // 초 단위 정수를 "mm:ss"로 표시
 function formatMMSS(sec) {
     const m = Math.floor(sec / 60);
