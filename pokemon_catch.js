@@ -21,7 +21,6 @@ const resultWrongEl  = document.getElementById('result-wrong');
 const resultHomeBtn  = document.getElementById('result-home-btn');
 const retryBtn       = document.getElementById('retry-btn');
 const capturedListBtn = document.getElementById('captured-list-btn');
-const dexBtnResult    = document.getElementById('dex-btn-result');
 
 // 포획한 포켓몬 목록 모달 요소
 const capturedModal    = document.getElementById('captured-modal');
@@ -58,8 +57,6 @@ const SHAKE_DURATION          = 450;  // ms - catch.gif 1회 재생 시간 (catc
 const SHAKE_PAUSE             = 350;  // ms - 흔들림 사이 또는 탈출 전 대기 시간
 const CAPTURE_CHAR_DELAY      = 42;   // ms - 포획 메시지 한 글자당 타이핑 속도
 const CAPTURE_MESSAGE_WAIT    = 1000; // ms - 메시지 완성 후 다음 몬스터로 넘어가기까지 대기 시간
-
-if (dexBtnResult) dexBtnResult.addEventListener('click', openDexModalNormal);
 
 // 몬스터 등장 카테고리 확률 (합 1.0)
 const CATEGORY_RATE = { gmax: 0.005, mega: 0.025, normal: 0.97 };

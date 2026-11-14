@@ -656,8 +656,8 @@ dexCheatInputEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') applyDexCheatCode();
 });
 
-// 도감 모달을 목록 화면부터 새로 여는 공용 진입점 — 시작화면의 dex-btn과 결과화면의
-// dex-btn-result 양쪽에서 동일하게 사용함. 열 때마다 검색어를 초기화해서 매번 전체 목록부터 보임
+// 도감 모달을 목록 화면부터 새로 여는 공용 진입점 — 시작화면의 dex-btn(일반 보기)과 배틀 선택 모드가
+// 같이 씀. 열 때마다 검색어를 초기화해서 매번 전체 목록부터 보임
 function openDexModal() {
     dexSearchQuery = '';
     dexSearchInputEl.value = '';
@@ -668,7 +668,7 @@ function openDexModal() {
     dexModal.classList.remove('hidden');
 }
 
-// "포켓몬 도감" 버튼(시작화면/결과화면)은 항상 일반 브라우징 모드로 염 — 혹시 배틀 선택 모드가
+// "포켓몬 도감" 버튼(시작화면)은 항상 일반 브라우징 모드로 염 — 혹시 배틀 선택 모드가
 // 켜진 채로 남아있어도(정상 흐름에서는 그럴 일 없지만 방어적으로) 여기서 확실히 끔
 function openDexModalNormal() {
     dexPickerMode = false;
