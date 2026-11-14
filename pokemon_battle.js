@@ -274,7 +274,9 @@ const BATTLE_DMG_BONUS_MAX = 10;   // bst 최고(770)일 때 보너스
 const BATTLE_DMG_BONUS_MEGA_GMAX = 15;
 const BATTLE_HP_BAR_CHANGE_TIME = 1000 / 2; // ms
 const BATTLE_MESSAGE_CHAR_DELAY = CAPTURE_CHAR_DELAY; // ms/글자 — 포획 메시지와 동일한 속도로 통일
-const BATTLE_MESSAGE_HOLD = 650; // 메시지 다 타이핑된 뒤 다음 메시지로 넘어가기 전 대기시간(ms)
+// 메시지가 다 타이핑된 뒤 다음 메시지·연출로 넘어가기 전 대기시간(ms) — 선언 멘트(공격!·랭크업!·회복!·교체·가랏!·내보냈다!)와
+// 연출 사이 간격도 이 값 하나로 통일(등장 연출의 보이지 않는 페이드아웃 대기는 hideInstantly로 건너뜀)
+const BATTLE_MESSAGE_HOLD = 500;
 // 승패·끊김 멘트처럼 다 보인 뒤 결과 화면/시작 화면으로 넘어가는 멘트만 쓰는 대기시간(ms) — 화면이
 // 바뀌기 전에 한 박자 더 머물게 함(함께하기 선택창 끊김 안내는 별도 값 MP_PICKER_DISCONNECT_HOLD_MS)
 const BATTLE_SCREEN_TRANSITION_HOLD = 1000;
@@ -937,8 +939,18 @@ function handleFaint(side, onDone) {
     }
 }
 
-// 상대(AI)를 지정한 포켓몬으로 내보냄 — 기절 교체와 자진 교체가 같이 씀
-function switchAiToIndex(targetIndex, onDone) {
+// 보이지 않는 상태(첫 등장 전·기절해 땅 밑으로 내려간 뒤)로 등장하는 쪽의 요소들을 즉시 투명으로 만듦 — 눈에 보이는
+// 교체처럼 400ms 페이드아웃을 기다리면 화면은 안 바뀌는 빈 시간만 생겨 선언 멘트와 등장 사이 간격이 길어짐.
+// 트랜지션을 잠깐 끄고 한 프레임을 강제로 그려 둬야 나중에 opacity 1로 바꿀 때 페이드인이 정상 재생됨
+function hideInstantly(els) {
+    els.forEach(el => { el.style.transition = 'none'; el.style.opacity = '0'; });
+    void els[0].offsetHeight;
+    els.forEach(el => { el.style.transition = ''; });
+}
+
+// 상대(AI)를 지정한 포켓몬으로 내보냄 — 기절 교체와 자진 교체가 같이 씀.
+// fromHidden: 지금 전장에 상대가 보이지 않는 상태(첫 등장·기절 뒤)라 페이드아웃 없이 바로 등장 준비
+function switchAiToIndex(targetIndex, onDone, fromHidden = false) {
     activeAiIndex = targetIndex;
     aiRank = 0;
     aiHealUses = 0;
@@ -955,11 +967,17 @@ function switchAiToIndex(targetIndex, onDone) {
         monster.classList.remove('hidden');
         monsterInfo.classList.remove('hidden');
         monsterInfoText.classList.remove('hidden');
-        monster.style.opacity = '0';
-        monsterInfo.style.opacity = '0';
-        monsterInfoText.style.opacity = '0';
+        if (fromHidden) {
+            hideInstantly([monster, monsterInfo, monsterInfoText]);
+        } else {
+            monster.style.opacity = '0';
+            monsterInfo.style.opacity = '0';
+            monsterInfoText.style.opacity = '0';
+        }
 
-        const fadeOutPromise = new Promise(resolve => setTimeout(resolve, MONSTER_SHRINK_DURATION));
+        const fadeOutPromise = fromHidden
+            ? Promise.resolve()
+            : new Promise(resolve => setTimeout(resolve, MONSTER_SHRINK_DURATION));
 
         Promise.all([fadeOutPromise, preloadPromise]).then(battleCallback(() => {
             stopShinyAnimation();
@@ -1001,7 +1019,7 @@ function autoSwitchAiNext(onDone) {
         const score = scoreBenchCandidate(pInfo, 0, p.hp / BATTLE_MON_MAX_HP, foeInfo, playerRank);
         if (score > bestScore) { bestScore = score; bestIdx = idx; }
     });
-    switchAiToIndex(bestIdx, onDone);
+    switchAiToIndex(bestIdx, onDone, true); // 기절 뒤라 상대가 보이지 않는 상태
 }
 
 // 내 포켓몬이 기절했을 때 — 자진 교체와 같은 이름 버튼 목록을 쓰되 뒤로가기는 숨김(취소 불가)
@@ -1039,18 +1057,25 @@ function endBattleWithResult(didWin) {
     }, BATTLE_SCREEN_TRANSITION_HOLD);
 }
 
-// 내 포켓몬을 battleParty[targetIndex]로 교체(페이드아웃 → 미리 로드 → 페이드인). 멘트는 호출하는 쪽 책임
-function applyPlayerSwitch(targetIndex, onDone) {
+// 내 포켓몬을 battleParty[targetIndex]로 교체(페이드아웃 → 미리 로드 → 페이드인). 멘트는 호출하는 쪽 책임.
+// fromHidden: 지금 전장에 내 포켓몬이 보이지 않는 상태(첫 등장·기절 뒤)라 페이드아웃 없이 바로 등장 준비
+function applyPlayerSwitch(targetIndex, onDone, fromHidden = false) {
     const entry = battleParty[targetIndex];
     // displayBackSprite()가 쓰는 1차 후보 경로를 미리 로드(폴백은 displayBackSprite()가 알아서 재시도)
     const backOff = backSpriteInfo(entry.id, entry.isShiny);
     const preloadPromise = backOff ? loadImage(backOff.src) : Promise.resolve();
 
-    battleBackSpriteBoxEl.style.opacity = '0';
-    battleBackInfoEl.style.opacity = '0';
-    battleBackInfoTextEl.style.opacity = '0';
+    if (fromHidden) {
+        hideInstantly([battleBackSpriteBoxEl, battleBackInfoEl, battleBackInfoTextEl]);
+    } else {
+        battleBackSpriteBoxEl.style.opacity = '0';
+        battleBackInfoEl.style.opacity = '0';
+        battleBackInfoTextEl.style.opacity = '0';
+    }
 
-    const fadeOutPromise = new Promise(resolve => setTimeout(resolve, MONSTER_SHRINK_DURATION));
+    const fadeOutPromise = fromHidden
+        ? Promise.resolve()
+        : new Promise(resolve => setTimeout(resolve, MONSTER_SHRINK_DURATION));
 
     Promise.all([fadeOutPromise, preloadPromise]).then(battleCallback(() => {
         activePartyIndex = targetIndex;
@@ -1484,7 +1509,7 @@ function mpWaitForcedSwitch(onDone) {
         let idx = data && data.idx;
         const target = aiParty[idx];
         if (!target || target.fainted) idx = aiParty.findIndex(p => !p.fainted);
-        switchAiToIndex(idx, onDone);
+        switchAiToIndex(idx, onDone, true); // 상대가 기절한 뒤의 강제 교체
     }));
 }
 
@@ -1951,13 +1976,14 @@ function renderBattleSwitchInlineMenu() {
                     battleAnimating = true; // 이미 보낸 선택의 연출은 끝까지 재생
                 }
                 // 배틀 시작 등장과 같은 "가랏! ~!" 멘트 후 등장 — 상대 쪽은 같은 시점에 "상대가 ~을(를)
-                // 내보냈다!" 멘트 후 등장하므로(switchAiToIndex) 함께하기에서 양쪽 타이밍이 맞음
+                // 내보냈다!" 멘트 후 등장하므로(switchAiToIndex) 함께하기에서 양쪽 타이밍이 맞음.
+                // 두 쪽 모두 보이지 않는 상태에서 나오니 fromHidden으로 페이드아웃 대기를 건너뜀
                 showBattleMessage(`가랏! ${info.name}!`, () => {
                     applyPlayerSwitch(idx, () => {
                         const cb = pendingForcedSwitchCallback;
                         pendingForcedSwitchCallback = null;
                         if (cb) cb();
-                    });
+                    }, true); // 내 포켓몬이 기절한 뒤의 강제 교체
                 });
                 return;
             }
@@ -2302,9 +2328,9 @@ function playBattleIntro() {
                 battleMessageBoxEl.textContent = '';
                 battleMainMenuEl.classList.remove('hidden');
                 startMyActionDeadline();
-            });
+            }, true); // 첫 등장이라 내 쪽은 아직 보이지 않음
         });
-    });
+    }, true);         // 첫 등장이라 상대도 아직 보이지 않음
 }
 
 // ===================== 상태 확인 오버레이 =====================
