@@ -276,7 +276,7 @@ const BATTLE_HP_BAR_CHANGE_TIME = 1000 / 2; // ms
 const BATTLE_MESSAGE_CHAR_DELAY = CAPTURE_CHAR_DELAY; // ms/글자 — 포획 메시지와 동일한 속도로 통일
 // 메시지가 다 타이핑된 뒤 다음 메시지·연출로 넘어가기 전 대기시간(ms) — 선언 멘트(공격!·랭크업!·회복!·교체·가랏!·내보냈다!)와
 // 연출 사이 간격도 이 값 하나로 통일(등장 연출의 보이지 않는 페이드아웃 대기는 hideInstantly로 건너뜀)
-const BATTLE_MESSAGE_HOLD = 500;
+const BATTLE_MESSAGE_HOLD = 600;
 // 승패·끊김 멘트처럼 다 보인 뒤 결과 화면/시작 화면으로 넘어가는 멘트만 쓰는 대기시간(ms) — 화면이
 // 바뀌기 전에 한 박자 더 머물게 함(함께하기 선택창 끊김 안내는 별도 값 MP_PICKER_DISCONNECT_HOLD_MS)
 const BATTLE_SCREEN_TRANSITION_HOLD = 1000;
