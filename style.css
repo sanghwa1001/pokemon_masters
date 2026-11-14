@@ -337,8 +337,8 @@ html, body {
 /* 포획한 포켓몬 목록 모달 */
 #captured-box {
     width: 300px;
-    /* 도감 창(#dex-box)과 동일하게 고정 height로 맞춰서, 포획한 포켓몬 수가 적어도 창 크기가
-       줄어들지 않고 항상 같은 크기를 유지하도록 함(#captured-list가 flex:1로 남는 공간을 채움) */
+    /* 고정 height라 포획한 포켓몬 수가 적어도 창 크기가 줄어들지 않고 항상 같은 크기를 유지함
+       (#captured-list가 flex:1로 남는 공간을 채움) */
     height: 480px;
     padding: 28px 14px 18px;
     text-align: center;
@@ -1011,30 +1011,33 @@ html, body {
 }
 
 /* =====================================================
-   📖 포켓몬 도감 — "포획한 포켓몬" 창과 같은 디자인(icon_own.png는 포획 완료 배지에 씀)
+   📖 포켓몬 도감 — 게임 화면 전체(안쪽 362×592)를 채우는 전체 화면. 어두운 배경 없이 흰 바탕이고
+   테두리는 #game-container의 것을 씀(icon_own.png는 포획 완료 배지에 씀)
    ===================================================== */
+#dex-modal {
+    align-items: stretch;
+    background-color: #ffffff;
+}
+
 #dex-box {
-    width: 300px;
-    /* 높이 auto — 선택 모드에서 슬롯 바만큼 길어지고, 일반 모드는 #dex-core 고정 높이로 480px */
-    height: auto;
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 0;
     /* 위쪽 34px — 모서리의 닫기/뒤로가기 버튼(top 6 + 26px)이 검색창과 겹치지 않게 */
     padding: 34px 14px 18px;
     display: flex;
     flex-direction: column;
 }
 
-/* 도감 본문 래퍼 — 콘텐츠 높이 420px 고정(480 - 34 - 18 - 8)이라 선택 모드의 슬롯 바는 박스만 늘림.
+/* 도감 본문 래퍼 — 남는 높이를 채움(선택 모드의 슬롯 바·버튼 줄은 이 아래에 붙고 그만큼 본문이 줄어듦).
+   min-height 0이 있어야 목록(#dex-list)이 박스 밖으로 밀리지 않고 안에서 스크롤됨.
    position static이라 모서리 버튼들은 계속 #dex-box 기준으로 배치됨 */
 #dex-core {
-    height: 420px;
-    flex-shrink: 0;
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-}
-
-/* 선택 모드에서는 "잡음" 줄을 숨기고 그만큼(32px) #dex-core를 줄임 — 슬롯 바가 들어가도 게임 프레임 밖으로 안 넘치게 */
-#dex-box.picker-mode #dex-core {
-    height: calc(420px - 20px - 12px); /* 388px */
 }
 
 /* 선택 모드에서 마지막 버튼 줄 아래 여백을 위쪽 간격(12px)과 맞춤 */
@@ -1084,7 +1087,7 @@ html, body {
    좌우 폭에 맞춰 양 끝 정렬함(검색과 무관하게 항상 전체 기준 숫자를 보여줌) */
 #dex-count-bar {
     flex-shrink: 0;
-    height: 20px; /* 명시적 높이 — #dex-box.picker-mode #dex-core 높이 계산에서 정확히 뺄 수 있도록 */
+    height: 20px; /* 줄이 찌그러지지 않는 명시적 높이 */
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1125,6 +1128,7 @@ html, body {
 
 #dex-list {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
