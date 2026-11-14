@@ -899,8 +899,15 @@ battleMoveBackBtn.addEventListener('click', () => {
 
 // ===================== 턴 진행 =====================
 
-// 기절 처리: 기절 연출 → 멘트 → (전멸이면 승패, 아니면 교체) → onDone.
-// 실제 게임처럼 먼저 쓰러지고 멘트가 뜨는 순서
+// 기절한 쪽의 데이터 박스(이름 줄 포함)를 서서히 숨김 — 원작도 기절 연출(그림이 가라앉는 동안)에 데이터 박스가
+// 함께 사라짐(DataBoxDisappear). 페이드 시간은 CSS의 opacity 0.4s(ease-in)가 정함
+function fadeOutDataBox(side) {
+    const els = side === 'ai' ? [monsterInfo, monsterInfoText] : [battleBackInfoEl, battleBackInfoTextEl];
+    els.forEach(el => { el.style.opacity = '0'; });
+}
+
+// 기절 처리: 기절 연출(그림이 가라앉는 동안 데이터 박스도 같이 페이드아웃) → 멘트 → (전멸이면 승패, 아니면 교체) → onDone.
+// 연출 뒤 멘트가 뜨는 순서이고, 박스는 연출과 동시에 사라지므로 멘트가 뜰 때는 거의 사라진 상태
 function handleFaint(side, onDone) {
     const name = side === 'ai'
         ? `상대 ${(POKEMON_DATA[aiParty[activeAiIndex].id] || {}).name || '???'}`
@@ -932,6 +939,7 @@ function handleFaint(side, onDone) {
 
     const showFaintMessage = () => showBattleMessage(`${name}이(가) 쓰러졌다!`, afterVisual);
 
+    fadeOutDataBox(side);
     if (side === 'ai') {
         playAiFaintAnimation(showFaintMessage);
     } else {
@@ -940,7 +948,8 @@ function handleFaint(side, onDone) {
 }
 
 // 상대(AI)를 지정한 포켓몬으로 내보냄 — 기절 교체와 자진 교체가 같이 씀.
-// fromHidden: 지금 전장에 상대가 보이지 않는 상태(첫 등장·기절 뒤)라 페이드아웃 없이 바로 등장 준비
+// fromHidden: 지금 전장에 상대가 보이지 않는 상태(첫 등장·기절 뒤 — 그림은 땅 밑, 데이터 박스는 handleFaint에서 이미
+// 페이드아웃 시작)라 페이드아웃 없이 바로 등장 준비
 function switchAiToIndex(targetIndex, onDone, fromHidden = false) {
     activeAiIndex = targetIndex;
     aiRank = 0;
@@ -1049,7 +1058,8 @@ function endBattleWithResult(didWin) {
 }
 
 // 내 포켓몬을 battleParty[targetIndex]로 교체(페이드아웃 → 미리 로드 → 페이드인). 멘트는 호출하는 쪽 책임.
-// fromHidden: 지금 전장에 내 포켓몬이 보이지 않는 상태(첫 등장·기절 뒤)라 페이드아웃 없이 바로 등장 준비
+// fromHidden: 지금 전장에 내 포켓몬이 보이지 않는 상태(첫 등장·기절 뒤 — 그림은 땅 밑, 데이터 박스는 handleFaint에서
+// 이미 페이드아웃 시작)라 페이드아웃 없이 바로 등장 준비
 function applyPlayerSwitch(targetIndex, onDone, fromHidden = false) {
     const entry = battleParty[targetIndex];
     // displayBackSprite()가 쓰는 1차 후보 경로를 미리 로드(폴백은 displayBackSprite()가 알아서 재시도)
@@ -1879,6 +1889,7 @@ function renderBattleActivesInstant() {
     monster.style.opacity = foe.fainted ? '0' : '';
     monsterInfo.style.opacity = '';
     monsterInfoText.style.opacity = '';
+    if (foe.fainted) hideInstantly([monsterInfo, monsterInfoText]); // 기절해 있는 쪽은 데이터 박스도 숨김(정상 진행과 같은 상태)
     displayMonsterSprite(monster, monsterObj.src, monsterObj.id, battleCallback(() => {
         alignWildMonsterTopToHpBar(monsterObj);
         if (monsterObj.isShiny && !foe.fainted) playShinyEffect();
@@ -1901,6 +1912,7 @@ function renderBattleActivesInstant() {
     battleBackSpriteBoxEl.style.opacity = me.fainted ? '0' : '';
     battleBackInfoEl.style.opacity = '';
     battleBackInfoTextEl.style.opacity = '';
+    if (me.fainted) hideInstantly([battleBackInfoEl, battleBackInfoTextEl]); // 기절해 있는 쪽은 데이터 박스도 숨김
     updateBattleSwitchBtnState();
 }
 
@@ -2498,6 +2510,8 @@ function resetBattlePreview() {
     battleBackSpriteBoxEl.style.opacity = '';
     battleBackInfoEl.style.opacity = '';
     battleBackInfoTextEl.style.opacity = '';
+    monsterInfo.style.opacity = '';       // handleFaint가 남겼을 수 있는 상대 데이터 박스 투명도도 정리
+    monsterInfoText.style.opacity = '';
     battleBackHpFillEl.style.width = '';
     battleBackHpFillEl.style.backgroundPosition = '';
 
